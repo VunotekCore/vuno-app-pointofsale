@@ -1,0 +1,12 @@
+/**
+ * Base error class for application errors
+ * @extends Error
+ */
+export class AppError extends Error {
+  constructor (message, statusCode) {
+    super(message)
+    this.statusCode = statusCode
+    this.status = 'error'
+    this.isOperational = true
+  }
+}
