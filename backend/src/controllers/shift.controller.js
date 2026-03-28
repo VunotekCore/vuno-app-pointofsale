@@ -1,0 +1,141 @@
+export class ShiftController {
+  constructor(shiftModel) {
+    this.shiftModel = shiftModel
+  }
+
+  async getShiftConfigs(req, res, next) {
+    try {
+      const { location_id } = req.query
+      const configs = await this.shiftModel.getShiftConfigs(location_id || null)
+      res.status(200).json({ success: true, data: configs, total: configs.length })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getShiftConfig(req, res, next) {
+    try {
+      const { id } = req.params
+      const config = await this.shiftModel.getShiftConfigById(id)
+      res.status(200).json({ success: true, data: config })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async createShiftConfig(req, res, next) {
+    try {
+      const config = await this.shiftModel.createShiftConfig(req.body)
+      res.status(201).json({ success: true, message: 'Turno creado', data: config })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async updateShiftConfig(req, res, next) {
+    try {
+      const { id } = req.params
+      const config = await this.shiftModel.updateShiftConfig(id, req.body)
+      res.status(200).json({ success: true, message: 'Turno actualizado', data: config })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async deleteShiftConfig(req, res, next) {
+    try {
+      const { id } = req.params
+      await this.shiftModel.deleteShiftConfig(id)
+      res.status(200).json({ success: true, message: 'Turno eliminado' })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getActiveShift(req, res, next) {
+    try {
+      const { location_id } = req.query
+      if (!location_id) {
+        return res.status(400).json({ success: false, message: 'Location ID requerido' })
+      }
+      const shift = await this.shiftModel.getActiveShiftForLocation(location_id)
+      res.status(200).json({ success: true, data: shift })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getOpenSession(req, res, next) {
+    try {
+      const { location_id } = req.query
+      if (!location_id) {
+        return res.status(400).json({ success: false, message: 'Location ID requerido' })
+      }
+      const session = await this.shiftModel.getOpenShiftSession(location_id)
+      res.status(200).json({ success: true, data: session })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async openSession(req, res, next) {
+    try {
+      const { location_id } = req.body
+      if (!location_id) {
+        return res.status(400).json({ success: false, message: 'Location ID requerido' })
+      }
+      const session = await this.shiftModel.openShift(location_id, req.userId)
+      res.status(201).json({ success: true, message: 'Turno abierto', data: session })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async closeSession(req, res, next) {
+    try {
+      const { id } = req.params
+      const { closing_amount, notes } = req.body
+      
+      if (closing_amount === undefined || closing_amount === null) {
+        return res.status(400).json({ success: false, message: 'Closing amount requerido' })
+      }
+      
+      const session = await this.shiftModel.closeShift(id, parseFloat(closing_amount), notes)
+      res.status(200).json({ success: true, message: 'Turno cerrado', data: session })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getSessions(req, res, next) {
+    try {
+      const { location_id, start_date, end_date } = req.query
+      
+      if (!location_id) {
+        return res.status(400).json({ success: false, message: 'Location ID requerido' })
+      }
+      
+      const sessions = await this.shiftModel.getShiftSessions(
+        location_id,
+        start_date,
+        end_date
+      )
+      res.status(200).json({ success: true, data: sessions, total: sessions.length })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async getCloseReminders(req, res, next) {
+    try {
+      const { location_id } = req.query
+      if (!location_id) {
+        return res.status(400).json({ success: false, message: 'Location ID requerido' })
+      }
+      const shifts = await this.shiftModel.getShiftsNeedingCloseReminder(location_id)
+      res.status(200).json({ success: true, data: shifts })
+    } catch (error) {
+      next(error)
+    }
+  }
+}

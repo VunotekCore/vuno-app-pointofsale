@@ -1,0 +1,83 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #effdf6;
+  --color-brand-100: #d6fbe4;
+  --color-brand-200: #acf7c9;
+  --color-brand-300: #72f1a7;
+  --color-brand-400: #42e882;
+  --color-brand-500: #0b9257;
+  --color-brand-600: #087d4a;
+  --color-brand-700: #066339;
+  --color-brand-800: #04492a;
+  --color-brand-900: #022c19;
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+@layer components {
+  .form-input, .input-field {
+    @apply w-full rounded-xl border border-slate-200 dark:border-slate-700 
+           bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 
+           shadow-sm transition-all outline-none 
+           focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 
+           placeholder-slate-400 dark:placeholder-slate-500;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 
+           bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm 
+           rounded-xl transition-all duration-200 
+           hover:shadow-lg hover:shadow-brand-500/30
+           focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 
+           dark:focus:ring-offset-slate-900
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 
+           bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 
+           text-slate-700 dark:text-slate-200 font-semibold text-sm 
+           rounded-xl transition-all duration-200
+           hover:bg-slate-50 dark:hover:bg-slate-700
+           focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+           dark:focus:ring-offset-slate-900;
+  }
+
+  .card {
+    @apply bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 
+           shadow-sm transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400 dark:bg-slate-600;
+}
