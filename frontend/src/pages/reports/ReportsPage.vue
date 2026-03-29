@@ -370,9 +370,10 @@ function exportData(format) {
   if (activeTab.value === 'inventory' && statusFilter.value) {
     params.append('movement_type', statusFilter.value)
   }
-
+  const API_URL = import.meta.env.VITE_APP_URL
+  const API_PORT = import.meta.env.VITE_APP_PORT
   const token = localStorage.getItem('token')
-  const baseUrl = `${import.meta.env.VITE_APP_URL}:${import.meta.env.VITE_APP_PORT}/reports/${activeTab.value}/export`
+  const baseUrl = PORT ?  `${API_URL}:${API_PORT}/reports/${activeTab.value}/export` : `${API_URL}/reports/${activeTab.value}/export`
   const url = `${baseUrl}?${params.toString()}&format=${format}`
   
   window.open(url, '_blank')
