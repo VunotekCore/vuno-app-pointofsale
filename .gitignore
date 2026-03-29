@@ -28,6 +28,7 @@ dist-ssr
 
 # Environment
 .env
+.env.production
 AGENTS.md
 docs
 production_dump.sql
