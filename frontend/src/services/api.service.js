@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_APP_URL
 const PORT = import.meta.env.VITE_APP_PORT
 
 const api = axios.create({
-  baseURL: `${API_URL}:${PORT}`,
+  baseURL: PORT ? `${API_URL}:${PORT}` : API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -92,7 +92,7 @@ export const offlineApi = {
   get: (url, config) => api.get(url, config),
   put: (url, data) => api.put(url, data),
   delete: (url) => api.delete(url),
-  
+
   async uploadCompanyLogo(imageData) {
     const response = await api.post('/companies/logo', imageData)
     return response.data
