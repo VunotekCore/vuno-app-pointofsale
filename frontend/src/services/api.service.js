@@ -6,11 +6,7 @@ const API_URL = import.meta.env.VITE_APP_URL
 const PORT = import.meta.env.VITE_APP_PORT
 
 const api = axios.create({
-<<<<<<< HEAD
-  baseURL: `${API_URL}:${PORT}`,
-=======
   baseURL: PORT ? `${API_URL}:${PORT}` : API_URL,
->>>>>>> develop
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
@@ -97,7 +93,7 @@ export const offlineApi = {
   put: (url, data) => api.put(url, data),
   delete: (url) => api.delete(url),
 <<<<<<< HEAD
-  
+
 =======
 
 >>>>>>> develop
