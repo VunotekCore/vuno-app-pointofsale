@@ -4,7 +4,11 @@ const PLATFORM_API_URL = import.meta.env.VITE_APP_URL
 const PLATFORM_PORT = import.meta.env.VITE_APP_PORT
 
 const platformApi = axios.create({
+<<<<<<< HEAD
   baseURL: `${PLATFORM_API_URL}:${PLATFORM_PORT}`,
+=======
+  baseURL: PORT ? `${PLATFORM_API_URL}:${PLATFORM_PORT}` : PLATFORM_API_URL,
+>>>>>>> develop
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
