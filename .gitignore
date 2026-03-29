@@ -28,14 +28,8 @@ dist-ssr
 
 # Environment
 .env
-<<<<<<< HEAD
 .env.production
 AGENTS.md
 docs
 production_dump.sql
 migrations
-=======
-AGENTS.md
-docs
-production_dump.sql
->>>>>>> develop
