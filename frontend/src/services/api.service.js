@@ -92,11 +92,7 @@ export const offlineApi = {
   get: (url, config) => api.get(url, config),
   put: (url, data) => api.put(url, data),
   delete: (url) => api.delete(url),
-<<<<<<< HEAD
 
-=======
-
->>>>>>> develop
   async uploadCompanyLogo(imageData) {
     const response = await api.post('/companies/logo', imageData)
     return response.data
