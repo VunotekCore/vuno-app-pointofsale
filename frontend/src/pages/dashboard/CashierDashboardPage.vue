@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import {
   ShoppingCart,
@@ -14,6 +15,7 @@ import {
 
 const router = useRouter()
 const authStore = useAuthStore()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -29,16 +31,8 @@ const formattedDate = today.toLocaleDateString('es-ES', {
   month: 'short'
 })
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN'
-  }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const fetchDashboard = async () => {
   loading.value = true
@@ -57,6 +51,7 @@ const goToPOS = () => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchDashboard()
 })
 </script>
@@ -124,13 +119,13 @@ onMounted(async () => {
             <Zap class="w-5 h-5 text-yellow-500" />
             Resumen Rápido
           </h3>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center">
-              <p class="text-3xl font-bold text-slate-900 dark:text-white">{{ dashboard.daily?.transactions || 0 }}</p>
+              <p class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white truncate">{{ dashboard.daily?.transactions || 0 }}</p>
               <p class="text-sm text-slate-500 dark:text-slate-400">Transacciones Hoy</p>
             </div>
             <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center">
-              <p class="text-3xl font-bold text-slate-900 dark:text-white">
+              <p class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white truncate">
                 {{ formatCurrency(dashboard.daily?.total_sales && dashboard.daily?.transactions > 0 ? dashboard.daily.total_sales / dashboard.daily.transactions : 0) }}
               </p>
               <p class="text-sm text-slate-500 dark:text-slate-400">Ticket Promedio</p>

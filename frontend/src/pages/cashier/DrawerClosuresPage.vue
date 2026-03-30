@@ -283,14 +283,14 @@ function goToCaja() {
 <template>
   <div class="h-[calc(100vh-8rem)] flex flex-col gap-4">
     <!-- Header -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-      <div class="flex items-center justify-between mb-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div>
-          <h1 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-            <FileText class="w-7 h-7 text-brand-500" />
+          <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+            <FileText class="w-6 h-6 md:w-7 md:h-7 text-brand-500" />
             Historial de Cierres
           </h1>
-          <p class="text-slate-500 dark:text-slate-400 mt-1">Ver el historial de cierres de caja</p>
+          <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm">Ver el historial de cierres de caja</p>
         </div>
         <button
           @click="goToCaja"
@@ -303,14 +303,14 @@ function goToCaja() {
 
       <!-- Filters -->
       <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-        <div class="flex flex-wrap gap-4">
-          <div class="flex-1 min-w-[200px]">
+        <div class="flex flex-col md:flex-row gap-2 md:gap-4">
+          <div class="flex-1 min-w-[150px]">
             <div class="relative">
               <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Buscar por nombre o usuario..."
+                placeholder="Buscar..."
                 class="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
               />
               <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
@@ -319,7 +319,7 @@ function goToCaja() {
           <select
             v-model="selectedLocation"
             @change="loadClosures"
-            class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+            class="w-full md:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
           >
             <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
               {{ loc.name }}
@@ -329,14 +329,14 @@ function goToCaja() {
             <input
               ref="dateFromInputRef"
               type="text"
-              class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+              class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
             />
           </div>
           <div class="relative">
             <input
               ref="dateToInputRef"
               type="text"
-              class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+              class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
             />
           </div>
         </div>

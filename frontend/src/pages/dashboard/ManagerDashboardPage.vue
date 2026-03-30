@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import {
   Package,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -42,16 +44,8 @@ const getDateRange = () => {
   return { start, end }
 }
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN'
-  }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const fetchDashboard = async () => {
   loading.value = true
@@ -102,6 +96,7 @@ const navigateTo = (route) => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchLocations()
   await fetchDashboard()
 })
@@ -118,24 +113,24 @@ onMounted(async () => {
           Dashboard <span class="text-blue-500">Gerente</span>
         </h1>
       </div>
-      <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3">
-        <div class="flex items-center gap-2">
+      <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3 w-full">
+        <div class="flex items-center gap-2 w-full sm:w-auto">
           <label class="text-sm text-slate-500 dark:text-slate-400">Período:</label>
           <select
             v-model="dateRange"
             @change="onDateRangeChange"
-            class="input-field w-32"
+            class="input-field w-full sm:w-32"
           >
             <option value="week">Semana</option>
             <option value="month">Mes</option>
           </select>
         </div>
-        <div v-if="locations.length > 0" class="flex items-center gap-2">
+        <div v-if="locations.length > 0" class="flex items-center gap-2 w-full sm:w-auto">
           <label class="text-sm text-slate-500 dark:text-slate-400">Ubicación:</label>
           <select
             v-model="selectedLocation"
             @change="onLocationChange"
-            class="input-field w-48"
+            class="input-field w-full sm:w-48"
           >
             <option :value="null">Todas las ubicaciones</option>
             <option v-for="loc in locations" :key="loc.id" :value="loc.id">

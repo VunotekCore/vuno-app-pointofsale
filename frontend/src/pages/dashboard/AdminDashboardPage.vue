@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { useLocationStore } from '../../stores/location.store.js'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import { coreService } from '../../services/inventory.service.js'
 import {
@@ -28,6 +29,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const locationStore = useLocationStore()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -59,13 +61,8 @@ const getDateRange = () => {
   return { start, end }
 }
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const formatPercent = (value) => {
   return `${value >= 0 ? '+' : ''}${value?.toFixed(1) || 0}%`
@@ -137,6 +134,7 @@ const navigateTo = (route) => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchLocations()
   await fetchDashboard()
 })
@@ -150,22 +148,22 @@ onMounted(async () => {
           Panel Estratégico y Financiero
         </p>
       </div>
-      <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3">
-        <div class="flex items-center gap-2">
+      <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3 w-full">
+        <div class="flex items-center gap-2 w-full sm:w-auto">
           <label class="text-sm text-slate-500 dark:text-slate-400">Período:</label>
-          <select v-model="dateRange" class="input-field w-32">
+          <select v-model="dateRange" class="input-field w-full sm:w-32">
             <option value="week">Semana</option>
             <option value="month">Mes</option>
             <option value="quarter">Trimestre</option>
             <option value="year">Año</option>
           </select>
         </div>
-        <div v-if="userLocations.length > 0" class="flex items-center gap-2">
+        <div v-if="userLocations.length > 0" class="flex items-center gap-2 w-full sm:w-auto">
           <label class="text-sm text-slate-500 dark:text-slate-400">Ubicación:</label>
           <select
             :value="locationStore.selectedLocationId"
             @change="onLocationChange($event.target.value)"
-            class="input-field w-48"
+            class="input-field w-full sm:w-48"
           >
             <option :value="null">Todas las ubicaciones</option>
             <option v-for="loc in userLocations" :key="loc.id" :value="loc.id">
@@ -341,7 +339,7 @@ onMounted(async () => {
                   <p class="text-xl font-bold text-slate-600 dark:text-slate-400">{{ formatCurrency(dashboard.yoy_comparison?.previous?.total_revenue) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-4">
+              <div class="flex flex-col md:flex-row gap-4">
                 <div class="flex-1 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                   <p class="text-sm text-green-600 dark:text-green-400 font-medium">Cambio en Ingresos</p>
                   <div class="flex items-center gap-2 mt-1">
