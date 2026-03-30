@@ -18,5 +18,8 @@ router.post('/login', (req, res, next) => {
   platformUserController.login(req, res, next)
 })
 router.post('/register', (req, res, next) => platformUserController.register(req, res, next))
+router.post('/companies/:id/switch', platformAuth, superAdminOnly, (req, res, next) => {
+  platformUserController.switchToCompany(req, res, next)
+})
 
 export default router
