@@ -28,11 +28,23 @@
 
 @layer components {
   .form-input, .input-field {
-    @apply w-full rounded-xl border border-slate-200 dark:border-slate-700 
-           bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 
+    @apply w-full max-w-full rounded-xl border border-slate-200 dark:border-slate-700 
+           bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 
            shadow-sm transition-all outline-none 
            focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 
            placeholder-slate-400 dark:placeholder-slate-500;
+  }
+
+  .table-container {
+    @apply w-full overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800;
+  }
+
+  .table-container table {
+    @apply w-full min-w-[600px] md:min-w-0;
+  }
+
+  .pagination-container {
+    @apply flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-3;
   }
 
   .btn-primary {

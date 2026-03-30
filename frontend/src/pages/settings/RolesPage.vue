@@ -336,7 +336,7 @@ onMounted(loadData)
               Permisos de Tabla (CRUD)
               <span class="text-xs font-normal text-slate-500">(Controla las operaciones en la base de datos)</span>
             </label>
-            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="bg-slate-50 dark:bg-slate-800">
                   <tr>

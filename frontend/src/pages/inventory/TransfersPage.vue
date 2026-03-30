@@ -307,20 +307,20 @@ function openModal(transfer = null) {
       </button>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-4 mb-4">
-      <div class="relative flex-1">
+    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
+      <div class="relative flex-1 min-w-[150px]">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Buscar transferencias..."
+          placeholder="Buscar..."
           class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         />
         <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
       </div>
       <select
         v-model="selectedFilter"
-        class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
       >
         <option value="">Todos los estados</option>
         <option value="pending">Pendiente</option>
@@ -331,7 +331,7 @@ function openModal(transfer = null) {
     </div>
 
     <div
-      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto"
     >
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
@@ -470,7 +470,7 @@ function openModal(transfer = null) {
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeModal"></div>
 
         <div
-          class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+          class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-x-auto flex flex-col"
         >
           <div
             class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800"

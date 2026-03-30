@@ -197,25 +197,25 @@ function getDayName(dayNum) {
 </script>
 
 <template>
-  <div class="h-[calc(100vh-8rem)] flex gap-4">
+  <div class="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-4">
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col gap-4">
+    <div class="flex-1 flex flex-col gap-4 min-w-0">
       <!-- Header -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-        <div class="flex items-center justify-between">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              <Clock class="w-7 h-7 text-brand-500" />
+            <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+              <Clock class="w-6 h-6 md:w-7 md:h-7 text-brand-500" />
               Turnos y Cajas
             </h1>
-            <p class="text-slate-500 dark:text-slate-400 mt-1">Configura los horarios de turnos y montos iniciales</p>
+            <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm">Configura los horarios de turnos y montos iniciales</p>
           </div>
           <button
             @click="openCreateModal"
             class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-medium flex items-center gap-2"
           >
             <Plus class="w-4 h-4" />
-            Nuevo Turno
+            <span class="hidden sm:inline">Nuevo Turno</span>
           </button>
         </div>
       </div>
@@ -237,7 +237,7 @@ function getDayName(dayNum) {
       </div>
 
       <!-- Shifts List -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex-1 overflow-auto">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-6 flex-1 overflow-auto">
         <div v-if="loading" class="flex items-center justify-center py-12">
           <Loader2 class="w-8 h-8 animate-spin text-brand-500" />
         </div>
@@ -261,12 +261,12 @@ function getDayName(dayNum) {
             :key="shift.id"
             class="p-4 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-brand-300 dark:hover:border-brand-600 transition-colors"
           >
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 bg-brand-100 dark:bg-brand-900/30 rounded-xl flex items-center justify-center">
-                  <Clock class="w-6 h-6 text-brand-600 dark:text-brand-400" />
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-start gap-4">
+                <div class="w-10 h-10 md:w-12 md:h-12 bg-brand-100 dark:bg-brand-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Clock class="w-5 h-5 md:w-6 md:h-6 text-brand-600 dark:text-brand-400" />
                 </div>
-                <div>
+                <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <h3 class="font-semibold text-slate-900 dark:text-white">{{ shift.name }}</h3>
                     <span
@@ -276,7 +276,7 @@ function getDayName(dayNum) {
                       Inactivo
                     </span>
                   </div>
-                  <div class="flex items-center gap-4 mt-1">
+                  <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1">
                     <span class="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
                       <Clock class="w-3 h-3" />
                       {{ formatTime(shift.start_time) }} - {{ formatTime(shift.end_time) }}
@@ -288,7 +288,7 @@ function getDayName(dayNum) {
                   </div>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 ml-14 sm:ml-0">
                 <button
                   @click="openEditModal(shift)"
                   class="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
@@ -308,8 +308,8 @@ function getDayName(dayNum) {
       </div>
     </div>
 
-    <!-- Info Panel -->
-    <div class="w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
+    <!-- Info Panel - hidden on mobile -->
+    <div class="hidden md:block w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex-shrink-0">
       <h2 class="font-semibold text-slate-900 dark:text-white mb-4">Información</h2>
       <div class="space-y-4 text-sm text-slate-600 dark:text-slate-400">
         <p>

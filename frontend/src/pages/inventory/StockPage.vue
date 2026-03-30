@@ -228,40 +228,42 @@ onMounted(loadData)
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Stock</h1>
+        <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">Stock</h1>
         <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Control de inventario por ubicación</p>
       </div>
-      <div class="flex gap-2">
-        <button
-          @click="activeTab = 'stock'"
-          :class="[
-            'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-colors',
-            activeTab === 'stock' 
-              ? 'bg-brand-500 hover:bg-brand-600 text-white' 
-              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-          ]"
-        >
-          <Warehouse class="w-4 h-4" />
-          Stock
-        </button>
-        <button
-          @click="activeTab = 'history'"
-          :class="[
-            'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-colors',
-            activeTab === 'history' 
-              ? 'bg-brand-500 hover:bg-brand-600 text-white' 
-              : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-          ]"
-        >
-          <ClipboardList class="w-4 h-4" />
-          Historial
-        </button>
+      <div class="flex flex-col sm:flex-row gap-2 w-full">
+        <div class="flex gap-2 flex-1">
+          <button
+            @click="activeTab = 'stock'"
+            :class="[
+              'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-medium transition-colors text-sm',
+              activeTab === 'stock' 
+                ? 'bg-brand-500 hover:bg-brand-600 text-white' 
+                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+            ]"
+          >
+            <Warehouse class="w-4 h-4" />
+            <span>Stock</span>
+          </button>
+          <button
+            @click="activeTab = 'history'"
+            :class="[
+              'flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-medium transition-colors text-sm',
+              activeTab === 'history' 
+                ? 'bg-brand-500 hover:bg-brand-600 text-white' 
+                : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+            ]"
+          >
+            <ClipboardList class="w-4 h-4" />
+            <span>Historial</span>
+          </button>
+        </div>
         <button
           @click="openModal"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-medium transition-colors text-sm"
         >
           <RotateCcw class="w-4 h-4" />
-          Ajustar Stock
+          <span>Ajustar Stock</span>
         </button>
       </div>
     </div>
@@ -269,13 +271,13 @@ onMounted(loadData)
     <!-- TAB: STOCK -->
     <div v-if="activeTab === 'stock'">
       <!-- Filters -->
-      <div class="flex flex-col sm:flex-row gap-4 mb-4">
-        <div class="relative flex-1">
+      <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
+        <div class="relative flex-1 min-w-[150px]">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Buscar productos..."
+            placeholder="Buscar..."
             class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
           />
           <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
@@ -283,7 +285,7 @@ onMounted(loadData)
         <select
           v-model="selectedLocation"
           @change="filterByLocation"
-          class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option :value="null">Todas las ubicaciones</option>
           <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
@@ -332,7 +334,7 @@ onMounted(loadData)
       </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
@@ -430,7 +432,7 @@ onMounted(loadData)
 
     <!-- TAB: HISTORIAL -->
     <div v-if="activeTab === 'history'">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
         <div v-if="loading" class="p-8 flex justify-center">
           <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
         </div>

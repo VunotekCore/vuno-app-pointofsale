@@ -385,10 +385,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Recepciones</h1>
-        <p class="text-slate-500 dark:text-slate-400">Recepciones de mercancía de proveedores</p>
+        <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">Recepciones</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm">Recepciones de mercancía de proveedores</p>
       </div>
       <button
         @click="openModal()"
@@ -399,13 +399,13 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="flex gap-4">
+    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4">
       <div class="flex-1 relative">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Buscar por número o proveedor..."
+          placeholder="Buscar..."
           title="Buscar por número o proveedor"
           class="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
         />
@@ -413,7 +413,7 @@ onMounted(() => {
       </div>
       <select
         v-model="filterStatus"
-        class="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+        class="w-full sm:w-auto px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
       >
         <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
           {{ opt.label }}
@@ -421,7 +421,7 @@ onMounted(() => {
       </select>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
       <table class="w-full">
         <thead class="bg-slate-50 dark:bg-slate-800">
           <tr>
@@ -611,7 +611,7 @@ onMounted(() => {
               </button>
             </div>
             
-            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="bg-slate-100 dark:bg-slate-700">
                   <tr>
@@ -694,7 +694,7 @@ onMounted(() => {
           
           <div>
             <h3 class="font-medium text-slate-900 dark:text-white mb-2">Productos</h3>
-            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+            <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="bg-slate-100 dark:bg-slate-700">
                   <tr>

@@ -350,7 +350,7 @@ watch(searchQuery, () => {
 
     <div v-if="loading" class="text-center py-8 text-slate-500">Cargando...</div>
 
-    <div v-else class="card overflow-hidden">
+    <div v-else class="card overflow-x-auto">
       <!-- Filters -->
       <div class="p-4 border-b border-slate-200 dark:border-slate-700">
         <div class="relative max-w-md">
@@ -365,36 +365,36 @@ watch(searchQuery, () => {
         </div>
       </div>
 
-      <table class="w-full">
+      <table class="w-full min-w-[600px]">
           <thead class="bg-slate-50 dark:bg-slate-800/50">
           <tr>
             <!-- <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">ID</th> -->
-            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Usuario</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Rol</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Ubicaciones</th>
-            <th class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
+            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Usuario</th>
+            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th>
+            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Rol</th>
+            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Ubicaciones</th>
+            <th class="px-4 md:px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
           <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{{ user.username }}</td>
-            <td class="px-6 py-4 text-sm text-slate-500 flex items-center gap-2">
-              <Mail class="w-4 h-4" />
+            <td class="px-4 md:px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{{ user.username }}</td>
+            <td class="px-4 md:px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
+              <Mail class="w-4 h-4 inline mr-1" />
               {{ user.email }}
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500">
+            <td class="px-4 md:px-6 py-4 text-sm text-slate-500">
               <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-400">
                 {{ roles.find(r => r.id === user.role_id)?.name || 'Rol ' + user.role_id }}
               </span>
             </td>
-            <td class="px-6 py-4 text-sm text-slate-500">
+            <td class="px-4 md:px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
               <span class="inline-flex items-center gap-1">
                 <MapPin class="w-3 h-3" />
                 {{ getUserLocations(user.id) }}
               </span>
             </td>
-            <td class="px-6 py-4 text-right">
+            <td class="px-4 md:px-6 py-4 text-right">
               <div class="flex justify-end gap-1">
                 <button @click="openEditModal(user)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                   <Pencil class="w-4 h-4" />

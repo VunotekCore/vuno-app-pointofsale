@@ -671,20 +671,20 @@
     </div>
 
     <!-- Search -->
-    <div class="flex flex-wrap gap-4 mb-4">
-      <div class="flex-1 min-w-[200px] relative">
+    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
+      <div class="flex-1 min-w-[150px] relative">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Buscar productos..."
+          placeholder="Buscar..."
           class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         />
         <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
       </div>
       <select
         v-model="statusFilter"
-        class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
       >
         <option value="">Todos los estados</option>
         <option value="active">Activo</option>
@@ -695,12 +695,12 @@
 
     <!-- Table -->
     <div
-      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto"
     >
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
+      <table v-else class="w-full min-w-[700px]">
         <thead class="bg-slate-50 dark:bg-slate-800/50">
           <tr>
             <th
