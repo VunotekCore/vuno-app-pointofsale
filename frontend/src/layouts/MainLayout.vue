@@ -272,7 +272,7 @@ const isActive = (path) => {
 }
 
 const isInventoryActive = computed(() =>
-  [...filteredInventoryItems.value, ...navigation.slice(1)].some(item => isActive(item.path))
+  filteredInventoryItems.value.some(item => isActive(item.path))
 )
 
 const isSalesActive = computed(() =>
@@ -314,7 +314,7 @@ const backToPlatform = () => {
   <div class="h-screen flex bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-hidden" @click="closeUserMenu">
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 flex flex-col transition-all duration-300 border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+      class="fixed inset-y-0 left-0 z-30 flex flex-col transition-all duration-300 border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-y-auto overflow-x-visible"
       :class="isSidebarOpen ? 'w-72' : 'w-20'"
       @click.stop
     >
@@ -362,7 +362,7 @@ const backToPlatform = () => {
             @click="toggleSales"
             class="group w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 relative"
             :class="[
-              isSalesActive
+              isSalesActive || isSalesOpen
                 ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             ]"
@@ -370,6 +370,9 @@ const backToPlatform = () => {
             <ShoppingCart class="w-5 h-5 flex-shrink-0" />
             <span v-if="isSidebarOpen" class="ml-3 text-sm truncate flex-1 text-left">Ventas</span>
             <ChevronDown v-if="isSidebarOpen" class="w-4 h-4 transition-transform duration-200" :class="isSalesOpen ? 'rotate-180' : ''" />
+            <div v-if="!isSidebarOpen" class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+              Ventas
+            </div>
           </button>
           <div v-if="isSidebarOpen" class="overflow-hidden transition-all duration-200" :class="isSalesOpen ? 'max-h-60 mt-1' : 'max-h-0'">
             <div class="ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
@@ -377,6 +380,26 @@ const backToPlatform = () => {
                 {{ item.name }}
               </RouterLink>
             </div>
+          </div>
+
+          <!-- Collapsed: show sub-items as separate icon-less tooltips -->
+          <div v-if="!isSidebarOpen && isSalesOpen" class="mt-1 space-y-1 px-1">
+            <RouterLink
+              v-for="item in filteredSalesItems"
+              :key="item.path"
+              :to="item.path"
+              class="group flex items-center justify-center px-3 py-2 rounded-xl text-xs transition-all duration-200 relative"
+              :class="[
+                isActive(item.path)
+                  ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600'
+                  : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ]"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0"></span>
+              <div class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                {{ item.name }}
+              </div>
+            </RouterLink>
           </div>
         </div>
 
@@ -386,7 +409,7 @@ const backToPlatform = () => {
             @click="toggleInventory"
             class="group w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 relative"
             :class="[
-              isInventoryActive
+              isInventoryActive || isInventoryOpen
                 ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             ]"
@@ -395,6 +418,9 @@ const backToPlatform = () => {
             <Boxes class="w-5 h-5 flex-shrink-0" />
             <span v-if="isSidebarOpen" class="ml-3 text-sm truncate flex-1 text-left">Inventario</span>
             <ChevronDown v-if="isSidebarOpen" class="w-4 h-4 transition-transform duration-200" :class="isInventoryOpen ? 'rotate-180' : ''" />
+            <div v-if="!isSidebarOpen" class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+              Inventario
+            </div>
           </button>
           <div v-if="isSidebarOpen" class="overflow-hidden transition-all duration-200" :class="isInventoryOpen ? 'max-h-60 mt-1' : 'max-h-0'">
             <div class="ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
@@ -402,6 +428,26 @@ const backToPlatform = () => {
                 {{ item.name }}
               </RouterLink>
             </div>
+          </div>
+
+          <!-- Collapsed: show sub-items as separate icon-less tooltips -->
+          <div v-if="!isSidebarOpen && isInventoryOpen" class="mt-1 space-y-1 px-1">
+            <RouterLink
+              v-for="item in filteredInventoryItems"
+              :key="item.path"
+              :to="item.path"
+              class="group flex items-center justify-center px-3 py-2 rounded-xl text-xs transition-all duration-200 relative"
+              :class="[
+                isActive(item.path)
+                  ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600'
+                  : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ]"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0"></span>
+              <div class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                {{ item.name }}
+              </div>
+            </RouterLink>
           </div>
         </div>
 
@@ -411,7 +457,7 @@ const backToPlatform = () => {
             @click="togglePurchases"
             class="group w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 relative"
             :class="[
-              isPurchasesActive
+              isPurchasesActive || isPurchasesOpen
                 ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             ]"
@@ -420,6 +466,9 @@ const backToPlatform = () => {
             <Truck class="w-5 h-5 flex-shrink-0" />
             <span v-if="isSidebarOpen" class="ml-3 text-sm truncate flex-1 text-left">Compras</span>
             <ChevronDown v-if="isSidebarOpen" class="w-4 h-4 transition-transform duration-200" :class="isPurchasesOpen ? 'rotate-180' : ''" />
+            <div v-if="!isSidebarOpen" class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+              Compras
+            </div>
           </button>
           <div v-if="isSidebarOpen" class="overflow-hidden transition-all duration-200" :class="isPurchasesOpen ? 'max-h-48 mt-1' : 'max-h-0'">
             <div class="ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
@@ -427,6 +476,26 @@ const backToPlatform = () => {
                 {{ item.name }}
               </RouterLink>
             </div>
+          </div>
+
+          <!-- Collapsed: show sub-items as separate icon-less tooltips -->
+          <div v-if="!isSidebarOpen && isPurchasesOpen" class="mt-1 space-y-1 px-1">
+            <RouterLink
+              v-for="item in filteredPurchaseItems"
+              :key="item.path"
+              :to="item.path"
+              class="group flex items-center justify-center px-3 py-2 rounded-xl text-xs transition-all duration-200 relative"
+              :class="[
+                isActive(item.path)
+                  ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600'
+                  : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ]"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0"></span>
+              <div class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                {{ item.name }}
+              </div>
+            </RouterLink>
           </div>
         </div>
 
@@ -436,7 +505,7 @@ const backToPlatform = () => {
             @click="toggleCashier"
             class="group w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 relative"
             :class="[
-              isCashierActive
+              isCashierActive || isCashierOpen
                 ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 font-medium'
                 : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             ]"
@@ -470,6 +539,26 @@ const backToPlatform = () => {
                 {{ item.name }}
               </RouterLink>
             </div>
+          </div>
+
+          <!-- Collapsed: show sub-items as separate icon-less tooltips -->
+          <div v-if="!isSidebarOpen && isCashierOpen" class="mt-1 space-y-1 px-1">
+            <RouterLink
+              v-for="item in filteredCashierItems"
+              :key="item.path"
+              :to="item.path"
+              class="group flex items-center justify-center px-3 py-2 rounded-xl text-xs transition-all duration-200 relative"
+              :class="[
+                isActive(item.path)
+                  ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600'
+                  : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              ]"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0"></span>
+              <div class="absolute left-full ml-2 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none z-50 whitespace-nowrap">
+                {{ item.name }}
+              </div>
+            </RouterLink>
           </div>
         </div>
 
