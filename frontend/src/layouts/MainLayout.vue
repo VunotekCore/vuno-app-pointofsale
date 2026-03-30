@@ -301,6 +301,12 @@ const logout = () => {
 const openWiki = () => {
   window.location.href = '/docs?path=USER.md'
 }
+
+const backToPlatform = () => {
+  authStore.logout()
+  authStore.clearImpersonating()
+  router.push('/settings/companies')
+}
 </script>
 
 <template>
@@ -619,6 +625,14 @@ const openWiki = () => {
           </h2>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            v-if="authStore.isSuperAdmin"
+            @click="backToPlatform"
+            class="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1"
+          >
+            <Building2 class="w-4 h-4" />
+            Volver a Plataforma
+          </button>
           <button
             class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             title="Notificaciones"

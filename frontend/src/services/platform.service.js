@@ -123,5 +123,10 @@ export const platformService = {
       newPassword
     })
     return response.data
+  },
+
+  async switchToCompany(companyId) {
+    const response = await platformApi.post(`/platform/companies/${companyId}/switch`)
+    return response.data
   }
 }

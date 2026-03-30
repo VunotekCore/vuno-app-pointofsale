@@ -1,12 +1,16 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useNotificationStore } from '../../stores/notification.store.js'
+import { useAuthStore } from '../../stores/auth.store.js'
 import { platformService } from '../../services/platform.service.js'
 import { usePhoneFormatter } from '../../utils/phone.utils.js'
 import ImageUpload from '../../components/ImageUpload.vue'
 import { Building2, Plus, Edit2, Trash2, Users, MapPin, ShoppingCart, Search, Star, Loader2, User, Mail, Lock, Eye, EyeOff, Shield, Phone, FileText, KeyRound } from 'lucide-vue-next'
 
+const router = useRouter()
 const notification = useNotificationStore()
+const authStore = useAuthStore()
 const { formatPhoneOnBlur } = usePhoneFormatter()
 
 const loading = ref(false)
@@ -20,6 +24,7 @@ const companyStats = ref({})
 const showPassword = ref(false)
 const showPasswordFields = ref(false)
 const companyAdmin = ref(null)
+const enteringCompany = ref(null)
 
 const form = ref({
   name: '',
@@ -290,6 +295,25 @@ async function setAsDefault(company) {
   }
 }
 
+async function enterAsAdmin(company) {
+  enteringCompany.value = company.id
+  try {
+    const response = await platformService.switchToCompany(company.id)
+    if (response.success) {
+      authStore.setImpersonating({
+        token: response.data.token,
+        user: response.data.user,
+        permissions: []
+      })
+      router.push('/')
+    }
+  } catch (error) {
+    notification.error('Error al entrar como admin: ' + (error.response?.data?.message || 'Error desconocido'))
+  } finally {
+    enteringCompany.value = null
+  }
+}
+
 function handlePhoneBlur(event) {
   formatPhoneOnBlur(event)
   form.value.phone = event.target.value
@@ -407,6 +431,14 @@ function handlePhoneBlur(event) {
           >
             <Edit2 class="w-3 h-3" />
             Editar
+          </button>
+          <button
+            @click="enterAsAdmin(company)"
+            :disabled="enteringCompany === company.id"
+            class="flex-1 py-2 text-sm bg-brand-500 hover:bg-brand-600 disabled:bg-brand-300 text-white rounded-lg transition-colors flex items-center justify-center gap-1"
+          >
+            <Loader2 v-if="enteringCompany === company.id" class="w-3 h-3 animate-spin" />
+            <span v-else>Entrar como Admin</span>
           </button>
           <button
             @click="confirmDelete(company)"
