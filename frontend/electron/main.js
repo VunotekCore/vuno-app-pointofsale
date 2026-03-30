@@ -84,11 +84,6 @@ function createMenu() {
 }
 
 function createWindow() {
-  console.log('[Electron] APP_ROOT:', process.env.APP_ROOT)
-  console.log('[Electron] RENDERER_DIST:', RENDERER_DIST)
-  console.log('[Electron] isPackaged:', app.isPackaged)
-  console.log('[Electron] getAppPath():', app.getAppPath())
-
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -98,18 +93,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: true
     },
     show: false,
     backgroundColor: '#f8fafc'
-  })
-
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.error('[Electron] Failed to load:', errorCode, errorDescription)
-  })
-
-  mainWindow.webContents.on('console-message', (event, level, message) => {
-    console.log('[Renderer]', message)
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -122,13 +109,10 @@ function createWindow() {
 
   createMenu()
 
-  const indexPath = path.join(RENDERER_DIST, 'index.html')
-  console.log('[Electron] Loading:', indexPath)
-
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    mainWindow.loadFile(indexPath)
+    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
 
