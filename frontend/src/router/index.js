@@ -229,7 +229,6 @@ router.beforeEach(async (to, from, next) => {
   }
 
   authStore.initialize()
-  platformAuth.initialize()
 
   if (!authStore.token) {
     return next('/login')
