@@ -252,14 +252,14 @@ onMounted(() => {
 
     <!-- Filters -->
     <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-      <div class="flex flex-wrap gap-4">
-        <div class="flex-1 min-w-[200px]">
+      <div class="flex flex-col sm:flex-row gap-2 sm:gap-4">
+        <div class="flex-1 min-w-[150px]">
           <div class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Buscar clientes..."
+              placeholder="Buscar..."
               class="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
             />
             <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
@@ -267,7 +267,7 @@ onMounted(() => {
         </div>
         <select
           v-model="activeFilter"
-          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="w-full sm:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option value="">Todos</option>
           <option value="1">Activos</option>

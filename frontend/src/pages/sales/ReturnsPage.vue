@@ -307,32 +307,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="p-4 md:p-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Devoluciones</h1>
-        <p class="text-slate-500 dark:text-slate-400">Gestión de devoluciones de ventas</p>
+        <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">Devoluciones</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm">Gestión de devoluciones de ventas</p>
       </div>
-      <button
-        @click="openCreateModal"
-        class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-      >
-        <Plus class="w-4 h-4" />
-        Nueva Devolución
-      </button>
     </div>
 
     <!-- Filters -->
     <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-      <div class="flex flex-wrap gap-4">
-        <div class="flex-1 min-w-[200px]">
+      <div class="flex flex-col md:flex-row gap-2 md:gap-4 mb-4">
+        <div class="flex-1 min-w-[150px]">
           <div class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Buscar por número..."
+              placeholder="Buscar..."
               class="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
             />
             <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
@@ -342,21 +335,28 @@ onMounted(() => {
           <input
             ref="dateFromInputRef"
             type="text"
-            class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
         <div class="relative">
           <input
             ref="dateToInputRef"
             type="text"
-            class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
       </div>
+      <button
+        @click="openCreateModal"
+        class="w-full md:w-auto px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+      >
+        <Plus class="w-4 h-4" />
+        Nueva Devolución
+      </button>
     </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store.js'
 import { useCurrencyStore } from '../stores/currency.store.js'
@@ -7,6 +7,7 @@ import api from '../services/api.service.js'
 import ToastNotification from '../components/ToastNotification.vue'
 import {
   Menu,
+  X,
   Settings,
   ChevronDown,
   Users,
@@ -67,6 +68,7 @@ onMounted(() => {
 })
 
 const isSidebarOpen = ref(true)
+const isMobileMenuOpen = ref(false)
 const isConfigOpen = ref(false)
 const isInventoryOpen = ref(false)
 const isSalesOpen = ref(true)
@@ -77,6 +79,18 @@ const isUserMenuOpen = ref(false)
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value
 }
+
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value
+}
+
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false
+}
+
+watch(() => route.path, () => {
+  isMobileMenuOpen.value = false
+})
 
 const closeAllMenus = () => {
   isConfigOpen.value = false
@@ -312,15 +326,25 @@ const backToPlatform = () => {
 <template>
   <ToastNotification />
   <div class="h-screen flex bg-slate-50 dark:bg-slate-950 transition-colors duration-300 overflow-hidden" @click="closeUserMenu">
+    <!-- Mobile Overlay -->
+    <div 
+      v-if="isMobileMenuOpen" 
+      class="fixed inset-0 z-40 bg-black/50 md:hidden"
+      @click="closeMobileMenu"
+    ></div>
+
     <!-- Sidebar -->
     <aside
-      class="fixed inset-y-0 left-0 z-30 flex flex-col transition-all duration-300 border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-y-auto overflow-x-visible"
-      :class="isSidebarOpen ? 'w-72' : 'w-20'"
+      class="fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300 border-r bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-y-auto overflow-x-visible"
+      :class="[
+        isSidebarOpen ? 'w-72' : 'w-20',
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      ]"
       @click.stop
     >
       <!-- Logo -->
-      <div class="h-16 flex items-center justify-center border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-        <div class="flex items-center gap-3 transition-all duration-300" :class="{ 'px-6 w-full justify-start': isSidebarOpen }">
+      <div class="h-16 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 flex-shrink-0 px-2">
+        <div class="flex items-center gap-3 transition-all duration-300" :class="{ 'px-2': !isSidebarOpen }">
           <template v-if="companyData.logo_url">
             <img :src="companyData.logo_url" alt="Logo" class="w-9 h-9 rounded-xl object-cover" />
           </template>
@@ -333,6 +357,12 @@ const backToPlatform = () => {
             {{ companyData.name }}<span class="text-brand-500">.</span>
           </span>
         </div>
+        <button 
+          @click="closeMobileMenu" 
+          class="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
+        >
+          <X class="w-5 h-5" />
+        </button>
       </div>
 
       <!-- Navigation -->
@@ -703,10 +733,13 @@ const backToPlatform = () => {
     </aside>
 
     <!-- Main content -->
-    <div class="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out" :class="isSidebarOpen ? 'ml-72' : 'ml-20'">
-      <header class="sticky top-0 z-20 h-16 px-6 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800">
-        <div class="flex items-center gap-4">
-          <button @click="toggleSidebar" class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+    <div class="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out" :class="isSidebarOpen ? 'md:ml-72 ml-0' : 'md:ml-20 ml-0'">
+      <header class="sticky top-0 z-20 h-16 px-4 md:px-6 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800">
+        <div class="flex items-center gap-2 md:gap-4">
+          <button @click="toggleMobileMenu" class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden">
+            <Menu class="w-5 h-5" />
+          </button>
+          <button @click="toggleSidebar" class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 hidden md:block">
             <Menu class="w-5 h-5" />
           </button>
           <h2 class="text-sm font-medium text-slate-500 dark:text-slate-400">

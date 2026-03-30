@@ -361,23 +361,23 @@ async function handleWithdrawal() {
 </script>
 
 <template>
-  <div class="h-[calc(100vh-8rem)] flex gap-4">
+  <div class="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-4">
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col gap-4">
+    <div class="flex-1 flex flex-col gap-4 min-w-0">
       <!-- Header -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
-        <div class="flex items-center justify-between">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-6">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 class="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-              <Wallet class="w-7 h-7 text-brand-500" />
+            <h1 class="text-xl md:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+              <Wallet class="w-6 h-6 md:w-7 md:h-7 text-brand-500" />
               Cierre de Caja
             </h1>
-            <p class="text-slate-500 dark:text-slate-400 mt-1">Gestiona la apertura y cierre de caja</p>
+            <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm">Gestiona la apertura y cierre de caja</p>
           </div>
           <div class="flex items-center gap-3">
             <select
               v-model="selectedLocation"
-              class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
+              class="w-full md:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
             >
               <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
                 {{ loc.name }}
