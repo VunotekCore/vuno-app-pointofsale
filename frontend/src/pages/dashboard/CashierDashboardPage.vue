@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import {
   ShoppingCart,
@@ -14,6 +15,7 @@ import {
 
 const router = useRouter()
 const authStore = useAuthStore()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -29,16 +31,8 @@ const formattedDate = today.toLocaleDateString('es-ES', {
   month: 'short'
 })
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN'
-  }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const fetchDashboard = async () => {
   loading.value = true
@@ -57,6 +51,7 @@ const goToPOS = () => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchDashboard()
 })
 </script>

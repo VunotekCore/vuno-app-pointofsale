@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.store.js'
 import { useLocationStore } from '../../stores/location.store.js'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import { coreService } from '../../services/inventory.service.js'
 import {
@@ -28,6 +29,7 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 const locationStore = useLocationStore()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -59,13 +61,8 @@ const getDateRange = () => {
   return { start, end }
 }
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const formatPercent = (value) => {
   return `${value >= 0 ? '+' : ''}${value?.toFixed(1) || 0}%`
@@ -137,6 +134,7 @@ const navigateTo = (route) => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchLocations()
   await fetchDashboard()
 })
