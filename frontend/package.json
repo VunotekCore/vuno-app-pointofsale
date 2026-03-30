@@ -9,11 +9,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "electron:dev": "vite",
     "electron:build": "vite build && electron-builder",
     "electron:build:win": "vite build && electron-builder --win",
-    "electron:build:linux": "vite build && electron-builder --linux"
+    "electron:build:linux": "vite build && electron-builder --linux",
+    "electron:build:prod": "vite build --mode production && electron-builder",
+    "electron:build:prod:win": "vite build --mode production && electron-builder --win",
+    "electron:build:prod:linux": "vite build --mode production && electron-builder --linux"
   },
   "build": {
     "appId": "com.vuno.pointofsale",
