@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
 import {
   Package,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const currencyStore = useCurrencyStore()
 
 const loading = ref(true)
 const dashboard = ref(null)
@@ -42,16 +44,8 @@ const getDateRange = () => {
   return { start, end }
 }
 
-const formatCurrency = (value) => {
-  return new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN'
-  }).format(value || 0)
-}
-
-const formatNumber = (value) => {
-  return new Intl.NumberFormat('es-MX').format(value || 0)
-}
+const formatCurrency = (value) => currencyStore.formatMoney(value)
+const formatNumber = (value) => currencyStore.formatNumber(value)
 
 const fetchDashboard = async () => {
   loading.value = true
@@ -102,6 +96,7 @@ const navigateTo = (route) => {
 }
 
 onMounted(async () => {
+  await currencyStore.loadConfig()
   await fetchLocations()
   await fetchDashboard()
 })
