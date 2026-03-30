@@ -1,0 +1,144 @@
+import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+process.env.APP_ROOT = path.join(__dirname, '..')
+
+const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist')
+const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
+
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
+
+let mainWindow = null
+
+function createMenu() {
+  const template = [
+    {
+      label: 'Archivo',
+      submenu: [
+        {
+          label: 'Recargar',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => mainWindow.reload()
+        },
+        {
+          label: 'Herramientas de desarrollo',
+          accelerator: 'CmdOrCtrl+Shift+I',
+          click: () => mainWindow.webContents.toggleDevTools()
+        },
+        { type: 'separator' },
+        {
+          label: 'Salir',
+          accelerator: 'CmdOrCtrl+Q',
+          click: () => app.quit()
+        }
+      ]
+    },
+    {
+      label: 'Ver',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Ventana',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' }
+      ]
+    },
+    {
+      label: 'Ayuda',
+      submenu: [
+        {
+          label: 'Acerca de VUNO POS',
+          click: () => {
+            const { dialog } = require('electron')
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Acerca de VUNO POS',
+              message: 'VUNO Punto de Venta',
+              detail: `Versión ${app.getVersion()}\n\nAplicación de punto de venta desarrollada con Vue.js y Electron.`
+            })
+          }
+        }
+      ]
+    }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 1024,
+    minHeight: 600,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true
+    },
+    show: false,
+    backgroundColor: '#f8fafc'
+  })
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
+  createMenu()
+
+  if (VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(VITE_DEV_SERVER_URL)
+  } else {
+    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'))
+  }
+}
+
+app.whenReady().then(() => {
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})
+
+ipcMain.handle('get-app-version', () => {
+  return app.getVersion()
+})
+
+ipcMain.handle('get-user-data-path', () => {
+  return app.getPath('userData')
+})
+
+ipcMain.handle('open-external', async (event, url) => {
+  await shell.openExternal(url)
+})
