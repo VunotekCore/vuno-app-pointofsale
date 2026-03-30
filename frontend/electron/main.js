@@ -1,11 +1,11 @@
-import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, shell, ipcMain, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.APP_ROOT = app.isPackaged 
-  ? path.join(app.getAppPath(), '..') 
+  ? path.join(app.getAppPath()) 
   : path.join(__dirname, '..')
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -67,7 +67,6 @@ function createMenu() {
         {
           label: 'Acerca de VUNO POS',
           click: () => {
-            const { dialog } = require('electron')
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'Acerca de VUNO POS',
