@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store.js'
-import CompanySelector from '../components/CompanySelector.vue'
 import { useCurrencyStore } from '../stores/currency.store.js'
 import api from '../services/api.service.js'
 import ToastNotification from '../components/ToastNotification.vue'
@@ -301,6 +300,12 @@ const logout = () => {
 
 const openWiki = () => {
   window.location.href = '/docs?path=USER.md'
+}
+
+const backToPlatform = () => {
+  authStore.logout()
+  authStore.clearImpersonating()
+  router.push('/settings/companies')
 }
 </script>
 
@@ -615,12 +620,19 @@ const openWiki = () => {
           <button @click="toggleSidebar" class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800">
             <Menu class="w-5 h-5" />
           </button>
-          <CompanySelector />
           <h2 class="text-sm font-medium text-slate-500 dark:text-slate-400">
             Dashboard / <span class="text-slate-900 dark:text-white">{{ currentPageTitle }}</span>
           </h2>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            v-if="authStore.isSuperAdmin"
+            @click="backToPlatform"
+            class="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1"
+          >
+            <Building2 class="w-4 h-4" />
+            Volver a Plataforma
+          </button>
           <button
             class="p-2 rounded-lg transition-colors text-slate-500 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800"
             title="Notificaciones"

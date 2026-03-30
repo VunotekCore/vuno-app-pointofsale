@@ -1,4 +1,5 @@
 import { PlatformUserModel } from '../models/platform-user.model.js'
+import { CompanyModel } from '../models/company.model.js'
 import database from '../config/database.js'
 
 export class PlatformUserController {
@@ -98,6 +99,18 @@ export class PlatformUserController {
       res.status(200).json({
         success: true,
         message: 'Contraseña cambiada exitosamente'
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  async switchToCompany(req, res, next) {
+    try {
+      const result = await this.platformUserModel.switchToCompany(req.params.id)
+      res.status(200).json({
+        success: true,
+        data: result
       })
     } catch (error) {
       next(error)

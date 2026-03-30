@@ -1,6 +1,19 @@
 import { PlatformUserRepository } from '../repository/platform-user.repository.js'
+import { CompanyRepository } from '../repository/company.repository.js'
+import { UserRepository } from '../repository/user.repository.js'
+import { RolesRepository } from '../repository/roles.repository.js'
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../errors/index.js'
+import { generateToken } from '../utils/jwt.utils.js'
 import jwt from 'jsonwebtoken'
+
+function bufferToUuid (buffer) {
+  if (!buffer) return null
+  if (Buffer.isBuffer(buffer)) {
+    const hex = buffer.toString('hex')
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
+  }
+  return buffer
+}
 
 export class PlatformUserModel {
   constructor (db) {
@@ -122,5 +135,70 @@ export class PlatformUserModel {
 
     await this.platformUserRepo.update(id, { password: newPassword })
     return { success: true }
+  }
+
+  async switchToCompany (companyId) {
+    const companyRepo = new CompanyRepository(this.platformUserRepo.db)
+    const company = await companyRepo.findById(companyId)
+    if (!company) {
+      throw new NotFoundError('Empresa no encontrada')
+    }
+
+    if (!company.is_active) {
+      throw new BadRequestError('La empresa está desactivada')
+    }
+
+    const adminUser = await companyRepo.getAdminUser(companyId)
+    if (!adminUser) {
+      throw new NotFoundError('No se encontró administrador para esta empresa')
+    }
+
+    const userRepo = new UserRepository(this.platformUserRepo.db)
+    const fullUser = await userRepo.findById(adminUser.id)
+    if (!fullUser) {
+      throw new NotFoundError('Usuario administrador no encontrado')
+    }
+
+    const roleIdUuid = bufferToUuid(fullUser.role_id)
+    const roleRepo = new RolesRepository(this.platformUserRepo.db)
+    const role = await roleRepo.getById(roleIdUuid)
+
+    const userId = bufferToUuid(fullUser.id)
+    const roleId = bufferToUuid(fullUser.role_id)
+    const companyIdFormatted = bufferToUuid(company.id)
+
+    const imagekitConfig = {
+      imagekit_private_key: company.imagekit_private_key || null,
+      imagekit_url_endpoint: company.imagekit_url_endpoint || null
+    }
+
+    const token = generateToken({
+      user_id: userId,
+      username: fullUser.username,
+      email: fullUser.email,
+      role_id: roleId,
+      role_name: role ? role.name : null,
+      company_id: companyIdFormatted,
+      is_admin: role ? role.is_admin === 1 : false,
+      is_super_admin_impersonating: true,
+      ...imagekitConfig
+    })
+
+    return {
+      token,
+      user: {
+        id: userId,
+        username: fullUser.username,
+        email: fullUser.email,
+        role_name: role ? role.name : null,
+        is_admin: role ? role.is_admin === 1 : false,
+        is_super_admin_impersonating: true
+      },
+      company: {
+        id: companyIdFormatted,
+        name: company.name,
+        logo_url: company.logo_url
+      }
+    }
   }
 }

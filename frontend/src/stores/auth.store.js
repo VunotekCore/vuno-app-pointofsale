@@ -6,10 +6,13 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(null)
   const user = ref(null)
   const permissions = ref([])
+  const isSuperAdminImpersonating = ref(false)
 
   const isAuthenticated = computed(() => !!token.value)
 
   const companyId = computed(() => user.value?.company_id || null)
+
+  const isSuperAdmin = computed(() => user.value?.is_super_admin_impersonating === true)
 
   const hasPermission = (permissionCode) => {
     if (user.value?.role_name === 'admin') {
@@ -49,8 +52,6 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     localStorage.removeItem('permissions')
-    localStorage.removeItem('platform_token')
-    localStorage.removeItem('platform_user')
     localStorage.removeItem('selected_company_id')
     localStorage.removeItem('company_data')
   }
@@ -61,9 +62,25 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = []
   }
 
-  function logout() {
+  function logout(keepPlatformAuth = false) {
     clearAllAuthData()
     clearState()
+    isSuperAdminImpersonating.value = false
+  }
+
+  function setImpersonating(data) {
+    token.value = data.token
+    user.value = data.user
+    permissions.value = data.permissions || []
+    isSuperAdminImpersonating.value = data.user?.is_super_admin_impersonating || false
+    
+    localStorage.setItem('token', token.value)
+    localStorage.setItem('user', JSON.stringify(user.value))
+    localStorage.setItem('permissions', JSON.stringify(permissions.value))
+  }
+
+  function clearImpersonating() {
+    isSuperAdminImpersonating.value = false
   }
 
   function initialize() {
@@ -95,6 +112,8 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     permissions,
     isAuthenticated,
+    isSuperAdminImpersonating,
+    isSuperAdmin,
     companyId,
     hasPermission,
     hasTablePermission,
@@ -102,6 +121,8 @@ export const useAuthStore = defineStore('auth', () => {
     hasRole,
     login,
     logout,
+    setImpersonating,
+    clearImpersonating,
     clearAllAuthData,
     clearState,
     initialize
