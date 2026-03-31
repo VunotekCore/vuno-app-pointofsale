@@ -1,16 +1,74 @@
 {
   "name": "vuno-app-pointofsale-frontend",
+  "description": "VUNO Punto de Venta - Aplicación de escritorio",
+  "author": "VUNO",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview",
+    "electron:dev": "vite",
+    "electron:build": "vite build && electron-builder",
+    "electron:build:win": "vite build && electron-builder --win",
+    "electron:build:linux": "vite build && electron-builder --linux",
+    "electron:build:prod": "vite build --mode production && electron-builder",
+    "electron:build:prod:win": "vite build --mode production && electron-builder --win",
+    "electron:build:prod:linux": "vite build --mode production && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.vuno.pointofsale",
+    "productName": "VUNO POS",
+    "icon": "public/icons/icon-512.png",
+    "publish": {
+      "provider": "github",
+      "owner": "VunotekCore",
+      "repo": "vuno-app-pointofsale"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
+    }
   },
   "dependencies": {
     "axios": "^1.13.6",
     "dexie": "^4.3.0",
+    "electron-updater": "^6.8.3",
     "flatpickr": "^4.6.13",
     "html2pdf.js": "^0.10.1",
     "lucide-vue-next": "^0.575.0",
@@ -22,6 +80,8 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-vue": "^6.0.2",
+    "electron": "^41.1.0",
+    "electron-builder": "^26.8.1",
     "tailwindcss": "^4.2.1",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^1.2.0"

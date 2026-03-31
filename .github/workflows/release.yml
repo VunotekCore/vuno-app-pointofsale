@@ -1,0 +1,85 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            artifact: VUNO-POS-win
+          - os: ubuntu-latest
+            target: linux
+            artifact: VUNO-POS-linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: cd frontend && pnpm install
+
+      - name: Build Electron (Windows)
+        if: matrix.target == 'win'
+        run: cd frontend && pnpm electron:build:prod:win
+
+      - name: Build Electron (Linux)
+        if: matrix.target == 'linux'
+        run: cd frontend && pnpm electron:build:prod:linux
+
+      - name: Find and upload artifacts (Windows)
+        if: matrix.target == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: frontend/release/*.exe
+          retention-days: 5
+
+      - name: Find and upload artifacts (Linux)
+        if: matrix.target == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: frontend/release/*.AppImage
+          retention-days: 5
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VUNO-POS-win
+          path: release-win
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VUNO-POS-linux
+          path: release-linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-win/*.exe
+            release-linux/*.AppImage
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
