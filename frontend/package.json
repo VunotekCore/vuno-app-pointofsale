@@ -23,6 +23,11 @@
     "appId": "com.vuno.pointofsale",
     "productName": "VUNO POS",
     "icon": "public/icons/icon-512.png",
+    "publish": {
+      "provider": "github",
+      "owner": "VunotekCore",
+      "repo": "vuno-app-pointofsale"
+    },
     "directories": {
       "output": "release"
     },
@@ -34,7 +39,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-Setup.${ext}"
@@ -46,17 +53,22 @@
       "createStartMenuShortcut": true
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "artifactName": "${productName}-${version}.${ext}"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "artifactName": "${productName}-${version}.${ext}"
     }
   },
   "dependencies": {
     "axios": "^1.13.6",
     "dexie": "^4.3.0",
+    "electron-updater": "^6.8.3",
     "flatpickr": "^4.6.13",
     "html2pdf.js": "^0.10.1",
     "lucide-vue-next": "^0.575.0",

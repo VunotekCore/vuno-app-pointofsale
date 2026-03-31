@@ -9,5 +9,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   onMessage: (callback) => {
     ipcRenderer.on('message', (event, data) => callback(data))
+  },
+
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (event, info) => callback(info))
+  },
+  onUpdateProgress: (callback) => {
+    ipcRenderer.on('update-progress', (event, progress) => callback(progress))
+  },
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (event, info) => callback(info))
   }
 })

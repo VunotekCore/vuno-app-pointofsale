@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, shell, ipcMain, dialog } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -114,10 +115,54 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
+
+  return mainWindow
+}
+
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Buscando actualizaciones...')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Nueva versión disponible:', info.version)
+    if (mainWindow) {
+      mainWindow.webContents.send('update-available', info)
+    }
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('La aplicación está actualizada')
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('Error en auto-updater:', err)
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update-progress', progress)
+    }
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Actualización descargada:', info.version)
+    if (mainWindow) {
+      mainWindow.webContents.send('update-downloaded', info)
+    }
+  })
 }
 
 app.whenReady().then(() => {
   createWindow()
+
+  if (!VITE_DEV_SERVER_URL) {
+    setupAutoUpdater()
+    autoUpdater.checkForUpdatesAndNotify()
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
