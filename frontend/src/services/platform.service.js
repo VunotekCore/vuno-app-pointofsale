@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const PLATFORM_API_URL = import.meta.env.VITE_APP_URL
+const PLATFORM_API_URL = import.meta.env.VITE_APP_URL || 'https://vuno-app-pointofsale.onrender.com'
 const PLATFORM_PORT = import.meta.env.VITE_APP_PORT
 
 const platformApi = axios.create({
@@ -27,7 +27,13 @@ platformApi.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('platform_token')
       localStorage.removeItem('platform_user')
-      window.location.href = '/platform/login'
+      
+      const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+      if (isElectron) {
+        window.location.hash = '#/platform/login';
+      } else {
+        window.location.href = '/platform/login';
+      }
     }
     return Promise.reject(error)
   }
