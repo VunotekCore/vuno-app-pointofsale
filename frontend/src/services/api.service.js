@@ -3,7 +3,7 @@ import axios from 'axios'
 import { cacheService } from './cache.service.js'
 import { isNetworkOnline } from '../composables/useNetworkStatus.js'
 
-const API_URL = import.meta.env.VITE_APP_URL
+const API_URL = import.meta.env.VITE_APP_URL || 'https://vuno-app-pointofsale.onrender.com'
 const PORT = import.meta.env.VITE_APP_PORT
 
 const api = axios.create({
