@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store.js'
 import { usePlatformAuthStore } from '../stores/platform-auth.store.js'
 
@@ -207,8 +207,13 @@ const routes = [
   }
 ]
 
+// En Electron usamos hash history porque el protocolo file:// no soporta
+// HTML5 pushState. Con createWebHistory() el router redirige a file:///login
+// (un archivo que no existe) causando pantalla en blanco.
+const isElectron = typeof window !== 'undefined' && !!window.electronAPI
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: isElectron ? createWebHashHistory() : createWebHistory(),
   routes
 })
 

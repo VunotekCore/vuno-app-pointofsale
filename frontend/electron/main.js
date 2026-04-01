@@ -86,16 +86,19 @@ function createMenu() {
 }
 
 function createWindow() {
+  console.log('[Electron] createWindow - RENDERER_DIST:', RENDERER_DIST)
+  
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: false,
+      sandbox: false
     },
     show: false,
     backgroundColor: '#f8fafc'
@@ -105,7 +108,28 @@ function createWindow() {
     console.error('[Electron] did-fail-load:', errorCode, errorDescription)
   })
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Electron] did-finish-load OK')
+  })
+
+  mainWindow.webContents.on('crashed', () => {
+    console.error('[Electron] Renderer process crashed')
+  })
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[Electron] Render process gone:', details.reason)
+  })
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['verbose', 'info', 'warning', 'error']
+    console.log(`[Renderer ${levels[level] || level}] ${message}`)
+    if (level === 3) {
+      console.error(`[Renderer Error] at line ${line}: ${sourceId}`)
+    }
+  })
+
   mainWindow.once('ready-to-show', () => {
+    console.log('[Electron] ready-to-show')
     mainWindow.show()
   })
 
@@ -116,6 +140,7 @@ function createWindow() {
   createMenu()
 
   const indexPath = path.join(RENDERER_DIST, 'index.html')
+  console.log('[Electron] Loading:', indexPath)
 
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
@@ -166,6 +191,8 @@ function setupAutoUpdater() {
 app.whenReady().then(() => {
   createWindow()
 
+  // Auto-updater: activo solo en builds empaquetados (no en dev)
+  // En builds locales (sin releases de GitHub) falla silenciosamente con el catch
   if (!VITE_DEV_SERVER_URL) {
     try {
       setupAutoUpdater()
