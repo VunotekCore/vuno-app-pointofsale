@@ -95,10 +95,14 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true
+      webSecurity: false
     },
     show: false,
     backgroundColor: '#f8fafc'
+  })
+
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('[Electron] did-fail-load:', errorCode, errorDescription)
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -111,10 +115,12 @@ function createWindow() {
 
   createMenu()
 
+  const indexPath = path.join(RENDERER_DIST, 'index.html')
+
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    mainWindow.loadFile(indexPath)
   }
 
   return mainWindow
@@ -161,8 +167,12 @@ app.whenReady().then(() => {
   createWindow()
 
   if (!VITE_DEV_SERVER_URL) {
-    setupAutoUpdater()
-    autoUpdater.checkForUpdatesAndNotify()
+    try {
+      setupAutoUpdater()
+      autoUpdater.checkForUpdatesAndNotify()
+    } catch (err) {
+      console.log('Auto-updater no disponible:', err.message)
+    }
   }
 
   app.on('activate', () => {
