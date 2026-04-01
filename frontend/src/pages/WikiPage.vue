@@ -16,15 +16,19 @@ const activeId = ref('')
 
 let observer = null
 
+const docsMap = import.meta.glob('../../public/docs/wiki/*.md', { query: '?raw', import: 'default' })
+
 async function loadDoc() {
   loading.value = true
   error.value = ''
   try {
-    // Usamos path relativo './' para que funcione en Electron (file://...)
-    // ya que con '/' intenta buscar en la raíz absoluta del servidor / disco duro
-    const response = await fetch(`./docs/wiki/${docPath.value}`)
-    if (!response.ok) throw new Error('Documento no encontrado')
-    content.value = await response.text()
+    const filePath = `../../public/docs/wiki/${docPath.value}`
+    
+    if (!docsMap[filePath]) {
+      throw new Error('Documento no encontrado')
+    }
+    
+    content.value = await docsMap[filePath]()
   } catch (e) {
     error.value = e.message
   } finally {
