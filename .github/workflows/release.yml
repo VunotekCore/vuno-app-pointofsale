@@ -35,9 +35,6 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Copy pnpm-lock.yaml
-        run: cp frontend/pnpm-lock.yaml ./
-
       - name: Install dependencies
         run: cd frontend && pnpm install --frozen-lockfile
 
@@ -48,8 +45,6 @@ jobs:
       - name: Build Electron (Linux)
         if: matrix.target == 'linux'
         run: cd frontend && pnpm electron:build:prod:linux
-        env:
-          DEBUG: '*'
 
       - name: Find and upload artifacts (Windows)
         if: matrix.target == 'win'
