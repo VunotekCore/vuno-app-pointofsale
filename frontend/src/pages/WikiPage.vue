@@ -20,7 +20,9 @@ async function loadDoc() {
   loading.value = true
   error.value = ''
   try {
-    const response = await fetch(`/docs/wiki/${docPath.value}`)
+    // Usamos path relativo './' para que funcione en Electron (file://...)
+    // ya que con '/' intenta buscar en la raíz absoluta del servidor / disco duro
+    const response = await fetch(`./docs/wiki/${docPath.value}`)
     if (!response.ok) throw new Error('Documento no encontrado')
     content.value = await response.text()
   } catch (e) {
