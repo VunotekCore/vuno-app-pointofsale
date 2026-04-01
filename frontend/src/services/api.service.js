@@ -28,11 +28,21 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
+    // Verifica si la ruta actual (pathname o hash) contiene 'login'
+    const isLoginPage = window.location.pathname.includes('/login') || window.location.hash.includes('/login');
+    
+    if (error.response?.status === 401 && !isLoginPage) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       localStorage.removeItem('permissions')
-      window.location.href = '/login'
+      
+      // Si estamos en Electron (hash router), no podemos hacer un redirect fuerte a '/login'
+      const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+      if (isElectron) {
+        window.location.hash = '#/login';
+      } else {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error)
   }
