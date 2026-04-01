@@ -86,22 +86,50 @@ function createMenu() {
 }
 
 function createWindow() {
+  console.log('[Electron] createWindow - RENDERER_DIST:', RENDERER_DIST)
+  
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true
+      webSecurity: false,
+      sandbox: false
     },
     show: false,
     backgroundColor: '#f8fafc'
   })
 
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('[Electron] did-fail-load:', errorCode, errorDescription)
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[Electron] did-finish-load OK')
+  })
+
+  mainWindow.webContents.on('crashed', () => {
+    console.error('[Electron] Renderer process crashed')
+  })
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[Electron] Render process gone:', details.reason)
+  })
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['verbose', 'info', 'warning', 'error']
+    console.log(`[Renderer ${levels[level] || level}] ${message}`)
+    if (level === 3) {
+      console.error(`[Renderer Error] at line ${line}: ${sourceId}`)
+    }
+  })
+
   mainWindow.once('ready-to-show', () => {
+    console.log('[Electron] ready-to-show')
     mainWindow.show()
   })
 
@@ -111,10 +139,13 @@ function createWindow() {
 
   createMenu()
 
+  const indexPath = path.join(RENDERER_DIST, 'index.html')
+  console.log('[Electron] Loading:', indexPath)
+
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    mainWindow.loadFile(indexPath)
   }
 
   return mainWindow
@@ -160,9 +191,15 @@ function setupAutoUpdater() {
 app.whenReady().then(() => {
   createWindow()
 
+  // Auto-updater: activo solo en builds empaquetados (no en dev)
+  // En builds locales (sin releases de GitHub) falla silenciosamente con el catch
   if (!VITE_DEV_SERVER_URL) {
-    setupAutoUpdater()
-    autoUpdater.checkForUpdatesAndNotify()
+    try {
+      setupAutoUpdater()
+      autoUpdater.checkForUpdatesAndNotify()
+    } catch (err) {
+      console.log('Auto-updater no disponible:', err.message)
+    }
   }
 
   app.on('activate', () => {

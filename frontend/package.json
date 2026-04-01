@@ -12,9 +12,9 @@
     "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "vite build && electron-builder",
-    "electron:build:win": "vite build && electron-builder --win",
-    "electron:build:linux": "vite build && electron-builder --linux",
+    "electron:build:local": "vite build --mode development && electron-builder",
+    "electron:build:local:win": "vite build --mode development && electron-builder --win",
+    "electron:build:local:linux": "vite build --mode development && electron-builder --linux",
     "electron:build:prod": "vite build --mode production && electron-builder",
     "electron:build:prod:win": "vite build --mode production && electron-builder --win",
     "electron:build:prod:linux": "vite build --mode production && electron-builder --linux"
