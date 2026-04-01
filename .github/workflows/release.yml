@@ -40,11 +40,11 @@ jobs:
 
       - name: Build Electron (Windows)
         if: matrix.target == 'win'
-        run: cd frontend && pnpm electron:build:prod:win
+        run: cd frontend && pnpm electron:build:prod:win --publish never
 
       - name: Build Electron (Linux)
         if: matrix.target == 'linux'
-        run: cd frontend && pnpm electron:build:prod:linux
+        run: cd frontend && pnpm electron:build:prod:linux --publish never
 
       - name: Find and upload artifacts (Windows)
         if: matrix.target == 'win'
