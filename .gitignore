@@ -35,3 +35,4 @@ AGENTS.md
 docs
 production_dump.sql
 migrations
+frontend/.env.development
