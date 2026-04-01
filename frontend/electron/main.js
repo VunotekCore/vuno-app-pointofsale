@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, shell, ipcMain, dialog } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
