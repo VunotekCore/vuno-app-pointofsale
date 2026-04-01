@@ -33,6 +33,7 @@ release
 .env.production
 AGENTS.md
 docs
+!frontend/public/docs/
 production_dump.sql
 migrations
 frontend/.env.development
