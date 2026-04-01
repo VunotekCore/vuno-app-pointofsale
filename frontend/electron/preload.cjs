@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
   
   platform: process.platform,
   
@@ -19,5 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onUpdateDownloaded: (callback) => {
     ipcRenderer.on('update-downloaded', (event, info) => callback(info))
+  },
+  onUpdateNotAvailable: (callback) => {
+    ipcRenderer.on('update-not-available', (event) => callback())
+  },
+  onCheckForUpdatesManual: (callback) => {
+    ipcRenderer.on('check-for-updates-manual', (event) => callback())
   }
 })

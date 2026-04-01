@@ -76,6 +76,18 @@ function createMenu() {
               detail: `Versión ${app.getVersion()}\n\nAplicación de punto de venta desarrollada con Vue.js y Electron.`
             })
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Buscar Actualizaciones',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('check-for-updates-manual')
+            }
+            autoUpdater.checkForUpdates().catch(err => {
+              console.error('Error buscando actualizaciones:', err)
+            })
+          }
         }
       ]
     }
@@ -168,6 +180,9 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-not-available', () => {
     console.log('La aplicación está actualizada')
+    if (mainWindow) {
+      mainWindow.webContents.send('update-not-available')
+    }
   })
 
   autoUpdater.on('error', (err) => {
@@ -225,4 +240,17 @@ ipcMain.handle('get-user-data-path', () => {
 
 ipcMain.handle('open-external', async (event, url) => {
   await shell.openExternal(url)
+})
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    return await autoUpdater.checkForUpdates()
+  } catch (err) {
+    console.error('Error en check-for-updates:', err)
+    return null
+  }
+})
+
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall()
 })

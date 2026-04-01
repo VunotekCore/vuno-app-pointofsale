@@ -3,6 +3,7 @@ import { RouterView } from 'vue-router'
 import ToastNotification from './components/ToastNotification.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import SyncProgressModal from './components/SyncProgressModal.vue'
+import UpdaterUI from './components/UpdaterUI.vue'
 import { ref } from 'vue'
 
 const confirmRef = ref(null)
@@ -15,6 +16,7 @@ window.$confirm = (message, callback, options) => {
 
 <template>
   <RouterView />
+  <UpdaterUI />
   <ToastNotification />
   <ConfirmDialog ref="confirmRef" />
   <SyncProgressModal 
