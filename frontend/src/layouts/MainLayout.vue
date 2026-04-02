@@ -313,7 +313,7 @@ const logout = () => {
 }
 
 const openWiki = () => {
-  window.location.href = '/docs?path=USER.md'
+  router.push({ path: '/docs', query: { path: 'USER.md' } })
 }
 
 const backToPlatform = () => {
