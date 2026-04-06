@@ -6,6 +6,8 @@ export class TransferRepository {
   }
 
   async getAll(filters = {}) {
+    const { user_locations, from_location_id, to_location_id, status, search, company_id } = filters
+    
     let query = `
       SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -31,9 +33,9 @@ export class TransferRepository {
       JOIN locations tl ON t.to_location_id = tl.id
       LEFT JOIN users u ON t.created_by = u.id
       LEFT JOIN users u2 ON t.updated_by = u2.id
-      WHERE t.is_delete = 0
+      WHERE t.company_id = UUID_TO_BIN(?) AND t.is_delete = 0
     `
-    const params = []
+    const params = [company_id]
 
     if (filters.user_locations && filters.user_locations.length > 0) {
       const placeholders = filters.user_locations.map(() => 'UUID_TO_BIN(?)').join(',')
@@ -109,7 +111,7 @@ export class TransferRepository {
     return { data: rows, total }
   }
 
-  async getPendingReceipt(userLocations = [], isAdmin = false) {
+  async getPendingReceipt(userLocations = [], isAdmin = false, companyId = null) {
     let query = `
       SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -139,6 +141,11 @@ export class TransferRepository {
     `
     const params = []
 
+    if (companyId) {
+      query += ' AND t.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND t.to_location_id IN (${placeholders})`
@@ -151,7 +158,7 @@ export class TransferRepository {
     return rows
   }
 
-  async getById(id) {
+  async getById(id, companyId) {
     const rows = await this.db.query(
       `SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -177,8 +184,8 @@ export class TransferRepository {
        JOIN locations tl ON t.to_location_id = tl.id
        LEFT JOIN users u ON t.created_by = u.id
        LEFT JOIN users u2 ON t.updated_by = u2.id
-       WHERE t.id = UUID_TO_BIN(?) AND t.is_delete = 0`,
-      [id]
+       WHERE t.id = UUID_TO_BIN(?) AND t.company_id = UUID_TO_BIN(?) AND t.is_delete = 0`,
+      [id, companyId]
     )
     return rows[0] || null
   }
@@ -217,10 +224,10 @@ export class TransferRepository {
 
       const transferUUID = crypto.randomUUID()
 
-      const [result] = await conn.query(
+      await conn.query(
         `INSERT INTO inventory_transfers 
-         (id, transfer_number, from_location_id, to_location_id, status, notes, total_items, created_by)
-          VALUES (UUID_TO_BIN('${transferUUID}'), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?))`,
+         (id, transfer_number, from_location_id, to_location_id, status, notes, total_items, created_by, company_id)
+           VALUES (UUID_TO_BIN('${transferUUID}'), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))`,
         [
           data.transfer_number,
           data.from_location_id,
@@ -228,7 +235,8 @@ export class TransferRepository {
           'pending',
           data.notes || null,
           0,
-          data.created_by
+          data.created_by,
+          data.company_id
         ]
       )
 
@@ -711,15 +719,20 @@ export class TransferRepository {
     )
   }
 
-  async getNextNumber() {
+  async getNextNumber(companyId = null) {
     const maxNum = 9999
     
     for (let num = 1; num <= maxNum; num++) {
       const number = `TRF-${num.toString().padStart(4, '0')}`
-      const existing = await this.db.query(
-        "SELECT id FROM inventory_transfers WHERE transfer_number = ?",
-        [number]
-      )
+      let query = 'SELECT id FROM inventory_transfers WHERE transfer_number = ?'
+      const params = [number]
+      
+      if (companyId) {
+        query += ' AND company_id = UUID_TO_BIN(?)'
+        params.push(companyId)
+      }
+      
+      const existing = await this.db.query(query, params)
       
       if (existing.length === 0) {
         return number

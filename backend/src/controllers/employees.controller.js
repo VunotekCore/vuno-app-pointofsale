@@ -7,6 +7,7 @@ export class EmployeesController {
     try {
       const { search, is_active, position, department, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
+      const companyId = req.user?.company_id
       
       const employees = await this.employeesModel.getAll(
         {
@@ -14,6 +15,7 @@ export class EmployeesController {
           is_active: is_active !== undefined ? parseInt(is_active) : undefined,
           position,
           department,
+          company_id: companyId,
           limit: parseInt(limit) || 100,
           offset: parseInt(offset) || 0
         },
@@ -30,7 +32,8 @@ export class EmployeesController {
   async getById(req, res, next) {
     try {
       const { id } = req.params
-      const employee = await this.employeesModel.getById(id)
+      const companyId = req.user?.company_id
+      const employee = await this.employeesModel.getById(id, companyId)
       res.status(200).json({ success: true, data: employee })
     } catch (error) {
       next(error)
@@ -40,7 +43,8 @@ export class EmployeesController {
   async getByUserId(req, res, next) {
     try {
       const { userId } = req.params
-      const employee = await this.employeesModel.getByUserId(userId)
+      const companyId = req.user?.company_id
+      const employee = await this.employeesModel.getByUserId(userId, companyId)
       
       if (!employee) {
         return res.status(200).json({ success: true, data: null })
@@ -55,7 +59,8 @@ export class EmployeesController {
   async create(req, res, next) {
     try {
       const isAdmin = req.user?.is_admin == 1
-      const employee = await this.employeesModel.create(req.body, req.userId, isAdmin)
+      const companyId = req.user?.company_id
+      const employee = await this.employeesModel.create(req.body, req.userId, isAdmin, companyId)
       res.status(201).json({ success: true, message: 'Empleado creado', data: employee })
     } catch (error) {
       next(error)
@@ -66,7 +71,8 @@ export class EmployeesController {
     try {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
-      const employee = await this.employeesModel.update(id, req.body, req.userId, isAdmin)
+      const companyId = req.user?.company_id
+      const employee = await this.employeesModel.update(id, req.body, req.userId, isAdmin, companyId)
       res.status(200).json({ success: true, message: 'Empleado actualizado', data: employee })
     } catch (error) {
       next(error)
@@ -77,7 +83,8 @@ export class EmployeesController {
     try {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
-      await this.employeesModel.delete(id, req.userId, isAdmin)
+      const companyId = req.user?.company_id
+      await this.employeesModel.delete(id, req.userId, isAdmin, companyId)
       res.status(200).json({ success: true, message: 'Empleado eliminado' })
     } catch (error) {
       next(error)
@@ -86,7 +93,8 @@ export class EmployeesController {
 
   async getPositions(req, res, next) {
     try {
-      const positions = await this.employeesModel.getPositions()
+      const companyId = req.user?.company_id
+      const positions = await this.employeesModel.getPositions(companyId)
       res.status(200).json({ success: true, data: positions })
     } catch (error) {
       next(error)
@@ -95,7 +103,8 @@ export class EmployeesController {
 
   async getDepartments(req, res, next) {
     try {
-      const departments = await this.employeesModel.getDepartments()
+      const companyId = req.user?.company_id
+      const departments = await this.employeesModel.getDepartments(companyId)
       res.status(200).json({ success: true, data: departments })
     } catch (error) {
       next(error)

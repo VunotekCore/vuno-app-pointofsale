@@ -114,7 +114,7 @@ export class UnitsRepository {
   }
 
   async createItemUnit (data) {
-    const { item_id, unit_id, is_default } = data
+    const { item_id, unit_id, is_default, company_id } = data
     
     if (is_default) {
       await this.db.query(`
@@ -123,9 +123,9 @@ export class UnitsRepository {
     }
     
     const result = await this.db.query(`
-      INSERT INTO item_units (id, item_id, unit_id, is_default)
-      VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?)
-    `, [item_id, unit_id, is_default ? 1 : 0])
+      INSERT INTO item_units (id, item_id, unit_id, is_default, company_id)
+      VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, UUID_TO_BIN(?))
+    `, [item_id, unit_id, is_default ? 1 : 0, company_id])
     
     return result.insertId
   }

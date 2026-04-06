@@ -33,7 +33,7 @@ const locationStore = useLocationStore()
 const currencyStore = useCurrencyStore()
 const authStore = useAuthStore()
 
-const isAdmin = computed(() => authStore.user?.role_name === 'admin')
+const isAdmin = computed(() => authStore.user?.role_name?.toLowerCase() === 'admin' || authStore.user?.is_admin)
 
 const drawerClosures = ref([])
 const selectedLocation = ref(null)

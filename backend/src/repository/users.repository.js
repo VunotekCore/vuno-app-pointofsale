@@ -131,14 +131,16 @@ export class UsersRepository {
     return { id: newUser[0]?.id }
   }
 
-  async createWithDetails (data, userId = null) {
-    const { username, email, password, role_id, is_active, location_ids, employee, avatar, company_id: companyId } = data
+  async createWithDetails (data, userId = null, companyId = null) {
+    const { username, email, password, role_id, is_active, location_ids, employee, avatar, company_id: companyIdFromData } = data
 
     if (!username || !email || !password) {
       throw new BadRequestError('Username, email y contraseña requeridos')
     }
 
-    if (!companyId) {
+    const finalCompanyId = companyIdFromData || companyId
+
+    if (!finalCompanyId) {
       throw new BadRequestError('Company ID es requerido')
     }
 
@@ -162,22 +164,25 @@ export class UsersRepository {
       await conn.beginTransaction()
 
       const userIdBin = crypto.randomUUID()
-      const createdByBin = userId ? 'UUID_TO_BIN(?)' : null
-      const params = [userIdBin, username, email, passwordHash, role_id, is_active ?? true, companyId]
-      if (createdByBin) {
-        params.push(userId)
-      }
       const avatarValue = avatar || null
-      await conn.query(
-        `INSERT INTO users (id, username, email, avatar, password_hash, role_id, is_active, company_id, created_by) VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ${createdByBin || 'NULL'})`,
-        [userIdBin, username, email, avatarValue, passwordHash, role_id, is_active ?? true, companyId]
-      )
+      
+      let userSql = ''
+      const userInsertValues = [userIdBin, username, email, avatarValue, passwordHash, role_id, is_active ?? true, finalCompanyId]
+      
+      if (userId) {
+        userSql = `INSERT INTO users (id, username, email, avatar, password_hash, role_id, is_active, company_id, created_by) VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), ?, UUID_TO_BIN(?), UUID_TO_BIN(?))`
+        userInsertValues.push(userId)
+      } else {
+        userSql = `INSERT INTO users (id, username, email, avatar, password_hash, role_id, is_active, company_id) VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), ?, UUID_TO_BIN(?))`
+      }
+      
+      await conn.query(userSql, userInsertValues)
 
       if (location_ids && location_ids.length > 0) {
         for (const locationId of location_ids) {
           await conn.query(
             `INSERT INTO user_locations (id, user_id, location_id, is_default, company_id) VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), 0, UUID_TO_BIN(?))`,
-            [userIdBin, locationId, companyId]
+            [userIdBin, locationId, finalCompanyId]
           )
         }
       }
@@ -186,7 +191,7 @@ export class UsersRepository {
         const employeeIdBin = crypto.randomUUID()
         await conn.query(
           `INSERT INTO employees (id, user_id, first_name, last_name, phone, email, address, city, state, country, postal_code, position, department, hire_date, salary, emergency_contact_name, emergency_contact_phone, company_id) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))`,
-          [employeeIdBin, userIdBin, employee.first_name, employee.last_name || null, employee.phone || null, employee.email || null, employee.address || null, employee.city || null, employee.state || null, employee.country || 'Mexico', employee.postal_code || null, employee.position || null, employee.department || null, employee.hire_date || null, employee.salary || null, employee.emergency_contact_name || null, employee.emergency_contact_phone || null, companyId]
+          [employeeIdBin, userIdBin, employee.first_name, employee.last_name || null, employee.phone || null, employee.email || null, employee.address || null, employee.city || null, employee.state || null, employee.country || 'Mexico', employee.postal_code || null, employee.position || null, employee.department || null, employee.hire_date || null, employee.salary || null, employee.emergency_contact_name || null, employee.emergency_contact_phone || null, finalCompanyId]
         )
       }
 
@@ -200,8 +205,10 @@ export class UsersRepository {
     }
   }
 
-  async updateWithDetails (id, data, userId = null) {
-    const { username, email, password, role_id, is_active, location_ids, employee, avatar } = data
+  async updateWithDetails (id, data, userId = null, companyId = null) {
+    const { username, email, password, role_id, is_active, location_ids, employee, avatar, company_id: companyIdFromData } = data
+    
+    const finalCompanyId = companyIdFromData || companyId
     
     const conn = await this.db.getConnection()
     try {
@@ -317,7 +324,7 @@ export class UsersRepository {
     }
   }
 
-  async delete (id, userId = null) {
+  async delete (id, userId = null, companyId = null) {
     const updates = ['is_delete = 1']
     const params = []
 
@@ -326,8 +333,14 @@ export class UsersRepository {
       params.push(userId)
     }
 
+    let whereClause = 'WHERE id = UUID_TO_BIN(?)'
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+
     params.push(id)
-    await this.db.query(`UPDATE \`users\` SET ${updates.join(', ')} WHERE id = UUID_TO_BIN(?)`, params)
+    await this.db.query(`UPDATE \`users\` SET ${updates.join(', ')} ${whereClause}`, params)
     return { success: true }
   }
 

@@ -7,27 +7,27 @@ export class SupplierModel {
     return await this.supplierRepo.getAll(filters)
   }
 
-  async getById (id) {
-    return await this.supplierRepo.getById(id)
+  async getById (id, companyId) {
+    return await this.supplierRepo.getById(id, companyId)
   }
 
   async create (data) {
     return await this.supplierRepo.create(data)
   }
 
-  async update (id, data) {
-    return await this.supplierRepo.update(id, data)
+  async update (id, data, companyId) {
+    return await this.supplierRepo.update(id, data, companyId)
   }
 
-  async delete (id) {
-    return await this.supplierRepo.delete(id)
+  async delete (id, companyId) {
+    return await this.supplierRepo.delete(id, companyId)
   }
 
-  async getActive () {
-    return await this.supplierRepo.getActive()
+  async getActive (companyId = null) {
+    return await this.supplierRepo.getActive(companyId)
   }
 
-  async getHistory (id) {
-    return await this.supplierRepo.getHistory(id)
+  async getHistory (id, companyId) {
+    return await this.supplierRepo.getHistory(id, companyId)
   }
 }

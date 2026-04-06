@@ -28,8 +28,10 @@ export class InventoryModel {
       throw new NotFoundError('Producto no encontrado')
     }
 
-    const { quantityBefore, quantityAfter } = await this.inventoryRepo.updateStock(
-      item_id, variation_id, location_id, parseFloat(quantity), userId
+    const isEntry = ['adjustment_in', 'found'].includes(movement_type)
+
+    const { quantityBefore, quantityAfter, signedQuantity } = await this.inventoryRepo.updateStock(
+      item_id, variation_id, location_id, parseFloat(quantity), userId, isEntry
     )
 
     const movementTypes = {
@@ -40,7 +42,6 @@ export class InventoryModel {
       found: 'found'
     }
 
-    const isEntry = parseFloat(quantity) > 0
     let finalUnitCost = (unit_cost !== undefined && unit_cost !== '' && unit_cost !== null)
       ? parseFloat(unit_cost)
       : parseFloat(item.cost_price || 0)
@@ -76,11 +77,11 @@ export class InventoryModel {
       variation_id,
       location_id,
       movement_type: movementTypes[movement_type] || movement_type,
-      quantity: parseFloat(quantity),
+      quantity: signedQuantity,
       quantity_before: quantityBefore,
       quantity_after: quantityAfter,
       unit_cost: finalUnitCost,
-      total_cost: finalUnitCost * Math.abs(parseFloat(quantity)),
+      total_cost: finalUnitCost * Math.abs(signedQuantity),
       reference_type: 'manual_adjustment',
       user_id: userId,
       notes
@@ -89,19 +90,19 @@ export class InventoryModel {
     return { quantity_before: quantityBefore, quantity_after: quantityAfter, new_cost_price: finalUnitCost }
   }
 
-  async getMovements (itemId = null, locationId = null, limit = 100, userLocations = [], isAdmin = false) {
-    return await this.inventoryRepo.getMovements(itemId, locationId, limit, userLocations, isAdmin)
+  async getMovements (itemId = null, locationId = null, limit = 100, userLocations = [], isAdmin = false, companyId = null) {
+    return await this.inventoryRepo.getMovements(itemId, locationId, limit, userLocations, isAdmin, companyId)
   }
 
   async getSerials (itemId = null, locationId = null, status = null, userLocations = [], isAdmin = false) {
     return await this.inventoryRepo.getSerials(itemId, locationId, status, userLocations, isAdmin)
   }
 
-  async getLowStock (userLocations = [], isAdmin = false) {
-    return await this.inventoryRepo.getLowStock(userLocations, isAdmin)
+  async getLowStock (userLocations = [], isAdmin = false, companyId = null) {
+    return await this.inventoryRepo.getLowStock(userLocations, isAdmin, companyId)
   }
 
-  async getStockInTransit (locationIds = [], isAdmin = false) {
-    return await this.inventoryRepo.getStockInTransit(locationIds, isAdmin)
+  async getStockInTransit (locationIds = [], isAdmin = false, companyId = null) {
+    return await this.inventoryRepo.getStockInTransit(locationIds, isAdmin, companyId)
   }
 }

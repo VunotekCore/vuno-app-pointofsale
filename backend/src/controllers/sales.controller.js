@@ -9,12 +9,14 @@ export class SalesController {
       const { items, ...saleData } = req.body
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.createSale(
         { ...saleData, items },
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(201).json({ success: true, message: 'Venta creada', data: sale })
@@ -29,13 +31,15 @@ export class SalesController {
       const { payments } = req.body
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.completeSale(
         id,
         payments,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Venta completada', data: sale })
@@ -49,13 +53,15 @@ export class SalesController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.suspendSale(
         id,
         req.body,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Venta suspendida', data: sale })
@@ -69,12 +75,14 @@ export class SalesController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.resumeSale(
         id,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Venta reanudada', data: sale })
@@ -89,13 +97,15 @@ export class SalesController {
       const { notes } = req.body
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.cancelSale(
         id,
         notes,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Venta cancelada', data: sale })
@@ -109,11 +119,13 @@ export class SalesController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.getSale(
         id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, data: sale })
@@ -127,6 +139,7 @@ export class SalesController {
       const { location_id, status, start_date, end_date, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const { sales, total } = await this.salesModel.getSales(
         { 
@@ -134,6 +147,7 @@ export class SalesController {
           status,
           start_date,
           end_date,
+          company_id: companyId,
           limit: parseInt(limit) || 100,
           offset: parseInt(offset) || 0
         },
@@ -230,13 +244,15 @@ export class SalesController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sale = await this.salesModel.addPaymentToSale(
         id,
         req.body,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Pago agregado', data: sale })
@@ -295,12 +311,14 @@ export class ReturnsController {
       const { items, ...returnData } = req.body
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const returnObj = await this.returnsModel.createReturn(
         { ...returnData, items },
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(201).json({ success: true, message: 'Devolución creada', data: returnObj })
@@ -314,12 +332,14 @@ export class ReturnsController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const returnObj = await this.returnsModel.processReturn(
         id,
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, message: 'Devolución procesada', data: returnObj })
@@ -351,6 +371,7 @@ export class ReturnsController {
       const { location_id, start_date, end_date, limit, offset, search } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const result = await this.returnsModel.getReturns(
         { 
@@ -358,6 +379,7 @@ export class ReturnsController {
           start_date,
           end_date,
           search,
+          company_id: companyId,
           limit: parseInt(limit) || 20,
           offset: parseInt(offset) || 0
         },

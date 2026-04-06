@@ -43,10 +43,17 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id, status, limit, offset } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
     const countParams = []
 
     let whereClause = ' WHERE s.is_delete = 0'
+
+    if (companyId) {
+      whereClause += ' AND s.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+      countParams.push(companyId)
+    }
 
     if (start_date) {
       whereClause += ' AND DATE(s.sale_date) >= ?'
@@ -155,8 +162,8 @@ export class ReportsRepository {
     }
   }
 
-  async getSalesReportDetails(saleId) {
-    const saleQuery = `
+  async getSalesReportDetails(saleId, companyId = null) {
+    let saleQuery = `
       SELECT 
         BIN_TO_UUID(s.id) as id,
         s.sale_number,
@@ -182,9 +189,15 @@ export class ReportsRepository {
       LEFT JOIN customers c ON s.customer_id = c.id
       JOIN users u ON s.created_by = u.id
       JOIN locations l ON s.location_id = l.id
-      WHERE s.id = UUID_TO_BIN(?)
-    `
-    const saleRows = await this.db.query(saleQuery, [saleId])
+      WHERE s.id = UUID_TO_BIN(?)`
+    const saleParams = [saleId]
+    
+    if (companyId) {
+      saleQuery += ' AND s.company_id = UUID_TO_BIN(?)'
+      saleParams.push(companyId)
+    }
+    
+    const saleRows = await this.db.query(saleQuery, saleParams)
 
     if (saleRows.length === 0) {
       return null
@@ -235,10 +248,17 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id, movement_type, limit, offset } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
     const countParams = []
 
     let whereClause = ' WHERE 1=1'
+
+    if (companyId) {
+      whereClause += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+      countParams.push(companyId)
+    }
 
     if (start_date) {
       whereClause += ' AND DATE(im.created_at) >= ?'
@@ -356,6 +376,7 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, supplier_id, status, limit, offset } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
     const countParams = []
 
@@ -364,6 +385,13 @@ export class ReportsRepository {
 
     const receivingsParams = []
     const poParams = []
+
+    if (companyId) {
+      receivingsWhere += ' AND r.company_id = UUID_TO_BIN(?)'
+      poWhere += ' AND po.company_id = UUID_TO_BIN(?)'
+      receivingsParams.push(companyId)
+      poParams.push(companyId)
+    }
 
     if (start_date) {
       receivingsWhere += ' AND DATE(r.received_at) >= ?'
@@ -525,12 +553,21 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id, limit, offset } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
     const countParams = []
 
     let shiftsWhere = ' WHERE 1=1'
     let transactionsWhere = ' WHERE 1=1'
     let adjustmentsWhere = ' WHERE 1=1'
+
+    if (companyId) {
+      shiftsWhere += ' AND sc.company_id = UUID_TO_BIN(?)'
+      transactionsWhere += ' AND cd.company_id = UUID_TO_BIN(?)'
+      adjustmentsWhere += ' AND da.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+      countParams.push(companyId)
+    }
 
     if (start_date) {
       shiftsWhere += ' AND DATE(ss.date) >= ?'
@@ -708,9 +745,15 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id, status } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
 
     let whereClause = ' WHERE s.is_delete = 0'
+
+    if (companyId) {
+      whereClause += ' AND s.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (start_date) {
       whereClause += ' AND DATE(s.sale_date) >= ?'
@@ -764,9 +807,15 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id, movement_type } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
 
     let whereClause = ' WHERE 1=1'
+
+    if (companyId) {
+      whereClause += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (start_date) {
       whereClause += ' AND DATE(im.created_at) >= ?'
@@ -822,11 +871,19 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, supplier_id, status } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const receivingsParams = []
     const poParams = []
 
     let receivingsWhere = ' WHERE (r.is_delete = 0 OR r.is_delete IS NULL)'
     let poWhere = ' WHERE (po.is_delete = 0 OR po.is_delete IS NULL)'
+
+    if (companyId) {
+      receivingsWhere += ' AND r.company_id = UUID_TO_BIN(?)'
+      poWhere += ' AND po.company_id = UUID_TO_BIN(?)'
+      receivingsParams.push(companyId)
+      poParams.push(companyId)
+    }
 
     if (start_date) {
       receivingsWhere += ' AND DATE(r.received_at) >= ?'
@@ -911,11 +968,19 @@ export class ReportsRepository {
     const { location_id, start_date, end_date, user_id } = filters
     const isAdmin = filters.isAdmin || false
     const userLocations = filters.userLocations || []
+    const companyId = filters.companyId || null
     const params = []
 
     let shiftsWhere = ' WHERE 1=1'
     let transactionsWhere = ' WHERE 1=1'
     let adjustmentsWhere = ' WHERE 1=1'
+
+    if (companyId) {
+      shiftsWhere += ' AND sc.company_id = UUID_TO_BIN(?)'
+      transactionsWhere += ' AND cd.company_id = UUID_TO_BIN(?)'
+      adjustmentsWhere += ' AND da.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (start_date) {
       shiftsWhere += ' AND DATE(ss.date) >= ?'

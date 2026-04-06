@@ -85,6 +85,21 @@ async function loadData() {
   }
 }
 
+async function loadMovements() {
+  loading.value = true
+  try {
+    const params = {
+      limit: 100
+    }
+    const { data } = await inventoryService.getMovements(params)
+    movements.value = data.data || []
+  } catch (error) {
+    notification.error('Error al cargar movimientos')
+  } finally {
+    loading.value = false
+  }
+}
+
 async function filterByLocation() {
   currentPage.value = 1
   await loadStock()
@@ -104,6 +119,12 @@ watch(searchQuery, () => {
 watch(selectedLocation, () => {
   currentPage.value = 1
   loadStock()
+})
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'history') {
+    loadMovements()
+  }
 })
 
 const filteredStock = computed(() => {
@@ -165,7 +186,8 @@ async function adjustStock() {
       item_id: form.value.item_id,
       variation_id: form.value.variation_id,
       quantity: form.value.quantity,
-      movement_type: form.value.movement_type
+      movement_type: form.value.movement_type,
+      unit_cost: form.value.unit_cost || null
     })
     
     notification.success('Stock actualizado correctamente')

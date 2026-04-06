@@ -9,7 +9,8 @@ export class UsersController {
   async getAll (req, res, next) {
     try {
       const { limit, offset, search, ...filters } = req.query
-      const result = await this.usersModel.getAll({ limit, offset, search, ...filters })
+      const companyId = req.user?.company_id
+      const result = await this.usersModel.getAll({ limit, offset, search, company_id: companyId, ...filters })
       res.status(200).json({ success: true, data: result.data || result, total: result.total || result.length })
     } catch (error) {
       next(error)
@@ -30,7 +31,8 @@ export class UsersController {
     try {
       const { username, email, password, role_id, is_active, location_ids, employee, avatar } = req.body
       const userId = req.user?.user_id || null
-      const result = await this.usersModel.createWithDetails({ username, email, password, role_id, is_active, location_ids, employee, avatar }, userId)
+      const companyId = req.user?.company_id
+      const result = await this.usersModel.create({ username, email, password, role_id, is_active, location_ids, employee, avatar }, userId, companyId)
       res.status(201).json({
         success: true,
         message: 'Usuario creado',
@@ -46,7 +48,8 @@ export class UsersController {
       const { id } = req.params
       const { username, email, password, role_id, is_active, location_ids, employee, avatar } = req.body
       const userId = req.user?.user_id || null
-      await this.usersModel.update(id, { username, email, password, role_id, is_active, location_ids, employee, avatar }, userId)
+      const companyId = req.user?.company_id
+      await this.usersModel.update(id, { username, email, password, role_id, is_active, location_ids, employee, avatar }, userId, companyId)
       res.status(200).json({ success: true, message: 'Usuario actualizado' })
     } catch (error) {
       next(error)
@@ -57,7 +60,8 @@ export class UsersController {
     try {
       const { id } = req.params
       const userId = req.user?.user_id || null
-      await this.usersModel.delete(id, userId)
+      const companyId = req.user?.company_id
+      await this.usersModel.delete(id, userId, companyId)
       res.status(200).json({ success: true, message: 'Usuario eliminado' })
     } catch (error) {
       next(error)

@@ -10,7 +10,7 @@ export class SalesModel {
     this.paymentRepo = paymentRepository
   }
 
-  async createSale (data, userId, userLocations = [], isAdmin = false) {
+  async createSale (data, userId, userLocations = [], isAdmin = false, companyId = null) {
     const { customer_id, location_id, items, notes, sale_date } = data
 
     if (!location_id) {
@@ -24,7 +24,7 @@ export class SalesModel {
     // Obtener cajón abierto para vincular la venta
     let drawerId = null
     if (this.paymentRepo) {
-      const openDrawer = await this.paymentRepo.getOpenDrawer(location_id, userId)
+      const openDrawer = await this.paymentRepo.getOpenDrawer(location_id, userId, companyId)
       if (openDrawer) {
         drawerId = openDrawer.id
       }
@@ -34,7 +34,7 @@ export class SalesModel {
       throw new BadRequestError('La venta debe tener al menos un ítem')
     }
 
-    const saleNumber = await this.salesRepo.generateSaleNumber()
+    const saleNumber = await this.salesRepo.generateSaleNumber(companyId)
 
     let subtotal = 0
     let totalDiscount = 0
@@ -60,6 +60,7 @@ export class SalesModel {
 
     const saleId = await this.salesRepo.createSale({
       sale_number: saleNumber,
+      company_id: companyId,
       customer_id,
       created_by: userId,
       location_id,
@@ -100,8 +101,8 @@ export class SalesModel {
     return await this.salesRepo.getByIdWithDetails(saleId)
   }
 
-  async completeSale (saleId, payments, userId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async completeSale (saleId, payments, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -135,7 +136,7 @@ export class SalesModel {
         })
       }
 
-      const items = await this.salesRepo.getItemsBySaleId(saleId)
+      const items = await this.salesRepo.getItemsBySaleId(saleId, companyId)
       const affectedKits = new Set()
 
       for (const item of items) {
@@ -246,8 +247,8 @@ export class SalesModel {
     }
   }
 
-  async suspendSale (saleId, data, userId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async suspendSale (saleId, data, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -274,8 +275,8 @@ export class SalesModel {
     return await this.salesRepo.getByIdWithDetails(saleId)
   }
 
-  async resumeSale (saleId, userId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async resumeSale (saleId, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -292,8 +293,8 @@ export class SalesModel {
     return await this.salesRepo.getByIdWithDetails(saleId)
   }
 
-  async cancelSale (saleId, notes, userId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async cancelSale (saleId, notes, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -314,8 +315,8 @@ export class SalesModel {
     return await this.salesRepo.getById(saleId)
   }
 
-  async getSale (saleId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async getSale (saleId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -324,7 +325,7 @@ export class SalesModel {
       throw new ForbiddenError('No tienes permiso para ver esta venta')
     }
 
-    return await this.salesRepo.getByIdWithDetails(saleId)
+    return await this.salesRepo.getByIdWithDetails(saleId, companyId)
   }
 
   async getSales (filters = {}, userLocations = [], isAdmin = false) {
@@ -429,8 +430,8 @@ export class SalesModel {
     return await this.salesRepo.getById(saleItem.sale_id)
   }
 
-  async addPaymentToSale (saleId, payment, userId, userLocations = [], isAdmin = false) {
-    const sale = await this.salesRepo.getById(saleId)
+  async addPaymentToSale (saleId, payment, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const sale = await this.salesRepo.getById(saleId, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -464,10 +465,10 @@ export class ReturnsModel {
     this.itemsRepo = itemsRepository
   }
 
-  async createReturn (data, userId, userLocations = [], isAdmin = false) {
+  async createReturn (data, userId, userLocations = [], isAdmin = false, companyId = null) {
     const { sale_id, items, refund_method, notes, return_date } = data
 
-    const sale = await this.salesRepo.getById(sale_id)
+    const sale = await this.salesRepo.getById(sale_id, companyId)
     if (!sale) {
       throw new NotFoundError('Venta no encontrada')
     }
@@ -484,7 +485,7 @@ export class ReturnsModel {
       throw new BadRequestError('La devolución debe tener al menos un ítem')
     }
 
-    const returnNumber = await this.returnsRepo.generateReturnNumber()
+    const returnNumber = await this.returnsRepo.generateReturnNumber(companyId)
 
     let subtotal = 0
     let totalTax = 0
@@ -502,8 +503,9 @@ export class ReturnsModel {
 
     const returnId = await this.returnsRepo.createReturn({
       return_number: returnNumber,
+      company_id: companyId,
       sale_id,
-      employee_id: userId,
+      created_by: userId,
       location_id: sale.location_id,
       subtotal,
       tax_amount: totalTax,
@@ -532,8 +534,8 @@ export class ReturnsModel {
     return await this.returnsRepo.getById(returnId)
   }
 
-  async processReturn (returnId, userId, userLocations = [], isAdmin = false) {
-    const returnData = await this.returnsRepo.getById(returnId)
+  async processReturn (returnId, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const returnData = await this.returnsRepo.getById(returnId, companyId)
     if (!returnData) {
       throw new NotFoundError('Devolución no encontrada')
     }
@@ -542,7 +544,7 @@ export class ReturnsModel {
       throw new ForbiddenError('No tienes permiso para procesar devoluciones en esta ubicación')
     }
 
-    const items = await this.returnsRepo.getItemsByReturnId(returnId)
+    const items = await this.returnsRepo.getItemsByReturnId(returnId, companyId)
     const conn = this.returnsRepo.db
 
     try {

@@ -20,18 +20,18 @@ export class UsersModel {
     return await this.usersRepo.getById(id)
   }
 
-  async create (data, userId = null) {
+  async create (data, userId = null, companyId = null) {
     const { location_ids, employee, ...userData } = data
-    return await this.usersRepo.createWithDetails({ ...userData, location_ids, employee }, userId)
+    return await this.usersRepo.createWithDetails({ ...userData, location_ids, employee }, userId, companyId)
   }
 
-  async update (id, data, userId = null) {
+  async update (id, data, userId = null, companyId = null) {
     const { location_ids, employee, ...userData } = data
-    return await this.usersRepo.updateWithDetails(id, { ...userData, location_ids, employee }, userId)
+    return await this.usersRepo.updateWithDetails(id, { ...userData, location_ids, employee }, userId, companyId)
   }
 
-  async delete (id, userId = null) {
-    return await this.usersRepo.delete(id, userId)
+  async delete (id, userId = null, companyId = null) {
+    return await this.usersRepo.delete(id, userId, companyId)
   }
 
   async restore (id) {

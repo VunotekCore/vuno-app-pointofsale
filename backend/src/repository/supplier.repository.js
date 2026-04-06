@@ -8,11 +8,17 @@ export class SupplierRepository {
   }
 
   async getAll (filters = {}) {
-    const { search, is_active, limit, offset } = filters
+    const { search, is_active, company_id, limit, offset } = filters
     
     let whereClause = 'WHERE (s.is_delete = 0 OR s.is_delete IS NULL)'
     const params = []
     const countParams = []
+
+    if (company_id) {
+      whereClause += ' AND s.company_id = UUID_TO_BIN(?)'
+      params.push(company_id)
+      countParams.push(company_id)
+    }
 
     if (search) {
       whereClause += ' AND (s.name LIKE ? OR s.contact_name LIKE ? OR s.email LIKE ?)'
@@ -64,7 +70,7 @@ export class SupplierRepository {
     return { data: rows || [], total }
   }
 
-  async getById (id) {
+  async getById (id, companyId) {
     const rows = await this.db.query(`
       SELECT 
         BIN_TO_UUID(s.id) as id,
@@ -80,8 +86,8 @@ export class SupplierRepository {
         s.created_at,
         s.updated_at
       FROM suppliers s
-      WHERE s.id = UUID_TO_BIN(?) AND (s.is_delete = 0 OR s.is_delete IS NULL)
-    `, [id])
+      WHERE s.id = UUID_TO_BIN(?) AND s.company_id = UUID_TO_BIN(?) AND (s.is_delete = 0 OR s.is_delete IS NULL)
+    `, [id, companyId])
 
     if (!rows || rows.length === 0) {
       throw new NotFoundError(`Proveedor con id ${id} no encontrado`)
@@ -91,15 +97,15 @@ export class SupplierRepository {
   }
 
   async create (data) {
-    const { name, contact_name, email, phone, address, rfc, payment_terms, is_active, custom_fields } = data
+    const { name, contact_name, email, phone, address, rfc, payment_terms, is_active, custom_fields, company_id } = data
 
     if (!name || !name.trim()) {
       throw new BadRequestError('El nombre del proveedor es requerido')
     }
 
-    const result = await this.db.query(`
-      INSERT INTO suppliers (id, name, contact_name, email, phone, address, rfc, payment_terms, is_active, custom_fields)
-      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    await this.db.query(`
+      INSERT INTO suppliers (id, name, contact_name, email, phone, address, rfc, payment_terms, is_active, custom_fields, company_id)
+      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
     `, [
       name.trim(),
       contact_name || null,
@@ -109,17 +115,16 @@ export class SupplierRepository {
       rfc || null,
       payment_terms || '30 días',
       is_active !== undefined ? is_active : 1,
-      custom_fields || null
+      custom_fields || null,
+      company_id
     ])
 
-    console.log('Supplier created, searching by name:', name.trim())
-    const newSupplier = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM suppliers WHERE name = ?', [name.trim()])
-    console.log('Found supplier:', newSupplier)
+    const newSupplier = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM suppliers WHERE name = ? AND company_id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)', [name.trim(), company_id])
     return newSupplier[0]?.id
   }
 
-  async update (id, data) {
-    await this.getById(id)
+  async update (id, data, companyId) {
+    await this.getById(id, companyId)
 
     const { name, contact_name, email, phone, address, rfc, payment_terms, is_active, custom_fields } = data
 
@@ -142,8 +147,8 @@ export class SupplierRepository {
       throw new BadRequestError('No hay campos para actualizar')
     }
 
-    values.push(id)
-    const result = await this.db.query(`UPDATE suppliers SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?)`, values)
+    values.push(id, companyId)
+    const result = await this.db.query(`UPDATE suppliers SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`, values)
     
     if (result.affectedRows === 0) {
       throw new NotFoundError(`Proveedor con id ${id} no encontrado`)
@@ -151,16 +156,24 @@ export class SupplierRepository {
     return result.affectedRows
   }
 
-  async delete (id) {
-    await this.getById(id)
-    const result = await this.db.query('UPDATE suppliers SET is_delete = 1 WHERE id = UUID_TO_BIN(?)', [id])
+  async delete (id, companyId) {
+    await this.getById(id, companyId)
+    const result = await this.db.query('UPDATE suppliers SET is_delete = 1 WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)', [id, companyId])
     if (result.affectedRows === 0) {
       throw new NotFoundError(`Proveedor con id ${id} no encontrado`)
     }
     return result.affectedRows
   }
 
-  async getActive () {
+  async getActive (companyId = null) {
+    let whereClause = 'WHERE s.is_active = 1 AND (s.is_delete = 0 OR s.is_delete IS NULL)'
+    const params = []
+    
+    if (companyId) {
+      whereClause += ' AND s.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
     const rows = await this.db.query(`
       SELECT 
         BIN_TO_UUID(s.id) as id,
@@ -169,13 +182,17 @@ export class SupplierRepository {
         s.email,
         s.phone
       FROM suppliers s
-      WHERE s.is_active = 1 AND (s.is_delete = 0 OR s.is_delete IS NULL)
+      ${whereClause}
       ORDER BY s.name ASC
-    `)
+    `, params)
     return rows || []
   }
 
-  async getHistory (id) {
+  async getHistory (id, companyId) {
+    let poWhere = 'po.supplier_id = UUID_TO_BIN(?) AND po.company_id = UUID_TO_BIN(?) AND (po.is_delete = 0 OR po.is_delete IS NULL)'
+    let rWhere = 'r.supplier_id = UUID_TO_BIN(?) AND r.company_id = UUID_TO_BIN(?) AND r.status = \'completed\' AND (r.is_delete = 0 OR r.is_delete IS NULL)'
+    let params = [id, companyId]
+
     const purchaseOrders = await this.db.query(`
       SELECT 
         BIN_TO_UUID(po.id) as id,
@@ -187,11 +204,12 @@ export class SupplierRepository {
         l.name as location_name
       FROM purchase_orders po
       LEFT JOIN locations l ON po.location_id = l.id
-      WHERE po.supplier_id = UUID_TO_BIN(?) AND (po.is_delete = 0 OR po.is_delete IS NULL)
+      WHERE ${poWhere}
       ORDER BY po.created_at DESC
       LIMIT 20
-    `, [id])
+    `, params)
 
+    params = [id, companyId]
     const receivings = await this.db.query(`
       SELECT 
         BIN_TO_UUID(r.id) as id,
@@ -204,11 +222,12 @@ export class SupplierRepository {
       FROM receivings r
       LEFT JOIN locations l ON r.location_id = l.id
       LEFT JOIN purchase_orders po ON r.purchase_order_id = po.id
-      WHERE r.supplier_id = UUID_TO_BIN(?) AND r.status = 'completed' AND (r.is_delete = 0 OR r.is_delete IS NULL)
+      WHERE ${rWhere}
       ORDER BY r.received_at DESC
       LIMIT 20
-    `, [id])
+    `, params)
 
+    params = [id, companyId]
     const totals = await this.db.query(`
       SELECT 
         COALESCE(SUM(r.total_amount), 0) as total_purchases,
@@ -216,8 +235,8 @@ export class SupplierRepository {
         COUNT(DISTINCT po.id) as total_orders
       FROM receivings r
       LEFT JOIN purchase_orders po ON r.purchase_order_id = po.id
-      WHERE r.supplier_id = UUID_TO_BIN(?) AND r.status = 'completed'
-    `, [id])
+      WHERE r.supplier_id = UUID_TO_BIN(?) AND r.company_id = UUID_TO_BIN(?) AND r.status = 'completed'
+    `, params)
 
     return {
       purchase_orders: purchaseOrders || [],

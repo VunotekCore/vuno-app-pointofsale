@@ -3,28 +3,28 @@ export class RolesModel {
     this.rolesRepo = rolesRepository
   }
 
-  async getAll () {
-    return await this.rolesRepo.getAll()
+  async getAll (companyId) {
+    return await this.rolesRepo.getAll(companyId)
   }
 
-  async getById (id) {
-    return await this.rolesRepo.getById(id)
+  async getById (id, companyId) {
+    return await this.rolesRepo.getById(id, companyId)
   }
 
-  async getByIdWithTablePermissions (id) {
-    return await this.rolesRepo.getByIdWithTablePermissions(id)
+  async getByIdWithTablePermissions (id, companyId) {
+    return await this.rolesRepo.getByIdWithTablePermissions(id, companyId)
   }
 
-  async create (data, userId = null) {
-    return await this.rolesRepo.create(data, userId)
+  async create (data, userId = null, companyId = null) {
+    return await this.rolesRepo.create({ ...data, company_id: companyId }, userId)
   }
 
-  async update (id, data, userId = null) {
-    return await this.rolesRepo.update(id, data, userId)
+  async update (id, data, userId = null, companyId = null) {
+    return await this.rolesRepo.update(id, data, userId, companyId)
   }
 
-  async delete (id, userId = null) {
-    return await this.rolesRepo.delete(id, userId)
+  async delete (id, userId = null, companyId = null) {
+    return await this.rolesRepo.delete(id, userId, companyId)
   }
 
   async restore (id) {

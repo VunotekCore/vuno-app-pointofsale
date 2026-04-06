@@ -1,9 +1,10 @@
 import { BadRequestError } from '../errors/BadRequestError.js'
 
 export class GenericModel {
-  constructor (genericRepository, tableConfig) {
+  constructor (genericRepository, tableConfig, tableName) {
     this.repo = genericRepository
     this.tableConfig = tableConfig
+    this.tableName = tableName
   }
 
   validateRequired (data) {
@@ -33,9 +34,13 @@ export class GenericModel {
     return await this.repo.getById(id)
   }
 
-  async create (data, userId = null) {
+  async create (data, userId = null, companyId = null) {
     this.validateRequired(data)
     const filtered = this.filterAllowedFields(data)
+    const tablesWithCompanyId = ['locations', 'categories', 'item_variations', 'suppliers']
+    if (companyId && tablesWithCompanyId.includes(this.tableName)) {
+      filtered.company_id = companyId
+    }
     return await this.repo.create(filtered, userId)
   }
 

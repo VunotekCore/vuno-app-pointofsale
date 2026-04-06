@@ -23,7 +23,7 @@ export class UnitsModel {
     return await this.unitsRepo.getDefaultUnit(itemId)
   }
 
-  async createItemUnit (data, userId = null) {
+  async createItemUnit (data, userId = null, companyId = null) {
     const { item_id, unit_id, is_default } = data
 
     if (!item_id) {
@@ -45,7 +45,7 @@ export class UnitsModel {
       data.is_default = true
     }
 
-    await this.unitsRepo.createItemUnit(data)
+    await this.unitsRepo.createItemUnit({ ...data, company_id: companyId })
 
     return await this.unitsRepo.getItemUnits(item_id)
   }

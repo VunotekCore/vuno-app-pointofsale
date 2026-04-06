@@ -13,7 +13,7 @@ const notification = useNotificationStore()
 const currencyStore = useCurrencyStore()
 const authStore = useAuthStore()
 
-const isAdmin = computed(() => authStore.user?.role_name === 'admin')
+const isAdmin = computed(() => authStore.user?.role_name?.toLowerCase() === 'admin' || authStore.user?.is_admin)
 
 const accounts = ref([])
 const cashiers = ref([])

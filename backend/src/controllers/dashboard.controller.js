@@ -8,11 +8,13 @@ export class DashboardController {
       const { location_id } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const stats = await this.dashboardModel.getDailyStats(
         location_id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: stats })
@@ -34,13 +36,15 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const stats = await this.dashboardModel.getStatsByDateRange(
         location_id,
         start_date,
         end_date,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: stats })
@@ -62,13 +66,15 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.dashboardModel.getSalesByPeriod(
         location_id,
         start_date,
         end_date,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data, total: data.length })
@@ -90,6 +96,7 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const items = await this.dashboardModel.getTopSellingItems(
         location_id,
@@ -97,7 +104,8 @@ export class DashboardController {
         end_date,
         parseInt(limit) || 10,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: items, total: items.length })
@@ -119,13 +127,15 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const summary = await this.dashboardModel.getPaymentSummary(
         location_id,
         start_date,
         end_date,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: summary, total: summary.length })
@@ -140,12 +150,14 @@ export class DashboardController {
       const locationId = req.query.location_id || null
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const items = await this.dashboardModel.getLowStock(
         locationId,
         userLocations,
         isAdmin,
-        parseInt(limit) || 20
+        parseInt(limit) || 20,
+        companyId
       )
 
       res.status(200).json({ success: true, data: items, total: items.length })
@@ -167,13 +179,15 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const stats = await this.dashboardModel.getNewCustomers(
         location_id,
         start_date,
         end_date,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: stats })
@@ -195,13 +209,15 @@ export class DashboardController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.dashboardModel.getCustomersByPeriod(
         location_id,
         start_date,
         end_date,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data, total: data.length })
@@ -215,12 +231,14 @@ export class DashboardController {
       const { location_id, limit } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const sales = await this.dashboardModel.getRecentSales(
         location_id,
         parseInt(limit) || 10,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: sales, total: sales.length })
@@ -234,12 +252,14 @@ export class DashboardController {
       const { location_id, limit } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const movements = await this.dashboardModel.getRecentMovements(
         location_id,
         parseInt(limit) || 20,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: movements, total: movements.length })
@@ -250,7 +270,8 @@ export class DashboardController {
 
   async getLocations(req, res, next) {
     try {
-      const locations = await this.dashboardModel.getLocations()
+      const companyId = req.user?.company_id
+      const locations = await this.dashboardModel.getLocations(companyId)
       res.status(200).json({ success: true, data: locations, total: locations.length })
     } catch (error) {
       next(error)
@@ -262,11 +283,13 @@ export class DashboardController {
       const { location_id } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const dashboard = await this.dashboardModel.getFullDashboard(
         location_id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({ success: true, data: dashboard })
@@ -280,6 +303,7 @@ export class DashboardController {
       const { location_id, start_date, end_date } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -312,21 +336,21 @@ export class DashboardController {
         recentSales,
         lowStock
       ] = await Promise.all([
-        this.dashboardModel.getDailyStats(location_id, userLocations, isAdmin),
-        this.dashboardModel.getStatsByDateRange(location_id, yesterday.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin),
-        this.dashboardModel.getStatsByDateRange(location_id, weekStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin),
-        this.dashboardModel.getStatsByDateRange(location_id, monthStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin),
-        this.dashboardModel.getFinancialOverview(location_id, start, end, userLocations, isAdmin),
-        this.dashboardModel.getYearOverYearComparison(location_id, start, end, userLocations, isAdmin),
-        this.dashboardModel.getPnLByLocation(start, end, userLocations, isAdmin),
-        this.dashboardModel.getCustomerLifetimeValue(start, end, userLocations, isAdmin),
-        this.dashboardModel.getTaxCompliance(start, end, userLocations, isAdmin),
-        this.dashboardModel.getCustomerAcquisitionCost(start, end, userLocations, isAdmin),
-        this.dashboardModel.getTopSellingItems(location_id, start, end, 10, userLocations, isAdmin),
-        this.dashboardModel.getPaymentSummary(location_id, start, end, userLocations, isAdmin),
-        this.dashboardModel.getNewCustomers(location_id, monthStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin),
-        this.dashboardModel.getRecentSales(location_id, 10, userLocations, isAdmin),
-        this.dashboardModel.getLowStock(location_id, userLocations, isAdmin, 20)
+        this.dashboardModel.getDailyStats(location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getStatsByDateRange(location_id, yesterday.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+        this.dashboardModel.getStatsByDateRange(location_id, weekStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+        this.dashboardModel.getStatsByDateRange(location_id, monthStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+        this.dashboardModel.getFinancialOverview(location_id, start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getYearOverYearComparison(location_id, start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getPnLByLocation(start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getCustomerLifetimeValue(start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getTaxCompliance(start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getCustomerAcquisitionCost(start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getTopSellingItems(location_id, start, end, 10, userLocations, isAdmin, companyId),
+        this.dashboardModel.getPaymentSummary(location_id, start, end, userLocations, isAdmin, companyId),
+        this.dashboardModel.getNewCustomers(location_id, monthStart.toISOString().split('T')[0], today.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+        this.dashboardModel.getRecentSales(location_id, 10, userLocations, isAdmin, companyId),
+        this.dashboardModel.getLowStock(location_id, userLocations, isAdmin, 20, companyId)
       ])
 
       res.status(200).json({
@@ -360,6 +384,7 @@ export class DashboardController {
       const { location_id, start_date, end_date } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -378,13 +403,13 @@ export class DashboardController {
         lowStock,
         topItems
       ] = await Promise.all([
-        this.dashboardModel.getInventoryTurnover(start, end, location_id, userLocations, isAdmin),
-        this.dashboardModel.getSalesByEmployee(start, end, location_id, userLocations, isAdmin),
-        this.dashboardModel.getSalesByHour(start, end, location_id, userLocations, isAdmin),
-        this.dashboardModel.getReturnsAndCancellations(start, end, location_id, userLocations, isAdmin),
-        this.dashboardModel.getCashDrawerDiscrepancies(start, end, location_id, userLocations, isAdmin),
-        this.dashboardModel.getLowStock(location_id, userLocations, isAdmin, 20),
-        this.dashboardModel.getTopSellingItems(location_id, start, end, 10, userLocations, isAdmin)
+        this.dashboardModel.getInventoryTurnover(start, end, location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getSalesByEmployee(start, end, location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getSalesByHour(start, end, location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getReturnsAndCancellations(start, end, location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getCashDrawerDiscrepancies(start, end, location_id, userLocations, isAdmin, companyId),
+        this.dashboardModel.getLowStock(location_id, userLocations, isAdmin, 20, companyId),
+        this.dashboardModel.getTopSellingItems(location_id, start, end, 10, userLocations, isAdmin, companyId)
       ])
 
       res.status(200).json({
@@ -410,6 +435,7 @@ export class DashboardController {
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
       const userId = req.user?.id
+      const companyId = req.user?.company_id
 
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -420,9 +446,9 @@ export class DashboardController {
       monthStart.setMonth(monthStart.getMonth() - 1)
 
       const [dailyStats, monthStats, avgTransactionTime] = await Promise.all([
-        this.dashboardModel.getEmployeeSalesGoals(userId, today.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0]),
-        this.dashboardModel.getEmployeeSalesGoals(userId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0]),
-        this.dashboardModel.getAverageTransactionTime(null, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin)
+        this.dashboardModel.getEmployeeSalesGoals(userId, today.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], companyId),
+        this.dashboardModel.getEmployeeSalesGoals(userId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], companyId),
+        this.dashboardModel.getAverageTransactionTime(null, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin, companyId)
       ])
 
       res.status(200).json({

@@ -7,7 +7,8 @@ export class RolesController {
 
   async getAll (req, res, next) {
     try {
-      const roles = await this.rolesModel.getAll()
+      const companyId = req.user?.company_id
+      const roles = await this.rolesModel.getAll(companyId)
       res.status(200).json({ success: true, data: roles })
     } catch (error) {
       next(error)
@@ -17,7 +18,8 @@ export class RolesController {
   async getById (req, res, next) {
     try {
       const { id } = req.params
-      const role = await this.rolesModel.getById(id)
+      const companyId = req.user?.company_id
+      const role = await this.rolesModel.getById(id, companyId)
       res.status(200).json({ success: true, data: role })
     } catch (error) {
       next(error)
@@ -27,7 +29,8 @@ export class RolesController {
   async getByIdWithTablePermissions (req, res, next) {
     try {
       const { id } = req.params
-      const role = await this.rolesModel.getByIdWithTablePermissions(id)
+      const companyId = req.user?.company_id
+      const role = await this.rolesModel.getByIdWithTablePermissions(id, companyId)
       res.status(200).json({ success: true, data: role })
     } catch (error) {
       next(error)
@@ -38,7 +41,8 @@ export class RolesController {
     try {
       const { name, description, permissions, tablePermissions, menuPermissions } = req.body
       const userId = req.user?.user_id || null
-      const result = await this.rolesModel.create({ name, description, permissions, tablePermissions, menuPermissions }, userId)
+      const companyId = req.user?.company_id || null
+      const result = await this.rolesModel.create({ name, description, permissions, tablePermissions, menuPermissions }, userId, companyId)
       res.status(201).json({
         success: true,
         message: 'Rol creado',
@@ -54,7 +58,8 @@ export class RolesController {
       const { id } = req.params
       const { name, description, permissions, tablePermissions, menuPermissions } = req.body
       const userId = req.user?.user_id || null
-      await this.rolesModel.update(id, { name, description, permissions, tablePermissions, menuPermissions }, userId)
+      const companyId = req.user?.company_id || null
+      await this.rolesModel.update(id, { name, description, permissions, tablePermissions, menuPermissions }, userId, companyId)
       res.status(200).json({ success: true, message: 'Rol actualizado' })
     } catch (error) {
       next(error)
@@ -65,7 +70,8 @@ export class RolesController {
     try {
       const { id } = req.params
       const userId = req.user?.user_id || null
-      await this.rolesModel.delete(id, userId)
+      const companyId = req.user?.company_id || null
+      await this.rolesModel.delete(id, userId, companyId)
       res.status(200).json({ success: true, message: 'Rol eliminado' })
     } catch (error) {
       next(error)

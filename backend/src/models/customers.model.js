@@ -9,46 +9,46 @@ export class CustomersModel {
     this.rewardsRepo = customerRewardsRepository
   }
 
-  async create(data, userId) {
+  async create(data, userId, companyId) {
     const { email, phone } = data
 
     if (email) {
-      const existing = await this.customersRepo.getByEmail(email)
-      if (existing) {
+      const existing = await this.customersRepo.getByEmail(email, companyId)
+      if (existing && existing.company_id === companyId) {
         throw new BadRequestError('Ya existe un cliente con este email')
       }
     }
 
     if (phone) {
-      const existing = await this.customersRepo.getByPhone(phone)
-      if (existing) {
+      const existing = await this.customersRepo.getByPhone(phone, companyId)
+      if (existing && existing.company_id === companyId) {
         throw new BadRequestError('Ya existe un cliente con este teléfono')
       }
     }
 
-    const customerId = await this.customersRepo.create(data)
-    return this.customersRepo.getById(customerId)
+    const customerId = await this.customersRepo.create({ ...data, company_id: companyId })
+    return this.customersRepo.getById(customerId, companyId)
   }
 
-  async update(id, data) {
-    const existing = await this.customersRepo.getById(id)
+  async update(id, data, companyId) {
+    const existing = await this.customersRepo.getById(id, companyId)
     if (!existing) {
       throw new NotFoundError('Cliente no encontrado')
     }
 
     if (data.email && data.email !== existing.email) {
-      const duplicate = await this.customersRepo.getByEmail(data.email)
-      if (duplicate) {
+      const duplicate = await this.customersRepo.getByEmail(data.email, companyId)
+      if (duplicate && duplicate.company_id === companyId) {
         throw new BadRequestError('Ya existe un cliente con este email')
       }
     }
 
-    await this.customersRepo.update(id, data)
-    return this.customersRepo.getById(id)
+    await this.customersRepo.update(id, data, companyId)
+    return this.customersRepo.getById(id, companyId)
   }
 
-  async getById(id) {
-    const customer = await this.customersRepo.getById(id)
+  async getById(id, companyId) {
+    const customer = await this.customersRepo.getById(id, companyId)
     if (!customer) {
       throw new NotFoundError('Cliente no encontrado')
     }
@@ -61,36 +61,36 @@ export class CustomersModel {
     return { customers, total }
   }
 
-  async addPoints(customerId, points, referenceType, referenceId, description) {
-    return await this.customersRepo.addPoints(customerId, points, referenceType, referenceId, description)
+  async addPoints(customerId, points, referenceType, referenceId, description, companyId) {
+    return await this.customersRepo.addPoints(customerId, points, referenceType, referenceId, description, companyId)
   }
 
-  async redeemPoints(customerId, points, referenceType, referenceId, description) {
-    return await this.customersRepo.redeemPoints(customerId, points, referenceType, referenceId, description)
+  async redeemPoints(customerId, points, referenceType, referenceId, description, companyId) {
+    return await this.customersRepo.redeemPoints(customerId, points, referenceType, referenceId, description, companyId)
   }
 
   async getPointsLog(customerId) {
     return await this.customersRepo.getPointsLog(customerId)
   }
 
-  async getSalesHistory(customerId, limit) {
-    return await this.customersRepo.getSalesHistory(customerId, limit)
+  async getSalesHistory(customerId, limit, companyId) {
+    return await this.customersRepo.getSalesHistory(customerId, limit, companyId)
   }
 
-  async updateCreditBalance(customerId, amount) {
-    return await this.customersRepo.updateCreditBalance(customerId, amount)
+  async updateCreditBalance(customerId, amount, companyId) {
+    return await this.customersRepo.updateCreditBalance(customerId, amount, companyId)
   }
 
-  async delete(id) {
-    const existing = await this.customersRepo.getById(id)
+  async delete(id, companyId) {
+    const existing = await this.customersRepo.getById(id, companyId)
     if (!existing) {
       throw new NotFoundError('Cliente no encontrado')
     }
-    return await this.customersRepo.delete(id)
+    return await this.customersRepo.delete(id, companyId)
   }
 
-  async search(query) {
-    return await this.customersRepo.getAll({ search: query, limit: 10 })
+  async search(query, companyId) {
+    return await this.customersRepo.getAll({ search: query, company_id: companyId, limit: 10 })
   }
 }
 
@@ -101,42 +101,44 @@ export class CustomerGroupsModel {
 
   async create(data) {
     const groupId = await this.groupsRepo.create(data)
-    return this.groupsRepo.getById(groupId)
+    return this.groupsRepo.getById(groupId, data.company_id)
   }
 
-  async update(id, data) {
-    const existing = await this.groupsRepo.getById(id)
+  async update(id, data, companyId) {
+    const existing = await this.groupsRepo.getById(id, companyId)
     if (!existing) {
       throw new NotFoundError('Grupo no encontrado')
     }
 
-    await this.groupsRepo.update(id, data)
-    return this.groupsRepo.getById(id)
+    await this.groupsRepo.update(id, data, companyId)
+    return this.groupsRepo.getById(id, companyId)
   }
 
-  async getById(id) {
-    const group = await this.groupsRepo.getById(id)
+  async getById(id, companyId) {
+    const group = await this.groupsRepo.getById(id, companyId)
     if (!group) {
       throw new NotFoundError('Grupo no encontrado')
     }
     return group
   }
 
-  async getAll() {
-    return await this.groupsRepo.getAll()
+  async getAll(company_id) {
+    return await this.groupsRepo.getAll(company_id)
   }
 
-  async delete(id) {
-    const existing = await this.groupsRepo.getById(id)
+  async delete(id, companyId) {
+    const existing = await this.groupsRepo.getById(id, companyId)
     if (!existing) {
       throw new NotFoundError('Grupo no encontrado')
     }
-
     if (existing.is_default) {
       throw new BadRequestError('No se puede eliminar el grupo por defecto')
     }
+    return await this.groupsRepo.delete(id, companyId)
+  }
 
-    return await this.groupsRepo.delete(id)
+  async getDefault(companyId) {
+    return await this.groupsRepo.getDefault(companyId)
   }
 }
 
@@ -145,38 +147,38 @@ export class CustomerRewardsModel {
     this.rewardsRepo = customerRewardsRepository
   }
 
-  async create(data) {
-    const rewardId = await this.rewardsRepo.create(data)
-    return this.rewardsRepo.getById(rewardId)
+  async create(data, companyId) {
+    const rewardId = await this.rewardsRepo.create({ ...data, company_id: companyId })
+    return this.rewardsRepo.getById(rewardId, companyId)
   }
 
-  async update(id, data) {
-    const existing = await this.rewardsRepo.getById(id)
+  async update(id, data, companyId) {
+    const existing = await this.rewardsRepo.getById(id, companyId)
     if (!existing) {
       throw new NotFoundError('Recompensa no encontrada')
     }
 
     await this.rewardsRepo.update(id, data)
-    return this.rewardsRepo.getById(id)
+    return this.rewardsRepo.getById(id, companyId)
   }
 
-  async getById(id) {
-    const reward = await this.rewardsRepo.getById(id)
+  async getById(id, companyId) {
+    const reward = await this.rewardsRepo.getById(id, companyId)
     if (!reward) {
       throw new NotFoundError('Recompensa no encontrada')
     }
     return reward
   }
 
-  async getAll(activeOnly = true) {
-    return await this.rewardsRepo.getAll(activeOnly)
+  async getAll(activeOnly = true, companyId = null) {
+    return await this.rewardsRepo.getAll(activeOnly, companyId)
   }
 
-  async delete(id) {
+  async delete(id, companyId) {
     return await this.rewardsRepo.delete(id)
   }
 
-  async redeem(rewardId, customerId, saleId) {
-    return await this.rewardsRepo.redeem(rewardId, customerId, saleId)
+  async redeem(rewardId, customerId, saleId, companyId) {
+    return await this.rewardsRepo.redeem(rewardId, customerId, saleId, companyId)
   }
 }

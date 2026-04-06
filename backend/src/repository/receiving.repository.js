@@ -8,11 +8,17 @@ export class ReceivingRepository {
   }
 
   async getAll (filters = {}) {
-    const { status, supplier_id, location_id, search, start_date, end_date, limit, offset } = filters
+    const { status, supplier_id, location_id, search, start_date, end_date, company_id, limit, offset } = filters
     
     let whereClause = 'WHERE (r.is_delete = 0 OR r.is_delete IS NULL)'
     const params = []
     const countParams = []
+
+    if (company_id) {
+      whereClause += ' AND r.company_id = UUID_TO_BIN(?)'
+      params.push(company_id)
+      countParams.push(company_id)
+    }
 
     if (status) {
       whereClause += ' AND r.status = ?'
@@ -93,7 +99,7 @@ export class ReceivingRepository {
     return { data: rows || [], total }
   }
 
-  async getById (id) {
+  async getById (id, companyId) {
     const rows = await this.db.query(`
       SELECT 
         BIN_TO_UUID(r.id) as id,
@@ -108,31 +114,27 @@ export class ReceivingRepository {
         r.received_at,
         r.created_at,
         s.name as supplier_name,
-        s.email as supplier_email,
-        s.phone as supplier_phone,
         l.name as location_name,
-        po.po_number,
-        u.username as created_by_name
+        po.po_number as po_number
       FROM receivings r
       LEFT JOIN suppliers s ON r.supplier_id = s.id
       LEFT JOIN locations l ON r.location_id = l.id
       LEFT JOIN purchase_orders po ON r.purchase_order_id = po.id
-      LEFT JOIN users u ON r.created_by = u.id
-      WHERE r.id = UUID_TO_BIN(?) AND (r.is_delete = 0 OR r.is_delete IS NULL)
-    `, [id])
+      WHERE r.id = UUID_TO_BIN(?) AND r.company_id = UUID_TO_BIN(?) AND (r.is_delete = 0 OR r.is_delete IS NULL)
+    `, [id, companyId])
 
     if (!rows || rows.length === 0) {
       throw new NotFoundError(`Recepción con id ${id} no encontrada`)
     }
 
     const receiving = rows[0]
-    receiving.items = await this.getItems(id)
+    receiving.items = await this.getItems(id, companyId)
     
     return receiving
   }
 
-  async getItems (receivingId) {
-    const rows = await this.db.query(`
+  async getItems (receivingId, companyId) {
+    let query = `
       SELECT 
         BIN_TO_UUID(ri.id) as id,
         BIN_TO_UUID(ri.receiving_id) as receiving_id,
@@ -151,14 +153,20 @@ export class ReceivingRepository {
       FROM receiving_items ri
       LEFT JOIN items i ON ri.item_id = i.id
       LEFT JOIN item_variations iv ON ri.variation_id = iv.id
-      WHERE ri.receiving_id = UUID_TO_BIN(?)
-    `, [receivingId])
-
+      WHERE ri.receiving_id = UUID_TO_BIN(?)`
+    const params = [receivingId]
+    
+    if (companyId) {
+      query += ' AND ri.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows || []
   }
 
   async create (data, userId = null) {
-    const { purchase_order_id, supplier_id, location_id, receiving_type, notes, items } = data
+    const { purchase_order_id, supplier_id, location_id, receiving_type, notes, items, company_id } = data
 
     if (!supplier_id) {
       throw new BadRequestError('El proveedor es requerido')
@@ -172,14 +180,14 @@ export class ReceivingRepository {
       throw new BadRequestError('Los items son requeridos')
     }
 
-    const receivingNumber = await this.generateReceivingNumber()
+    const receivingNumber = await this.generateReceivingNumber(company_id)
 
-    const result = await this.db.query(`
-      INSERT INTO receivings (id, receiving_number, purchase_order_id, supplier_id, location_id, receiving_type, notes, created_by)
-      VALUES (UUID_TO_BIN(UUID()), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?))
-    `, [receivingNumber, purchase_order_id || null, supplier_id, location_id, receiving_type || 'purchase_order', notes || null, userId])
+    await this.db.query(`
+      INSERT INTO receivings (id, receiving_number, purchase_order_id, supplier_id, location_id, receiving_type, notes, created_by, company_id)
+      VALUES (UUID_TO_BIN(UUID()), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+    `, [receivingNumber, purchase_order_id || null, supplier_id, location_id, receiving_type || 'purchase_order', notes || null, userId, company_id])
 
-    const newReceiving = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM receivings WHERE receiving_number = ?', [receivingNumber])
+    const newReceiving = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM receivings WHERE receiving_number = ? AND company_id = UUID_TO_BIN(?)', [receivingNumber, company_id])
     const receivingId = newReceiving[0]?.id
 
     let totalAmount = 0
@@ -216,8 +224,8 @@ export class ReceivingRepository {
     return receivingId
   }
 
-  async complete (id, userId = null) {
-    const receiving = await this.getById(id)
+  async complete (id, userId = null, companyId = null) {
+    const receiving = await this.getById(id, companyId)
 
     if (receiving.status === 'completed') {
       throw new BadRequestError('Esta recepción ya está completada')
@@ -285,7 +293,7 @@ export class ReceivingRepository {
 
       await conn.commit()
 
-      return await this.getById(id)
+      return await this.getById(id, companyId)
     } catch (error) {
       await conn.rollback()
       throw error
@@ -360,8 +368,8 @@ export class ReceivingRepository {
     `, [result.total, purchaseOrderId])
   }
 
-  async delete (id) {
-    const receiving = await this.getById(id)
+  async delete (id, companyId = null) {
+    const receiving = await this.getById(id, companyId)
     
     if (receiving.status === 'completed') {
       const conn = await this.db.getConnection()
@@ -402,19 +410,27 @@ export class ReceivingRepository {
       }
     }
     
-    const result = await this.db.query('UPDATE receivings SET is_delete = 1 WHERE id = UUID_TO_BIN(?)', [id])
+    const result = await this.db.query('UPDATE receivings SET is_delete = 1 WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)', [id, companyId])
     if (result.affectedRows === 0) {
       throw new NotFoundError(`Recepción con id ${id} no encontrada`)
     }
     return result.affectedRows
   }
 
-  async generateReceivingNumber () {
+  async generateReceivingNumber (companyId) {
+    let whereClause = 'receiving_number LIKE \'RCV-%\''
+    const params = []
+    
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
     const rows = await this.db.query(`
       SELECT MAX(CAST(SUBSTRING(receiving_number, 5) AS UNSIGNED)) as max_num 
       FROM receivings 
-      WHERE receiving_number LIKE 'RCV-%'
-    `)
+      WHERE ${whereClause}
+    `, params)
     let maxNum = rows[0]?.max_num
     if (!maxNum || maxNum === 0) {
       maxNum = 0

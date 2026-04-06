@@ -15,16 +15,16 @@ export class EmployeesRepository {
   }
 
   async getAll(filters = {}) {
-    const { search, is_active, position, department, limit = 100, offset = 0 } = filters
+    const { search, is_active, position, department, company_id, limit = 100, offset = 0 } = filters
 
     let query = `
       SELECT BIN_TO_UUID(e.id) as id, BIN_TO_UUID(e.user_id) as user_id, e.employee_number, e.first_name, e.last_name, e.phone, e.email, e.address, e.city, e.state, e.country, e.postal_code, e.photo_url, e.hire_date, e.position, e.department, e.salary, e.emergency_contact_name, e.emergency_contact_phone, e.notes, e.is_active, e.created_at, e.updated_at, u.username, u.email as user_email, u.role_id, r.name as role_name
       FROM employees e
       JOIN users u ON e.user_id = u.id
       LEFT JOIN roles r ON u.role_id = r.id
-      WHERE 1=1
+      WHERE e.company_id = UUID_TO_BIN(?)
     `
-    const params = []
+    const params = [company_id]
 
     if (search) {
       query += ' AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.employee_number LIKE ? OR u.username LIKE ?)'
@@ -54,10 +54,10 @@ export class EmployeesRepository {
   }
 
   async getCount(filters = {}) {
-    const { search, is_active, position, department } = filters
+    const { search, is_active, position, department, company_id } = filters
 
-    let query = `SELECT COUNT(*) as total FROM employees e JOIN users u ON e.user_id = u.id WHERE 1=1`
-    const params = []
+    let query = `SELECT COUNT(*) as total FROM employees e JOIN users u ON e.user_id = u.id WHERE e.company_id = UUID_TO_BIN(?)`
+    const params = [company_id]
 
     if (search) {
       query += ' AND (e.first_name LIKE ? OR e.last_name LIKE ? OR e.employee_number LIKE ? OR u.username LIKE ?)'
@@ -74,25 +74,26 @@ export class EmployeesRepository {
     return rows[0].total
   }
 
-  async getById(id) {
+  async getById(id, companyId) {
     const rows = await this.db.query(
       `SELECT BIN_TO_UUID(e.id) as id, BIN_TO_UUID(e.user_id) as user_id, e.employee_number, e.first_name, e.last_name, e.phone, e.email, e.address, e.city, e.state, e.country, e.postal_code, e.photo_url, e.hire_date, e.position, e.department, e.salary, e.emergency_contact_name, e.emergency_contact_phone, e.notes, e.is_active, e.created_at, e.updated_at, u.username, u.email as user_email, u.role_id, r.name as role_name
        FROM employees e
        JOIN users u ON e.user_id = u.id
        LEFT JOIN roles r ON u.role_id = r.id
-       WHERE e.id = UUID_TO_BIN('${id}')`
+       WHERE e.id = UUID_TO_BIN(?) AND e.company_id = UUID_TO_BIN(?)`,
+      [id, companyId]
     )
     return rows[0] || null
   }
 
-  async getByUserId(userId) {
+  async getByUserId(userId, companyId) {
     const rows = await this.db.query(
       `SELECT BIN_TO_UUID(e.id) as id, BIN_TO_UUID(e.user_id) as user_id, e.employee_number, e.first_name, e.last_name, e.phone, e.email, e.address, e.city, e.state, e.country, e.postal_code, e.photo_url, e.hire_date, e.position, e.department, e.salary, e.emergency_contact_name, e.emergency_contact_phone, e.notes, e.is_active, e.created_at, e.updated_at, u.username, u.email as user_email, u.role_id, r.name as role_name
        FROM employees e
        JOIN users u ON e.user_id = u.id
        LEFT JOIN roles r ON u.role_id = r.id
-       WHERE e.user_id = UUID_TO_BIN(?)`,
-      [userId]
+       WHERE e.user_id = UUID_TO_BIN(?) AND e.company_id = UUID_TO_BIN(?)`,
+      [userId, companyId]
     )
     return rows[0] || null
   }
@@ -117,12 +118,13 @@ export class EmployeesRepository {
       salary,
       emergency_contact_name,
       emergency_contact_phone,
-      notes
+      notes,
+      company_id
     } = data
 
-    const result = await this.db.query(
-      `INSERT INTO employees (id, user_id, employee_number, first_name, last_name, phone, email, address, city, state, country, postal_code, photo_url, hire_date, position, department, salary, emergency_contact_name, emergency_contact_phone, notes)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN('${user_id}'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await this.db.query(
+      `INSERT INTO employees (id, user_id, employee_number, first_name, last_name, phone, email, address, city, state, country, postal_code, photo_url, hire_date, position, department, salary, emergency_contact_name, emergency_contact_phone, notes, company_id)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN('${user_id}'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))`,
       [
         employee_number,
         first_name,
@@ -132,7 +134,7 @@ export class EmployeesRepository {
         address,
         city,
         state,
-        country || 'Mexico',
+        country,
         postal_code,
         photo_url,
         hire_date,
@@ -141,7 +143,8 @@ export class EmployeesRepository {
         salary,
         emergency_contact_name,
         emergency_contact_phone,
-        notes
+        notes,
+        company_id
       ]
     )
 
@@ -151,8 +154,8 @@ export class EmployeesRepository {
     return rows[0]?.id
   }
 
-  async update(id, data) {
-    const employee = await this.getById(id)
+  async update(id, data, companyId) {
+    const employee = await this.getById(id, companyId)
     if (!employee) throw new NotFoundError('Empleado no encontrado')
 
     const fields = []
@@ -175,28 +178,30 @@ export class EmployeesRepository {
     if (fields.length === 0) return false
 
     await this.db.query(
-      `UPDATE employees SET ${fields.join(', ')} WHERE id = UUID_TO_BIN('${id}')`,
-      values
+      `UPDATE employees SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`,
+      [id, companyId]
     )
 
-    return await this.getById(id)
+    return await this.getById(id, companyId)
   }
 
-  async delete(id) {
-    await this.db.query(`UPDATE employees SET is_active = 0 WHERE id = UUID_TO_BIN('${id}')`)
+  async delete(id, companyId) {
+    await this.db.query(`UPDATE employees SET is_active = 0 WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`, [id, companyId])
     return true
   }
 
-  async getPositions() {
+  async getPositions(companyId) {
     const rows = await this.db.query(
-      'SELECT DISTINCT position FROM employees WHERE position IS NOT NULL ORDER BY position'
+      'SELECT DISTINCT position FROM employees WHERE position IS NOT NULL AND company_id = UUID_TO_BIN(?) ORDER BY position',
+      [companyId]
     )
     return rows.map(r => r.position)
   }
 
-  async getDepartments() {
+  async getDepartments(companyId) {
     const rows = await this.db.query(
-      'SELECT DISTINCT department FROM employees WHERE department IS NOT NULL ORDER BY department'
+      'SELECT DISTINCT department FROM employees WHERE department IS NOT NULL AND company_id = UUID_TO_BIN(?) ORDER BY department',
+      [companyId]
     )
     return rows.map(r => r.department)
   }

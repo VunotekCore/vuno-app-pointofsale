@@ -239,7 +239,7 @@ router.beforeEach(async (to, from, next) => {
     return next('/login')
   }
 
-  const isAdmin = authStore.user?.is_admin == 1 || authStore.user?.role_name === 'admin'
+  const isAdmin = authStore.user?.is_admin == 1 || authStore.user?.role_name?.toLowerCase() === 'admin'
   if (isAdmin) {
     return next()
   }

@@ -6,7 +6,8 @@ export class PurchaseOrderController {
   async getAll (req, res, next) {
     try {
       const { status, supplier_id, location_id, search, limit, offset } = req.query
-      const filters = { status, supplier_id, location_id, search, limit, offset }
+      const companyId = req.user?.company_id
+      const filters = { status, supplier_id, location_id, search, company_id: companyId, limit, offset }
       const result = await this.poModel.getAll(filters)
       res.status(200).json({ success: true, data: result.data, total: result.total })
     } catch (error) {
@@ -17,7 +18,8 @@ export class PurchaseOrderController {
   async getById (req, res, next) {
     try {
       const { id } = req.params
-      const order = await this.poModel.getById(id)
+      const companyId = req.user?.company_id
+      const order = await this.poModel.getById(id, companyId)
       res.status(200).json({ success: true, data: order })
     } catch (error) {
       next(error)
@@ -28,8 +30,9 @@ export class PurchaseOrderController {
     try {
       const data = req.body
       const userId = req.user?.id || req.user?.user_id || null
-      const id = await this.poModel.create(data, userId)
-      const newOrder = await this.poModel.getById(id)
+      const companyId = req.user?.company_id
+      const id = await this.poModel.create({ ...data, company_id: companyId }, userId)
+      const newOrder = await this.poModel.getById(id, companyId)
       res.status(201).json({ success: true, message: 'Orden de compra creada', data: newOrder })
     } catch (error) {
       next(error)
@@ -40,8 +43,9 @@ export class PurchaseOrderController {
     try {
       const { id } = req.params
       const data = req.body
-      await this.poModel.update(id, data)
-      const updatedOrder = await this.poModel.getById(id)
+      const companyId = req.user?.company_id
+      await this.poModel.update(id, data, companyId)
+      const updatedOrder = await this.poModel.getById(id, companyId)
       res.status(200).json({ success: true, message: 'Orden de compra actualizada', data: updatedOrder })
     } catch (error) {
       next(error)
@@ -51,7 +55,8 @@ export class PurchaseOrderController {
   async delete (req, res, next) {
     try {
       const { id } = req.params
-      await this.poModel.delete(id)
+      const companyId = req.user?.company_id
+      await this.poModel.delete(id, companyId)
       res.status(200).json({ success: true, message: 'Orden de compra eliminada' })
     } catch (error) {
       next(error)
@@ -61,8 +66,9 @@ export class PurchaseOrderController {
   async generateAuto (req, res, next) {
     try {
       const { location_id } = req.body
+      const companyId = req.user?.company_id
 
-      const items = await this.poModel.getPendingReorderItems(location_id)
+      const items = await this.poModel.getPendingReorderItems(location_id, companyId)
 
       if (items.length === 0) {
         return res.status(200).json({ 
@@ -102,10 +108,11 @@ export class PurchaseOrderController {
           supplier_id: group.supplier_id,
           location_id: location_id,
           notes: 'Orden generada automáticamente por nivel de reorder',
-          items: group.items
+          items: group.items,
+          company_id: companyId
         }, userId)
 
-        const newOrder = await this.poModel.getById(orderId)
+        const newOrder = await this.poModel.getById(orderId, companyId)
         createdOrders.push(newOrder)
       }
 

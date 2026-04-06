@@ -6,9 +6,11 @@ export class GenericController {
   async getAll (req, res, next) {
     try {
       const { search, is_active, limit, offset } = req.query
+      const companyId = req.user?.company_id
       const filters = {
         search: search || '',
         is_active: is_active || '',
+        company_id: companyId,
         limit: parseInt(limit) || 100,
         offset: parseInt(offset) || 0
       }
@@ -31,7 +33,8 @@ export class GenericController {
   async create (req, res, next) {
     try {
       const userId = req.user?.user_id || null
-      const data = await this.model.create(req.body, userId)
+      const companyId = req.user?.company_id
+      const data = await this.model.create(req.body, userId, companyId)
       res.status(201).json({ success: true, message: 'Creado', data })
     } catch (error) {
       next(error)

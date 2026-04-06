@@ -8,7 +8,7 @@ export class ItemsRepository {
   }
 
   async getAll (locationId = null, filters = {}) {
-    const { limit = 20, offset = 0, search = '', status = '' } = filters
+    const { limit = 20, offset = 0, search = '', status = '', company_id } = filters
     
     const quantitySubquery = locationId 
       ? `(SELECT quantity FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
@@ -16,6 +16,11 @@ export class ItemsRepository {
 
     const params = locationId ? [locationId] : []
     let whereClause = 'WHERE (i.is_delete = 0 OR i.is_delete IS NULL)'
+    
+    if (company_id) {
+      whereClause += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(company_id)
+    }
     
     if (search) {
       whereClause += ' AND (i.name LIKE ? OR i.item_number LIKE ?)'
@@ -157,16 +162,16 @@ export class ItemsRepository {
     return { items, total }
   }
 
-  async getById (id, locationId = null) {
+  async getById (id, locationId = null, companyId) {
     let quantitySubquery
     let params
     
     if (locationId) {
       quantitySubquery = `(SELECT quantity FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
-      params = [id, locationId]
+      params = [locationId, id, companyId]
     } else {
       quantitySubquery = `(SELECT COALESCE(SUM(quantity), 0) FROM item_quantities WHERE item_id = i.id) as total_quantity`
-      params = [id]
+      params = [id, companyId]
     }
     
     const rows = await this.db.query(`
@@ -197,7 +202,7 @@ export class ItemsRepository {
       FROM items i
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN suppliers s ON i.supplier_id = s.id
-      WHERE i.id = UUID_TO_BIN(?) AND (i.is_delete = 0 OR i.is_delete IS NULL)
+      WHERE i.id = UUID_TO_BIN(?) AND i.company_id = UUID_TO_BIN(?) AND (i.is_delete = 0 OR i.is_delete IS NULL)
     `, params)
     if (!rows || rows.length === 0) {
       throw new NotFoundError(`Item con id ${id} no encontrado`)
@@ -205,10 +210,10 @@ export class ItemsRepository {
     
     const item = rows[0]
     
-    const variations = await this.getVariations(id)
+    const variations = await this.getVariations(id, companyId)
     item.variations = variations
 
-    const stock = await this.getStock(id)
+    const stock = await this.getStock(id, companyId)
     item.stock = stock
     
     const totalStock = stock.reduce((sum, s) => sum + (parseFloat(s.quantity) || 0), 0)
@@ -282,7 +287,7 @@ export class ItemsRepository {
   }
 
   async create (data, userId = null) {
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, kit_components } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, kit_components, company_id } = data
 
     if (!name || !name.trim()) {
       throw new BadRequestError('El nombre del producto es requerido')
@@ -292,12 +297,12 @@ export class ItemsRepository {
     let finalUnitPrice = unit_price || 0
 
     if (is_kit && kit_components && kit_components.length > 0) {
-      await this.validateKitComponents(kit_components)
+      await this.validateKitComponents(kit_components, company_id)
 
       const componentIds = kit_components.map(c => c.item_id)
       const components = await this.db.query(`
-        SELECT id, cost_price, unit_price FROM items WHERE id IN (?)
-      `, [componentIds])
+        SELECT id, cost_price, unit_price FROM items WHERE id IN (?) AND company_id = UUID_TO_BIN(?)
+      `, [componentIds, company_id])
       
       const componentMap = {}
       for (const c of components) {
@@ -322,16 +327,16 @@ export class ItemsRepository {
     }
 
     const result = await this.db.query(`
-      INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, created_by)
-      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
-    `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, image_url || null, custom_fields || null, status || 'active', userId])
+      INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, status, created_by, company_id)
+      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+    `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, image_url || null, status || 'active', userId, company_id])
     
     const newItem = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE item_number = ? OR name = ?', [item_number || null, name.trim()])
     return newItem[0]?.id
   }
 
-  async update (id, data, userId = null) {
-    const existing = await this.getById(id)
+  async update (id, data, userId = null, companyId = null) {
+    const existing = await this.getById(id, null, companyId)
     
     const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, kit_components } = data
 
@@ -341,12 +346,12 @@ export class ItemsRepository {
     const isKit = is_kit !== undefined ? is_kit : existing.is_kit
     
     if (isKit && kit_components && kit_components.length > 0) {
-      await this.validateKitComponents(kit_components)
+      await this.validateKitComponents(kit_components, companyId)
 
       const componentIds = kit_components.map(c => c.item_id)
       const components = await this.db.query(`
-        SELECT id, cost_price, unit_price FROM items WHERE id IN (?)
-      `, [componentIds])
+        SELECT id, cost_price, unit_price FROM items WHERE id IN (?) AND company_id = UUID_TO_BIN(?)
+      `, [componentIds, companyId])
       
       const componentMap = {}
       for (const c of components) {
@@ -412,15 +417,18 @@ export class ItemsRepository {
     }
 
     values.push(id)
-    const result = await this.db.query(`UPDATE items SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?)`, values)
-    if (result.affectedRows === 0) {
-      throw new NotFoundError(`Item con id ${id} no encontrado`)
+    if (companyId) {
+      values.push(companyId)
+      const result = await this.db.query(`UPDATE items SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`, values)
+      return result.affectedRows
+    } else {
+      const result = await this.db.query(`UPDATE items SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?)`, values)
+      return result.affectedRows
     }
-    return result.affectedRows
   }
 
-  async delete (id, userId = null) {
-    await this.getById(id)
+  async delete (id, userId = null, companyId = null) {
+    await this.getById(id, null, companyId)
     const updates = ['is_delete = 1']
     const values = []
 
@@ -430,55 +438,102 @@ export class ItemsRepository {
     }
 
     values.push(id)
-    const result = await this.db.query(`UPDATE items SET ${updates.join(', ')} WHERE id = UUID_TO_BIN(?)`, values)
-    if (result.affectedRows === 0) {
-      throw new NotFoundError(`Item con id ${id} no encontrado`)
+    if (companyId) {
+      values.push(companyId)
+      const result = await this.db.query(`UPDATE items SET ${updates.join(', ')} WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`, values)
+      return result.affectedRows
+    } else {
+      const result = await this.db.query(`UPDATE items SET ${updates.join(', ')} WHERE id = UUID_TO_BIN(?)`, values)
+      return result.affectedRows
     }
-    return result.affectedRows
   }
 
-  async restore (id) {
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE id = UUID_TO_BIN(?)', [id])
-    if (!rows || rows.length === 0) {
-      throw new NotFoundError(`Item con id ${id} no encontrado`)
+  async restore (id, companyId) {
+    if (companyId) {
+      const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)', [id, companyId])
+      if (!rows || rows.length === 0) {
+        throw new NotFoundError(`Item con id ${id} no encontrado`)
+      }
+      const result = await this.db.query('UPDATE items SET is_delete = 0 WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)', [id, companyId])
+      return result.affectedRows
+    } else {
+      const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE id = UUID_TO_BIN(?)', [id])
+      if (!rows || rows.length === 0) {
+        throw new NotFoundError(`Item con id ${id} no encontrado`)
+      }
+      const result = await this.db.query('UPDATE items SET is_delete = 0 WHERE id = UUID_TO_BIN(?)', [id])
+      return result.affectedRows
     }
-
-    const result = await this.db.query('UPDATE items SET is_delete = 0 WHERE id = UUID_TO_BIN(?)', [id])
-    return result.affectedRows
   }
 
-  async getVariations (itemId) {
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id, BIN_TO_UUID(item_id) as item_id, sku, attributes, cost_price, unit_price, image_url FROM item_variations WHERE BIN_TO_UUID(item_id) = \'' + itemId + '\' AND (is_delete = 0 OR is_delete IS NULL)')
+  async getVariations (itemId, companyId) {
+    let query = `SELECT iv.id, BIN_TO_UUID(iv.item_id) as item_id, iv.sku, iv.attributes, iv.cost_price, iv.unit_price, iv.image_url 
+                 FROM item_variations iv
+                 JOIN items i ON iv.item_id = i.id
+                 WHERE iv.item_id = UUID_TO_BIN(?) AND (iv.is_delete = 0 OR iv.is_delete IS NULL)`
+    const params = [itemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async getStock (itemId) {
-    const rows = await this.db.query(`
+  async getStock (itemId, companyId) {
+    let query = `
       SELECT BIN_TO_UUID(iq.id) as id, BIN_TO_UUID(iq.item_id) as item_id, BIN_TO_UUID(iq.variation_id) as variation_id, BIN_TO_UUID(iq.location_id) as location_id, iq.quantity, iq.quantity_reserved, iq.quantity_in_transit, l.name as location_name, l.code as location_code
       FROM item_quantities iq
+      JOIN items i ON iq.item_id = i.id
       JOIN locations l ON iq.location_id = l.id
-      WHERE iq.item_id = UUID_TO_BIN(?)
-    `, [itemId])
+      WHERE iq.item_id = UUID_TO_BIN(?)`
+    const params = [itemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async generateItemNumber () {
-    const rows = await this.db.query('SELECT MAX(CAST(SUBSTRING(item_number, 5) AS UNSIGNED)) as max_num FROM items WHERE item_number LIKE \'ITE-%\'')
+  async generateItemNumber (companyId) {
+    let query = 'SELECT MAX(CAST(SUBSTRING(item_number, 5) AS UNSIGNED)) as max_num FROM items WHERE item_number LIKE \'ITE-%\''
+    const params = []
+    
+    if (companyId) {
+      query += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     const nextNum = (rows[0]?.max_num || 0) + 1
     return `ITE-${String(nextNum).padStart(6, '0')}`
   }
 
-  async calculateKitStock (kitItemId, components) {
+  async calculateKitStock (kitItemId, components, companyId) {
     if (!components || components.length === 0) return 0
 
     const componentIds = components.map(c => c.item_id)
     const componentIdParams = componentIds.map(() => 'UUID_TO_BIN(?)')
-    const stocks = await this.db.query(`
-      SELECT BIN_TO_UUID(item_id) as item_id, COALESCE(SUM(quantity), 0) as stock
-      FROM item_quantities
-      WHERE item_id IN (${componentIdParams.join(',')})
-      GROUP BY item_id
-    `, componentIds)
+    let query = `
+      SELECT BIN_TO_UUID(iq.item_id) as item_id, COALESCE(SUM(iq.quantity), 0) as stock
+      FROM item_quantities iq
+      JOIN items i ON iq.item_id = i.id
+      WHERE iq.item_id IN (${componentIdParams.join(',')})`
+    const params = [...componentIds]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    query += ' GROUP BY iq.item_id'
+    
+    const stocks = await this.db.query(query, params)
 
     const stockMap = {}
     for (const s of stocks) {
@@ -495,18 +550,26 @@ export class ItemsRepository {
     return minStock === Infinity ? 0 : minStock
   }
 
-  async validateKitComponents (components) {
+  async validateKitComponents (components, companyId) {
     if (!components || components.length === 0) return
 
     const componentIds = components.map(c => c.item_id)
     const componentIdParams = componentIds.map(() => 'UUID_TO_BIN(?)')
-    const stocks = await this.db.query(`
+    let query = `
       SELECT BIN_TO_UUID(i.id) as id, i.name, COALESCE(SUM(iq.quantity), 0) as stock
       FROM items i
       LEFT JOIN item_quantities iq ON i.id = iq.item_id
-      WHERE i.id IN (${componentIdParams.join(',')})
-      GROUP BY i.id
-    `, componentIds)
+      WHERE i.id IN (${componentIdParams.join(',')})`
+    const params = [...componentIds]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    query += ' GROUP BY i.id'
+    
+    const stocks = await this.db.query(query, params)
 
     const stockMap = {}
     for (const s of stocks) {
@@ -534,7 +597,7 @@ export class ItemsRepository {
     }
   }
 
-  async saveKitComponents (kitItemId, components) {
+  async saveKitComponents (kitItemId, components, companyId) {
     if (!components || components.length === 0) return
     
     await this.db.query('DELETE FROM kit_components WHERE kit_item_id = UUID_TO_BIN(?)', [kitItemId])
@@ -547,12 +610,20 @@ export class ItemsRepository {
     }
   }
 
-  async deleteKitComponents (kitItemId) {
-    await this.db.query('DELETE FROM kit_components WHERE kit_item_id = UUID_TO_BIN(?)', [kitItemId])
+  async deleteKitComponents (kitItemId, companyId) {
+    let query = 'DELETE kc FROM kit_components kc JOIN items i ON kc.kit_item_id = i.id WHERE kc.kit_item_id = UUID_TO_BIN(?)'
+    const params = [kitItemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    await this.db.query(query, params)
   }
 
-  async getKitsByComponent (componentItemId) {
-    const rows = await this.db.query(`
+  async getKitsByComponent (componentItemId, companyId) {
+    let query = `
       SELECT 
         BIN_TO_UUID(kc.kit_item_id) as kit_item_id,
         i.name as kit_name,
@@ -560,13 +631,20 @@ export class ItemsRepository {
       FROM kit_components kc
       JOIN items i ON kc.kit_item_id = i.id
       WHERE kc.component_item_id = UUID_TO_BIN(?) 
-        AND i.is_delete = 0
-    `, [componentItemId])
+        AND i.is_delete = 0`
+    const params = [componentItemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async getKitComponents (kitItemId) {
-    const rows = await this.db.query(`
+  async getKitComponents (kitItemId, companyId) {
+    let query = `
       SELECT 
         BIN_TO_UUID(kc.component_item_id) as component_item_id,
         kc.quantity,
@@ -574,13 +652,20 @@ export class ItemsRepository {
         i.item_number
       FROM kit_components kc
       JOIN items i ON kc.component_item_id = i.id
-      WHERE kc.kit_item_id = UUID_TO_BIN(?)
-    `, [kitItemId])
+      WHERE kc.kit_item_id = UUID_TO_BIN(?)`
+    const params = [kitItemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async getItemUnits (itemId) {
-    const rows = await this.db.query(`
+  async getItemUnits (itemId, companyId) {
+    let query = `
       SELECT 
         BIN_TO_UUID(iu.id) as id,
         BIN_TO_UUID(iu.item_id) as item_id,
@@ -594,14 +679,23 @@ export class ItemsRepository {
         u.type as unit_type
       FROM item_units iu
       JOIN units_of_measure u ON iu.unit_id = u.id
-      WHERE iu.item_id = UUID_TO_BIN(?) AND iu.is_active = 1
-      ORDER BY iu.is_default DESC, u.name
-    `, [itemId])
+      JOIN items i ON iu.item_id = i.id
+      WHERE iu.item_id = UUID_TO_BIN(?) AND iu.is_active = 1`
+    const params = [itemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    query += ' ORDER BY iu.is_default DESC, u.name'
+    
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async getDefaultItemUnit (itemId) {
-    const rows = await this.db.query(`
+  async getDefaultItemUnit (itemId, companyId) {
+    let query = `
       SELECT 
         BIN_TO_UUID(iu.id) as id,
         BIN_TO_UUID(iu.item_id) as item_id,
@@ -614,18 +708,27 @@ export class ItemsRepository {
         u.abbreviation as unit_abbreviation
       FROM item_units iu
       JOIN units_of_measure u ON iu.unit_id = u.id
-      WHERE iu.item_id = UUID_TO_BIN(?) AND iu.is_default = 1 AND iu.is_active = 1
-    `, [itemId])
+      JOIN items i ON iu.item_id = i.id
+      WHERE iu.item_id = UUID_TO_BIN(?) AND iu.is_default = 1 AND iu.is_active = 1`
+    const params = [itemId]
+    
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(query, params)
     return rows[0] || null
   }
 
-  async savePriceHistory(itemId, before, after, userId) {
+  async savePriceHistory(itemId, before, after, userId, companyId) {
     await this.db.query(`
       INSERT INTO product_price_history 
-        (item_id, cost_price_before, unit_price_before, margin_before, cost_price_after, unit_price_after, margin_after, created_by)
-      VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
+        (item_id, company_id, cost_price_before, unit_price_before, margin_before, cost_price_after, unit_price_after, margin_after, created_by)
+      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
     `, [
       itemId,
+      companyId,
       before.cost_price || 0,
       before.unit_price || 0,
       before.margin || 0,

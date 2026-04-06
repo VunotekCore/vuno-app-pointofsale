@@ -8,6 +8,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, status, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const result = await this.reportsModel.getSalesReport({
         location_id,
@@ -18,7 +19,8 @@ export class ReportsController {
         limit: parseInt(limit) || 50,
         offset: parseInt(offset) || 0,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       res.status(200).json({ success: true, data: result.data, total: result.total, summary: result.summary })
@@ -30,8 +32,9 @@ export class ReportsController {
   async getSalesReportDetails(req, res, next) {
     try {
       const { id } = req.params
+      const companyId = req.user?.company_id
 
-      const result = await this.reportsModel.getSalesReportDetails(id)
+      const result = await this.reportsModel.getSalesReportDetails(id, companyId)
 
       if (!result) {
         return res.status(404).json({ success: false, message: 'Venta no encontrada' })
@@ -48,6 +51,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, movement_type, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const result = await this.reportsModel.getInventoryReport({
         location_id,
@@ -58,7 +62,8 @@ export class ReportsController {
         limit: parseInt(limit) || 50,
         offset: parseInt(offset) || 0,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       res.status(200).json({ success: true, data: result.data, total: result.total, summary: result.summary })
@@ -72,6 +77,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, supplier_id, status, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const result = await this.reportsModel.getPurchasesReport({
         location_id,
@@ -82,7 +88,8 @@ export class ReportsController {
         limit: parseInt(limit) || 50,
         offset: parseInt(offset) || 0,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       res.status(200).json({ success: true, data: result.data, total: result.total, summary: result.summary })
@@ -96,6 +103,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const result = await this.reportsModel.getCashReport({
         location_id,
@@ -105,7 +113,8 @@ export class ReportsController {
         limit: parseInt(limit) || 50,
         offset: parseInt(offset) || 0,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       res.status(200).json({ success: true, data: result.data, total: result.total, summary: result.summary })
@@ -119,6 +128,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, status, format } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.reportsModel.exportSalesReport({
         location_id,
@@ -127,7 +137,8 @@ export class ReportsController {
         user_id,
         status,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       if (format === 'csv') {
@@ -160,6 +171,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, movement_type, format } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.reportsModel.exportInventoryReport({
         location_id,
@@ -168,7 +180,8 @@ export class ReportsController {
         user_id,
         movement_type,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       if (format === 'csv') {
@@ -203,6 +216,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, supplier_id, status, format } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.reportsModel.exportPurchasesReport({
         location_id,
@@ -211,7 +225,8 @@ export class ReportsController {
         supplier_id,
         status,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       if (format === 'csv') {
@@ -242,6 +257,7 @@ export class ReportsController {
       const { location_id, start_date, end_date, user_id, format } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const data = await this.reportsModel.exportCashReport({
         location_id,
@@ -249,7 +265,8 @@ export class ReportsController {
         end_date,
         user_id,
         isAdmin,
-        userLocations
+        userLocations,
+        companyId
       })
 
       if (format === 'csv') {

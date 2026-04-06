@@ -12,19 +12,19 @@ export class EmployeesModel {
     return await this.employeesRepo.getAll(filters)
   }
 
-  async getById (id) {
-    const employee = await this.employeesRepo.getById(id)
+  async getById (id, companyId) {
+    const employee = await this.employeesRepo.getById(id, companyId)
     if (!employee) {
       throw new NotFoundError('Empleado no encontrado')
     }
     return employee
   }
 
-  async getByUserId (userId) {
-    return await this.employeesRepo.getByUserId(userId)
+  async getByUserId (userId, companyId) {
+    return await this.employeesRepo.getByUserId(userId, companyId)
   }
 
-  async create (data, userId, isAdmin = false) {
+  async create (data, userId, isAdmin = false, companyId) {
     if (!isAdmin) {
       throw new ForbiddenError('No tienes permiso para crear empleados')
     }
@@ -38,17 +38,17 @@ export class EmployeesModel {
       throw new NotFoundError('Usuario no encontrado')
     }
 
-    const existingEmployee = await this.employeesRepo.getByUserId(data.user_id)
+    const existingEmployee = await this.employeesRepo.getByUserId(data.user_id, companyId)
     if (existingEmployee) {
       throw new BadRequestError('El usuario ya tiene un perfil de empleado')
     }
 
-    const id = await this.employeesRepo.create(data)
-    return await this.employeesRepo.getById(id)
+    const id = await this.employeesRepo.create({ ...data, company_id: companyId })
+    return await this.employeesRepo.getById(id, companyId)
   }
 
-  async update (id, data, userId, isAdmin = false) {
-    const employee = await this.employeesRepo.getById(id)
+  async update (id, data, userId, isAdmin = false, companyId) {
+    const employee = await this.employeesRepo.getById(id, companyId)
     if (!employee) {
       throw new NotFoundError('Empleado no encontrado')
     }
@@ -57,22 +57,22 @@ export class EmployeesModel {
       throw new ForbiddenError('No tienes permiso para actualizar este empleado')
     }
 
-    return await this.employeesRepo.update(id, data)
+    return await this.employeesRepo.update(id, data, companyId)
   }
 
-  async delete (id, userId, isAdmin = false) {
+  async delete (id, userId, isAdmin = false, companyId) {
     if (!isAdmin) {
       throw new ForbiddenError('No tienes permiso para eliminar empleados')
     }
 
-    return await this.employeesRepo.delete(id)
+    return await this.employeesRepo.delete(id, companyId)
   }
 
-  async getPositions () {
-    return await this.employeesRepo.getPositions()
+  async getPositions (companyId) {
+    return await this.employeesRepo.getPositions(companyId)
   }
 
-  async getDepartments () {
-    return await this.employeesRepo.getDepartments()
+  async getDepartments (companyId) {
+    return await this.employeesRepo.getDepartments(companyId)
   }
 }

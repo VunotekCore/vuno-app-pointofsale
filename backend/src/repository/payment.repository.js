@@ -72,7 +72,7 @@ export class PaymentRepository {
     return true
   }
 
-  async getCashDrawers(locationId = null) {
+  async getCashDrawers(locationId = null, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(cd.id) as id,
@@ -96,9 +96,9 @@ export class PaymentRepository {
       JOIN locations l ON cd.location_id = l.id
       LEFT JOIN users u_opened ON cd.opened_by = u_opened.id
       LEFT JOIN users u_closed ON cd.closed_by = u_closed.id
-      WHERE 1=1
+      WHERE cd.company_id = UUID_TO_BIN(?)
     `
-    const params = []
+    const params = [companyId]
     
     if (locationId) {
       query += ' AND cd.location_id = UUID_TO_BIN(?)'
@@ -110,7 +110,7 @@ export class PaymentRepository {
     return await this.db.query(query, params)
   }
 
-  async getCashDrawerById(id) {
+  async getCashDrawerById(id, companyId) {
     const rows = await this.db.query(
       `SELECT 
         BIN_TO_UUID(cd.id) as id,
@@ -127,17 +127,16 @@ export class PaymentRepository {
         BIN_TO_UUID(cd.shift_session_id) as shift_session_id,
         cd.created_at,
         cd.updated_at,
-        l.name as location_name, u.username as opened_by_name
-       FROM cash_drawers cd
-       JOIN locations l ON cd.location_id = l.id
-       LEFT JOIN users u ON cd.opened_by = u.id
-       WHERE cd.id = UUID_TO_BIN(?)`,
-      [id]
+        l.name as location_name
+      FROM cash_drawers cd
+      JOIN locations l ON cd.location_id = l.id
+      WHERE cd.id = UUID_TO_BIN(?) AND cd.company_id = UUID_TO_BIN(?)`,
+      [id, companyId]
     )
     return rows[0] || null
   }
 
-  async getOpenDrawer(locationId, userId) {
+  async getOpenDrawer(locationId, userId, companyId) {
     const rows = await this.db.query(
       `SELECT 
         BIN_TO_UUID(cd.id) as id,
@@ -157,20 +156,20 @@ export class PaymentRepository {
         l.name as location_name
        FROM cash_drawers cd
        JOIN locations l ON cd.location_id = l.id
-       WHERE cd.location_id = UUID_TO_BIN(?) AND cd.status = 'open'
+       WHERE cd.location_id = UUID_TO_BIN(?) AND cd.status = 'open' AND cd.company_id = UUID_TO_BIN(?)
        ORDER BY cd.opened_at DESC
        LIMIT 1`,
-      [locationId]
+      [locationId, companyId]
     )
     return rows[0] || null
   }
 
   async openDrawer(data) {
-    const { name, location_id, initial_amount, opened_by, notes } = data
+    const { name, location_id, company_id, initial_amount, opened_by, notes } = data
     
     await this.db.query(
-      `INSERT INTO cash_drawers (id, name, location_id, initial_amount, current_amount, status, opened_at, opened_by, notes)
-       VALUES (UUID_TO_BIN(UUID()), ?, UUID_TO_BIN(?), ?, ?, 'open', NOW(), UUID_TO_BIN(?), ?)`,
+      `INSERT INTO cash_drawers (id, name, location_id, company_id, initial_amount, current_amount, status, opened_at, opened_by, notes)
+       VALUES (UUID_TO_BIN(UUID()), ?, UUID_TO_BIN(?), UUID_TO_BIN('${company_id}'), ?, ?, 'open', NOW(), UUID_TO_BIN(?), ?)`,
       [name, location_id, initial_amount, initial_amount, opened_by ? opened_by : null, notes]
     )
     
@@ -178,16 +177,16 @@ export class PaymentRepository {
     const drawerId = rows[0]?.id
     
     await this.db.query(
-      `INSERT INTO drawer_transactions (id, drawer_id, transaction_type, amount, notes, created_by)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), 'opening', ?, ?, UUID_TO_BIN(?))`,
+      `INSERT INTO drawer_transactions (id, drawer_id, company_id, transaction_type, amount, notes, created_by)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN('${company_id}'), 'opening', ?, ?, UUID_TO_BIN(?))`,
       [drawerId, initial_amount, 'Apertura de caja', opened_by ? opened_by : null]
     )
     
     return drawerId
   }
 
-  async closeDrawer(id, closed_by, closing_amount, notes) {
-    const drawer = await this.getCashDrawerById(id)
+  async closeDrawer(id, closed_by, closing_amount, notes, companyId) {
+    const drawer = await this.getCashDrawerById(id, companyId)
     if (!drawer) throw new NotFoundError('Caja no encontrada')
     
     if (drawer.status !== 'open') {
@@ -204,8 +203,8 @@ export class PaymentRepository {
     )
     
     await this.db.query(
-      `INSERT INTO drawer_transactions (id, drawer_id, transaction_type, amount, notes, created_by)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), 'closing', ?, ?, UUID_TO_BIN(?))`,
+      `INSERT INTO drawer_transactions (id, drawer_id, company_id, transaction_type, amount, notes, created_by)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN('${companyId}'), 'closing', ?, ?, UUID_TO_BIN(?))`,
       [id, closing_amount, `Cierre de caja. Diferencia: ${difference}`, closed_by ? closed_by : null]
     )
     
@@ -213,15 +212,15 @@ export class PaymentRepository {
   }
 
   async addTransaction(data) {
-    const { drawer_id, transaction_type, amount, payment_method_id, reference_id, reference_number, notes, created_by } = data
+    const { drawer_id, company_id, transaction_type, amount, payment_method_id, reference_id, reference_number, notes, created_by } = data
     
     await this.db.query(
-      `INSERT INTO drawer_transactions (id, drawer_id, transaction_type, amount, payment_method_id, reference_id, reference_number, notes, created_by)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))`,
+      `INSERT INTO drawer_transactions (id, drawer_id, company_id, transaction_type, amount, payment_method_id, reference_id, reference_number, notes, created_by)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN('${company_id}'), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))`,
       [drawer_id, transaction_type, amount, payment_method_id, reference_id, reference_number, notes, created_by ? created_by : null]
     )
     
-    const drawer = await this.getCashDrawerById(drawer_id)
+    const drawer = await this.getCashDrawerById(drawer_id, company_id)
     let newAmount = parseFloat(drawer.current_amount)
     
     if (transaction_type === 'sale_payment') {
@@ -233,8 +232,8 @@ export class PaymentRepository {
     }
     
     await this.db.query(
-      'UPDATE cash_drawers SET current_amount = ? WHERE id = UUID_TO_BIN(?)',
-      [newAmount, drawer_id]
+      'UPDATE cash_drawers SET current_amount = ? WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)',
+      [newAmount, drawer_id, company_id]
     )
     
     const rows = await this.db.query(
@@ -244,16 +243,16 @@ export class PaymentRepository {
     return rows[0]?.id
   }
 
-  async getDrawerTransactions(drawerId, startDate = null, endDate = null) {
+  async getDrawerTransactions(drawerId, startDate = null, endDate = null, companyId) {
     let query = `
       SELECT dt.*, pm.name as payment_method_name, pm.code as payment_method_code,
              u.username as created_by_name
       FROM drawer_transactions dt
       LEFT JOIN payment_methods pm ON dt.payment_method_id = pm.id
       JOIN users u ON dt.created_by = u.id
-      WHERE dt.drawer_id = ?
+      WHERE dt.drawer_id = ? AND dt.company_id = UUID_TO_BIN(?)
     `
-    const params = [drawerId]
+    const params = [drawerId, companyId]
     
     if (startDate) {
       query += ' AND dt.created_at >= ?'
@@ -270,7 +269,7 @@ export class PaymentRepository {
     return await this.db.query(query, params)
   }
 
-  async getDrawerSummary(drawerId) {
+  async getDrawerSummary(drawerId, companyId) {
     const rows = await this.db.query(
       `SELECT 
         transaction_type,
@@ -278,14 +277,14 @@ export class PaymentRepository {
         SUM(CASE WHEN transaction_type IN ('withdrawal', 'expense', 'closing') THEN amount ELSE 0 END) as total_out,
         COUNT(*) as transaction_count
       FROM drawer_transactions
-      WHERE drawer_id = ?
+      WHERE drawer_id = ? AND company_id = UUID_TO_BIN(?)
       GROUP BY transaction_type`,
-      [drawerId]
+      [drawerId, companyId]
     )
     return rows
   }
 
-  async getPaymentSummaryByDate(locationId, startDate, endDate) {
+  async getPaymentSummaryByDate(locationId, startDate, endDate, companyId) {
     let query = `
       SELECT 
         sp.payment_type,
@@ -295,12 +294,12 @@ export class PaymentRepository {
       FROM sale_payments sp
       JOIN sales s ON sp.sale_id = s.id
       LEFT JOIN payment_methods pm ON sp.payment_type = pm.code
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
     
     if (locationId) {
-      query += ' AND s.location_id = ?'
+      query += ' AND s.location_id = UUID_TO_BIN(?)'
       params.push(locationId)
     }
     
@@ -309,8 +308,8 @@ export class PaymentRepository {
     return await this.db.query(query, params)
   }
 
-  async getCashSalesSummary(drawerId, startDate = null, endDate = null) {
-    const drawer = await this.getCashDrawerById(drawerId)
+  async getCashSalesSummary(drawerId, startDate = null, endDate = null, companyId) {
+    const drawer = await this.getCashDrawerById(drawerId, companyId)
     if (!drawer) return null
     
     const rows = await this.db.query(
@@ -318,8 +317,9 @@ export class PaymentRepository {
         COALESCE(SUM(s.total), 0) as total_cash_sales
       FROM sales s
       WHERE s.drawer_id = UUID_TO_BIN(?) 
+        AND s.company_id = UUID_TO_BIN(?) 
         AND s.status = 'completed'`,
-      [drawerId]
+      [drawerId, companyId]
     )
     
     const totalCashSales = parseFloat(rows[0]?.total_cash_sales || 0)
@@ -336,16 +336,16 @@ export class PaymentRepository {
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
       LEFT JOIN users u ON s.created_by = u.id
-      WHERE s.drawer_id = UUID_TO_BIN(?) AND s.status = 'completed'
+      WHERE s.drawer_id = UUID_TO_BIN(?) AND s.company_id = UUID_TO_BIN(?) AND s.status = 'completed'
       ORDER BY s.sale_date DESC`,
-      [drawerId]
+      [drawerId, companyId]
     )
     
     const withdrawalRows = await this.db.query(
       `SELECT COALESCE(SUM(amount), 0) as total_withdrawals
        FROM drawer_transactions 
-       WHERE drawer_id = UUID_TO_BIN(?) AND transaction_type = 'withdrawal'`,
-      [drawerId]
+       WHERE drawer_id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?) AND transaction_type = 'withdrawal'`,
+      [drawerId, companyId]
     )
     
     const totalWithdrawals = parseFloat(withdrawalRows[0]?.total_withdrawals || 0)
@@ -362,9 +362,9 @@ export class PaymentRepository {
         u.username as created_by_name
       FROM drawer_transactions dt
       LEFT JOIN users u ON dt.created_by = u.id
-      WHERE dt.drawer_id = UUID_TO_BIN(?)
+      WHERE dt.drawer_id = UUID_TO_BIN(?) AND dt.company_id = UUID_TO_BIN(?)
       ORDER BY dt.created_at DESC`,
-      [drawerId]
+      [drawerId, companyId]
     )
     
     return {
@@ -379,11 +379,11 @@ export class PaymentRepository {
     }
   }
 
-  async getDrawerHistory(locationId, filters = {}) {
+  async getDrawerHistory(locationId, filters = {}, companyId) {
     const { search, limit = 20, offset = 0, start_date, end_date } = filters
-    const params = [locationId]
+    const params = [locationId, companyId]
 
-    let whereClause = 'WHERE cd.location_id = UUID_TO_BIN(?) AND cd.status = ?'
+    let whereClause = 'WHERE cd.location_id = UUID_TO_BIN(?) AND cd.company_id = UUID_TO_BIN(?) AND cd.status = ?'
     params.push('closed')
 
     if (search) {
@@ -438,15 +438,15 @@ export class PaymentRepository {
     return { data: rows, total }
   }
 
-  async createAdjustment(drawerId, userId, adjustmentType, amount, notes) {
+  async createAdjustment(drawerId, userId, companyId, adjustmentType, amount, notes) {
     await this.db.query(
-      `INSERT INTO drawer_adjustments (id, drawer_id, user_id, adjustment_type, amount, notes, status)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, 'pending')`,
+      `INSERT INTO drawer_adjustments (id, drawer_id, company_id, user_id, adjustment_type, amount, notes, status)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN('${companyId}'), UUID_TO_BIN(?), ?, ?, ?, 'pending')`,
       [drawerId, userId, adjustmentType, amount, notes]
     )
   }
 
-  async getAdjustmentsByDrawer(drawerId) {
+  async getAdjustmentsByDrawer(drawerId, companyId) {
     return await this.db.query(
       `SELECT 
         BIN_TO_UUID(da.id) as id,
@@ -460,18 +460,18 @@ export class PaymentRepository {
         u.username as user_name
        FROM drawer_adjustments da
        LEFT JOIN users u ON da.user_id = u.id
-       WHERE da.drawer_id = UUID_TO_BIN(?)
+       WHERE da.drawer_id = UUID_TO_BIN(?) AND da.company_id = UUID_TO_BIN(?)
        ORDER BY da.created_at DESC`,
-      [drawerId]
+      [drawerId, companyId]
     )
   }
 
-  async getAdjustmentsByUser(userId, filters = {}) {
+  async getAdjustmentsByUser(userId, filters = {}, companyId) {
     const { status, search, limit = 20, offset = 0, start_date, end_date } = filters
-    const params = [userId]
-    const countParams = [userId]
+    const params = [userId, companyId]
+    const countParams = [userId, companyId]
 
-    let whereClause = 'WHERE da.user_id = UUID_TO_BIN(?)'
+    let whereClause = 'WHERE da.user_id = UUID_TO_BIN(?) AND da.company_id = UUID_TO_BIN(?)'
 
     if (status) {
       whereClause += ' AND da.status = ?'
@@ -531,37 +531,40 @@ export class PaymentRepository {
     )
   }
 
-  async getAdjustmentById(adjustmentId) {
+  async getAdjustmentById(adjustmentId, companyId) {
     const rows = await this.db.query(
       `SELECT 
-        BIN_TO_UUID(id) as id,
-        BIN_TO_UUID(drawer_id) as drawer_id,
-        BIN_TO_UUID(user_id) as user_id,
-        adjustment_type,
-        amount,
-        notes,
-        status,
-        created_at
-       FROM drawer_adjustments WHERE id = UUID_TO_BIN(?)`,
-      [adjustmentId]
+        BIN_TO_UUID(da.id) as id,
+        BIN_TO_UUID(da.drawer_id) as drawer_id,
+        BIN_TO_UUID(da.user_id) as user_id,
+        da.adjustment_type,
+        da.amount,
+        da.notes,
+        da.status,
+        da.created_at,
+        cd.company_id
+       FROM drawer_adjustments da
+       JOIN cash_drawers cd ON da.drawer_id = cd.id
+       WHERE da.id = UUID_TO_BIN(?) AND cd.company_id = UUID_TO_BIN(?)`,
+      [adjustmentId, companyId]
     )
     return rows[0] || null
   }
 
-  async createAccountReceivable(userId, adjustmentId, amount, notes = null, dueDate = null) {
+  async createAccountReceivable(userId, adjustmentId, companyId, amount, notes = null, dueDate = null) {
     await this.db.query(
-      `INSERT INTO accounts_receivable (id, user_id, adjustment_id, amount, notes, due_date)
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?)`,
+      `INSERT INTO accounts_receivable (id, user_id, adjustment_id, company_id, amount, notes, due_date)
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN('${companyId}'), ?, ?, ?)`,
       [userId, adjustmentId, amount, notes, dueDate]
     )
   }
 
-  async getAccountsReceivable(filters = {}) {
+  async getAccountsReceivable(filters = {}, companyId) {
     const { userId, status, search, limit = 20, offset = 0, start_date, end_date } = filters
-    const params = []
-    const countParams = []
+    const params = [companyId]
+    const countParams = [companyId]
 
-    let whereClause = 'WHERE 1=1'
+    let whereClause = 'WHERE ar.company_id = UUID_TO_BIN(?)'
 
     if (userId) {
       whereClause += ' AND ar.user_id = UUID_TO_BIN(?)'
@@ -632,7 +635,7 @@ export class PaymentRepository {
     )
   }
 
-  async getAccountReceivableById(id) {
+  async getAccountReceivableById(id, companyId) {
     const rows = await this.db.query(
       `SELECT 
         BIN_TO_UUID(ar.id) as id,
@@ -646,23 +649,25 @@ export class PaymentRepository {
         ar.created_at,
         u.username as user_name,
         da.adjustment_type,
-        da.amount as adjustment_amount
+        da.amount as adjustment_amount,
+        ar.company_id
        FROM accounts_receivable ar
        LEFT JOIN users u ON ar.user_id = u.id
        LEFT JOIN drawer_adjustments da ON ar.adjustment_id = da.id
-       WHERE ar.id = UUID_TO_BIN(?)`,
-      [id]
+       WHERE ar.id = UUID_TO_BIN(?) AND ar.company_id = UUID_TO_BIN(?)`,
+      [id, companyId]
     )
     return rows[0] || null
   }
 
-  async getCashiers() {
+  async getCashiers(companyId) {
     return await this.db.query(
       `SELECT BIN_TO_UUID(u.id) as id, u.username, u.email
        FROM users u
        JOIN roles r ON u.role_id = r.id
-       WHERE r.name = 'cashier' AND u.is_active = 1
-       ORDER BY u.username`
+       WHERE u.company_id = UUID_TO_BIN(?) AND r.name = 'cashier' AND u.is_active = 1
+       ORDER BY u.username`,
+      [companyId]
     )
   }
 }
