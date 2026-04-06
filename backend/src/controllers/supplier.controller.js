@@ -8,7 +8,8 @@ export class SupplierController {
   async getAll (req, res, next) {
     try {
       const { search, is_active, limit, offset } = req.query
-      const filters = { search, is_active, limit, offset }
+      const companyId = req.user?.company_id
+      const filters = { search, is_active, company_id: companyId, limit, offset }
       const result = await supplierModel.getAll(filters)
       res.status(200).json({ success: true, data: result.data, total: result.total })
     } catch (error) {
@@ -19,7 +20,8 @@ export class SupplierController {
   async getById (req, res, next) {
     try {
       const { id } = req.params
-      const supplier = await supplierModel.getById(id)
+      const companyId = req.user?.company_id
+      const supplier = await supplierModel.getById(id, companyId)
       res.status(200).json({ success: true, data: supplier })
     } catch (error) {
       next(error)
@@ -28,9 +30,10 @@ export class SupplierController {
 
   async create (req, res, next) {
     try {
-      const data = req.body
+      const companyId = req.user?.company_id
+      const data = { ...req.body, company_id: companyId }
       const id = await supplierModel.create(data)
-      const newSupplier = await supplierModel.getById(id)
+      const newSupplier = await supplierModel.getById(id, companyId)
       res.status(201).json({ success: true, message: 'Proveedor creado', data: newSupplier })
     } catch (error) {
       next(error)
@@ -40,9 +43,10 @@ export class SupplierController {
   async update (req, res, next) {
     try {
       const { id } = req.params
+      const companyId = req.user?.company_id
       const data = req.body
-      await supplierModel.update(id, data)
-      const updatedSupplier = await supplierModel.getById(id)
+      await supplierModel.update(id, data, companyId)
+      const updatedSupplier = await supplierModel.getById(id, companyId)
       res.status(200).json({ success: true, message: 'Proveedor actualizado', data: updatedSupplier })
     } catch (error) {
       next(error)
@@ -52,7 +56,8 @@ export class SupplierController {
   async delete (req, res, next) {
     try {
       const { id } = req.params
-      await supplierModel.delete(id)
+      const companyId = req.user?.company_id
+      await supplierModel.delete(id, companyId)
       res.status(200).json({ success: true, message: 'Proveedor eliminado' })
     } catch (error) {
       next(error)
@@ -61,7 +66,8 @@ export class SupplierController {
 
   async getActive (req, res, next) {
     try {
-      const suppliers = await supplierModel.getActive()
+      const companyId = req.user?.company_id
+      const suppliers = await supplierModel.getActive(companyId)
       res.status(200).json({ success: true, data: suppliers, total: suppliers.length })
     } catch (error) {
       next(error)
@@ -71,7 +77,8 @@ export class SupplierController {
   async getHistory (req, res, next) {
     try {
       const { id } = req.params
-      const history = await supplierModel.getHistory(id)
+      const companyId = req.user?.company_id
+      const history = await supplierModel.getHistory(id, companyId)
       res.status(200).json({ success: true, data: history })
     } catch (error) {
       next(error)

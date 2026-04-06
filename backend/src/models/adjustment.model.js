@@ -21,12 +21,13 @@ export class AdjustmentModel {
     return { ...adjustment, items }
   }
 
-  async create (data, userId) {
-    const adjustmentNumber = await this.adjustmentRepo.getNextNumber()
+  async create (data, userId, companyId) {
+    const adjustmentNumber = await this.adjustmentRepo.getNextNumber(companyId)
 
     const id = await this.adjustmentRepo.create({
       adjustment_number: adjustmentNumber,
       location_id: data.location_id,
+      company_id: companyId,
       adjustment_type: data.adjustment_type,
       notes: data.notes,
       status: 'draft',
@@ -146,20 +147,22 @@ export class AdjustmentModel {
     return await this.inventoryRepo.getTotalStock(itemId, variationId, locationId)
   }
 
-  async createWithTransaction (data) {
-    const { location_id, adjustment_type, notes, item_id, variation_id, quantity, movement_type, userId } = data
+  async createWithTransaction (data, companyId) {
+    const { location_id, adjustment_type, notes, item_id, variation_id, quantity, movement_type, unit_cost, userId } = data
 
     const adjustmentNumber = await this.adjustmentRepo.generateUniqueNumber()
     const adjustmentUUID = await this.adjustmentRepo.createWithTransaction({
       adjustment_number: adjustmentNumber,
       location_id,
+      company_id: companyId,
       adjustment_type,
       notes,
       created_by: userId,
       item_id,
       variation_id,
       quantity,
-      movement_type
+      movement_type,
+      unit_cost
     })
 
     return { id: adjustmentUUID, adjustment_number: adjustmentNumber }

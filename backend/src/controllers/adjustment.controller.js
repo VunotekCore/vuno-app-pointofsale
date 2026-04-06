@@ -12,10 +12,12 @@ const adjustmentModel = new AdjustmentModel(adjustmentRepo, inventoryRepo, items
 export class AdjustmentController {
   async getAll (req, res, next) {
     try {
+      const companyId = req.user?.company_id
       const filters = {
         location_id: req.query.location_id,
         adjustment_type: req.query.type,
-        status: req.query.status
+        status: req.query.status,
+        company_id: companyId
       }
       const adjustments = await adjustmentModel.getAll(filters)
       res.status(200).json({ success: true, data: adjustments })
@@ -36,6 +38,7 @@ export class AdjustmentController {
   async create (req, res, next) {
     try {
       const { location_id, adjustment_type, notes } = req.body
+      const companyId = req.user?.company_id
       
       if (!location_id || !adjustment_type) {
         return res.status(400).json({ 
@@ -48,7 +51,7 @@ export class AdjustmentController {
         location_id,
         adjustment_type,
         notes
-      }, req.user?.id || 1)
+      }, req.user?.id || 1, companyId)
 
       res.status(201).json({ 
         success: true, 
@@ -159,7 +162,8 @@ export class AdjustmentController {
 
   async createWithItem (req, res, next) {
     try {
-      const { location_id, adjustment_type, notes, item_id, variation_id, quantity, movement_type } = req.body
+      const { location_id, adjustment_type, notes, item_id, variation_id, quantity, movement_type, unit_cost } = req.body
+      const companyId = req.user?.company_id
       
       if (!location_id || !adjustment_type || !item_id || !quantity) {
         return res.status(400).json({ 
@@ -176,8 +180,9 @@ export class AdjustmentController {
         variation_id,
         quantity,
         movement_type,
+        unit_cost,
         userId: req.user?.id || req.userId
-      })
+      }, companyId)
 
       res.status(201).json({ 
         success: true, 

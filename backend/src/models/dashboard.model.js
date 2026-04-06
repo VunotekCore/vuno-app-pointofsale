@@ -3,13 +3,13 @@ export class DashboardModel {
     this.dashboardRepo = dashboardRepository
   }
 
-  async getDailyStats (locationId, userLocations = [], isAdmin = false) {
+  async getDailyStats (locationId, userLocations = [], isAdmin = false, companyId) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    const sales = await this.dashboardRepo.getDailySales(locationId, userLocations, isAdmin)
+    const sales = await this.dashboardRepo.getDailySales(locationId, userLocations, isAdmin, companyId)
 
     return {
       date: today.toISOString().split('T')[0],
@@ -20,8 +20,8 @@ export class DashboardModel {
     }
   }
 
-  async getStatsByDateRange (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    const sales = await this.dashboardRepo.getSalesByDateRange(locationId, startDate, endDate, userLocations, isAdmin)
+  async getStatsByDateRange (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    const sales = await this.dashboardRepo.getSalesByDateRange(locationId, startDate, endDate, userLocations, isAdmin, companyId)
 
     return {
       start_date: startDate,
@@ -33,24 +33,24 @@ export class DashboardModel {
     }
   }
 
-  async getSalesByPeriod (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getSalesByPeriod(locationId, startDate, endDate, userLocations, isAdmin)
+  async getSalesByPeriod (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getSalesByPeriod(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getTopSellingItems (locationId, startDate, endDate, limit, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getTopSellingItems(locationId, startDate, endDate, limit, userLocations, isAdmin)
+  async getTopSellingItems (locationId, startDate, endDate, limit, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getTopSellingItems(locationId, startDate, endDate, limit, userLocations, isAdmin, companyId)
   }
 
-  async getPaymentSummary (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getPaymentSummary(locationId, startDate, endDate, userLocations, isAdmin)
+  async getPaymentSummary (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getPaymentSummary(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getLowStock (locationId = null, userLocations = [], isAdmin = false, limit = 20) {
-    return await this.dashboardRepo.getLowStock(locationId, userLocations, isAdmin, limit)
+  async getLowStock (locationId = null, userLocations = [], isAdmin = false, limit = 20, companyId) {
+    return await this.dashboardRepo.getLowStock(locationId, userLocations, isAdmin, limit, companyId)
   }
 
-  async getNewCustomers (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    const result = await this.dashboardRepo.getNewCustomers(locationId, startDate, endDate, userLocations, isAdmin)
+  async getNewCustomers (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    const result = await this.dashboardRepo.getNewCustomers(locationId, startDate, endDate, userLocations, isAdmin, companyId)
     return {
       start_date: startDate,
       end_date: endDate,
@@ -58,75 +58,75 @@ export class DashboardModel {
     }
   }
 
-  async getCustomersByPeriod (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getCustomersByPeriod(locationId, startDate, endDate, userLocations, isAdmin)
+  async getCustomersByPeriod (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getCustomersByPeriod(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getRecentSales (locationId, limit, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getRecentSales(locationId, limit, userLocations, isAdmin)
+  async getRecentSales (locationId, limit, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getRecentSales(locationId, limit, userLocations, isAdmin, companyId)
   }
 
-  async getRecentMovements (locationId, limit, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getRecentMovements(locationId, limit, userLocations, isAdmin)
+  async getRecentMovements (locationId, limit, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getRecentMovements(locationId, limit, userLocations, isAdmin, companyId)
   }
 
-  async getLocations () {
-    return await this.dashboardRepo.getLocations()
+  async getLocations (companyId) {
+    return await this.dashboardRepo.getLocations(companyId)
   }
 
-  async getFinancialOverview (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getFinancialOverview(locationId, startDate, endDate, userLocations, isAdmin)
+  async getFinancialOverview (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getFinancialOverview(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getYearOverYearComparison (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getYearOverYearComparison(locationId, startDate, endDate, userLocations, isAdmin)
+  async getYearOverYearComparison (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getYearOverYearComparison(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getPnLByLocation (startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getPnLByLocation(startDate, endDate, userLocations, isAdmin)
+  async getPnLByLocation (startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getPnLByLocation(startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getCustomerLifetimeValue (startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getCustomerLifetimeValue(startDate, endDate, userLocations, isAdmin)
+  async getCustomerLifetimeValue (startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getCustomerLifetimeValue(startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getTaxCompliance (startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getTaxCompliance(startDate, endDate, userLocations, isAdmin)
+  async getTaxCompliance (startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getTaxCompliance(startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getCustomerAcquisitionCost (startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getCustomerAcquisitionCost(startDate, endDate, userLocations, isAdmin)
+  async getCustomerAcquisitionCost (startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getCustomerAcquisitionCost(startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getInventoryTurnover (startDate, endDate, locationId, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getInventoryTurnover(startDate, endDate, locationId, userLocations, isAdmin)
+  async getInventoryTurnover (startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getInventoryTurnover(startDate, endDate, locationId, userLocations, isAdmin, companyId)
   }
 
-  async getSalesByEmployee (startDate, endDate, locationId, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getSalesByEmployee(startDate, endDate, locationId, userLocations, isAdmin)
+  async getSalesByEmployee (startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getSalesByEmployee(startDate, endDate, locationId, userLocations, isAdmin, companyId)
   }
 
-  async getSalesByHour (startDate, endDate, locationId, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getSalesByHour(startDate, endDate, locationId, userLocations, isAdmin)
+  async getSalesByHour (startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getSalesByHour(startDate, endDate, locationId, userLocations, isAdmin, companyId)
   }
 
-  async getReturnsAndCancellations (startDate, endDate, locationId, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getReturnsAndCancellations(startDate, endDate, locationId, userLocations, isAdmin)
+  async getReturnsAndCancellations (startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getReturnsAndCancellations(startDate, endDate, locationId, userLocations, isAdmin, companyId)
   }
 
-  async getCashDrawerDiscrepancies (startDate, endDate, locationId, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getCashDrawerDiscrepancies(startDate, endDate, locationId, userLocations, isAdmin)
+  async getCashDrawerDiscrepancies (startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getCashDrawerDiscrepancies(startDate, endDate, locationId, userLocations, isAdmin, companyId)
   }
 
-  async getEmployeeSalesGoals (userId, startDate, endDate) {
-    return await this.dashboardRepo.getEmployeeSalesGoals(userId, startDate, endDate)
+  async getEmployeeSalesGoals (userId, startDate, endDate, companyId) {
+    return await this.dashboardRepo.getEmployeeSalesGoals(userId, startDate, endDate, companyId)
   }
 
-  async getAverageTransactionTime (locationId, startDate, endDate, userLocations = [], isAdmin = false) {
-    return await this.dashboardRepo.getAverageTransactionTime(locationId, startDate, endDate, userLocations, isAdmin)
+  async getAverageTransactionTime (locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
+    return await this.dashboardRepo.getAverageTransactionTime(locationId, startDate, endDate, userLocations, isAdmin, companyId)
   }
 
-  async getFullDashboard (locationId, userLocations = [], isAdmin = false) {
+  async getFullDashboard (locationId, userLocations = [], isAdmin = false, companyId) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
@@ -157,17 +157,17 @@ export class DashboardModel {
       recentMovements,
       locations
     ] = await Promise.all([
-      this.dashboardRepo.getDailySales(locationId, userLocations, isAdmin),
-      this.dashboardRepo.getSalesByDateRange(locationId, yesterday.toISOString().split('T')[0], yesterdayEnd.toISOString().split('T')[0], userLocations, isAdmin),
-      this.dashboardRepo.getSalesByDateRange(locationId, weekStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin),
-      this.dashboardRepo.getSalesByDateRange(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin),
-      this.dashboardRepo.getTopSellingItems(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], 10, userLocations, isAdmin),
-      this.dashboardRepo.getPaymentSummary(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin),
-      this.dashboardRepo.getLowStock(locationId, userLocations, isAdmin, 20),
-      this.dashboardRepo.getNewCustomers(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin),
-      this.dashboardRepo.getRecentSales(locationId, 10, userLocations, isAdmin),
-      this.dashboardRepo.getRecentMovements(locationId, 20, userLocations, isAdmin),
-      this.dashboardRepo.getLocations()
+      this.dashboardRepo.getDailySales(locationId, userLocations, isAdmin, companyId),
+      this.dashboardRepo.getSalesByDateRange(locationId, yesterday.toISOString().split('T')[0], yesterdayEnd.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+      this.dashboardRepo.getSalesByDateRange(locationId, weekStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+      this.dashboardRepo.getSalesByDateRange(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+      this.dashboardRepo.getTopSellingItems(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], 10, userLocations, isAdmin, companyId),
+      this.dashboardRepo.getPaymentSummary(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+      this.dashboardRepo.getLowStock(locationId, userLocations, isAdmin, 20, companyId),
+      this.dashboardRepo.getNewCustomers(locationId, monthStart.toISOString().split('T')[0], tomorrow.toISOString().split('T')[0], userLocations, isAdmin, companyId),
+      this.dashboardRepo.getRecentSales(locationId, 10, userLocations, isAdmin, companyId),
+      this.dashboardRepo.getRecentMovements(locationId, 20, userLocations, isAdmin, companyId),
+      this.dashboardRepo.getLocations(companyId)
     ])
 
     return {

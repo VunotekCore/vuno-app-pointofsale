@@ -6,6 +6,8 @@ export class AdjustmentRepository {
   }
 
   async getAll(filters = {}) {
+    const { location_id, adjustment_type, status, company_id } = filters
+    
     let query = `
       SELECT 
         BIN_TO_UUID(a.id) as id,
@@ -27,19 +29,23 @@ export class AdjustmentRepository {
       FROM inventory_adjustments a
       JOIN locations l ON a.location_id = l.id
       LEFT JOIN users u ON a.created_by = u.id
-      WHERE a.is_delete = 0
+      WHERE a.company_id = UUID_TO_BIN(?)
     `
+    const params = [company_id]
 
-    if (filters.location_id) {
-      query += ` AND a.location_id = UUID_TO_BIN('${filters.location_id}')`
+    if (location_id) {
+      query += ` AND a.location_id = UUID_TO_BIN(?)`
+      params.push(location_id)
     }
 
-    if (filters.adjustment_type) {
-      query += ` AND a.adjustment_type = '${filters.adjustment_type}'`
+    if (adjustment_type) {
+      query += ` AND a.adjustment_type = ?`
+      params.push(adjustment_type)
     }
 
-    if (filters.status) {
-      query += ` AND a.status = '${filters.status}'`
+    if (status) {
+      query += ` AND a.status = ?`
+      params.push(status)
     }
 
     query += ' ORDER BY a.created_at DESC'
@@ -48,20 +54,21 @@ export class AdjustmentRepository {
     return rows
   }
 
-  async getById(id) {
+  async getById(id, companyId) {
     const rows = await this.db.query(
       `SELECT BIN_TO_UUID(a.id) as id, a.adjustment_number, BIN_TO_UUID(a.location_id) as location_id, a.adjustment_type, a.status, a.notes, a.total_items, a.total_quantity_change, a.is_delete, BIN_TO_UUID(a.created_by) as created_by, BIN_TO_UUID(a.updated_by) as updated_by, a.created_at, a.updated_at, l.name as location_name, l.code as location_code, u.username as created_by_name
        FROM inventory_adjustments a
        JOIN locations l ON a.location_id = l.id
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.id = UUID_TO_BIN('${id}') AND a.is_delete = 0`
+       WHERE a.id = UUID_TO_BIN(?) AND a.company_id = UUID_TO_BIN(?) AND a.is_delete = 0`,
+      [id, companyId]
     )
     return rows[0] || null
   }
 
-  async getItems(adjustmentId) {
-    const rows = await this.db.query(
-      `SELECT 
+  async getItems(adjustmentId, companyId = null) {
+    let query = `
+      SELECT 
         BIN_TO_UUID(ai.id) as id,
         BIN_TO_UUID(ai.adjustment_id) as adjustment_id,
         BIN_TO_UUID(ai.item_id) as item_id,
@@ -81,9 +88,16 @@ export class AdjustmentRepository {
       FROM inventory_adjustment_items ai
       JOIN items i ON ai.item_id = i.id
       LEFT JOIN item_variations iv ON ai.variation_id = iv.id
-      WHERE ai.adjustment_id = UUID_TO_BIN('${adjustmentId}')
-      ORDER BY ai.id`
-    )
+      WHERE ai.adjustment_id = UUID_TO_BIN(?)`
+    const params = [adjustmentId]
+    
+    if (companyId) {
+      query += ' AND ai.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    query += ' ORDER BY ai.id'
+    const rows = await this.db.query(query, params)
     return rows
   }
 
@@ -94,17 +108,18 @@ export class AdjustmentRepository {
 
       const adjustmentUUID = crypto.randomUUID()
       
-      const [result] = await conn.query(
+      await conn.query(
         `INSERT INTO inventory_adjustments 
-         (id, adjustment_number, location_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by)
-         VALUES (UUID_TO_BIN('${adjustmentUUID}'), ?, UUID_TO_BIN('${data.location_id}'), ?, ?, ?, ?, ?, UUID_TO_BIN('${data.created_by}'))`,
+         (id, adjustment_number, location_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by, company_id)
+         VALUES (UUID_TO_BIN('${adjustmentUUID}'), ?, UUID_TO_BIN('${data.location_id}'), ?, ?, ?, ?, ?, UUID_TO_BIN('${data.created_by}'), UUID_TO_BIN(?))`,
         [
           data.adjustment_number,
           data.adjustment_type,
           data.status || 'draft',
           data.notes || null,
           0,
-          0
+          0,
+          data.company_id
         ]
       )
 
@@ -123,14 +138,14 @@ export class AdjustmentRepository {
     try {
       await conn.beginTransaction()
 
-      const { adjustment_number, location_id, adjustment_type, notes, created_by, item_id, variation_id, quantity, movement_type } = data
+      const { adjustment_number, location_id, company_id, adjustment_type, notes, created_by, item_id, variation_id, quantity, movement_type, unit_cost } = data
 
       const adjustmentUUID = crypto.randomUUID()
       
       await conn.query(
         `INSERT INTO inventory_adjustments 
-         (id, adjustment_number, location_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by)
-         VALUES (UUID_TO_BIN('${adjustmentUUID}'), ?, UUID_TO_BIN('${location_id}'), ?, ?, ?, ?, ?, UUID_TO_BIN('${created_by}'))`,
+         (id, adjustment_number, location_id, company_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by)
+         VALUES (UUID_TO_BIN('${adjustmentUUID}'), ?, UUID_TO_BIN('${location_id}'), UUID_TO_BIN('${company_id}'), ?, ?, ?, ?, ?, UUID_TO_BIN('${created_by}'))`,
         [
           adjustment_number,
           adjustment_type,
@@ -146,13 +161,18 @@ export class AdjustmentRepository {
       )
 
       const quantityBefore = parseFloat(current[0]?.stock || 0)
-      const outputMovements = ['adjustment_out', 'damaged', 'loss']
-      const isOutput = outputMovements.includes(movement_type)
-      const quantityCounted = isOutput ? quantityBefore - quantity : quantityBefore + quantity
+      const inputMovements = ['adjustment_in', 'found']
+      const isInput = inputMovements.includes(movement_type)
+      const signedQuantity = isInput ? parseFloat(quantity) : -parseFloat(quantity)
+      const quantityAfter = quantityBefore + signedQuantity
+      const quantityChange = signedQuantity
 
       const [itemData] = await conn.query(`SELECT cost_price FROM items WHERE id = UUID_TO_BIN('${item_id}')`)
-      const unitCost = parseFloat(itemData[0]?.cost_price || 0)
-      const quantityDifference = quantity - quantityBefore
+      const currentItemCost = parseFloat(itemData[0]?.cost_price || 0)
+      const finalUnitCost = (unit_cost !== undefined && unit_cost !== null && unit_cost !== '' && unit_cost !== 0)
+        ? parseFloat(unit_cost)
+        : currentItemCost
+      const quantityDifference = signedQuantity
       const itemUUID = crypto.randomUUID()
 
       const varIdBinary = variation_id ? "UUID_TO_BIN('" + variation_id + "')" : 'NULL'
@@ -162,9 +182,9 @@ export class AdjustmentRepository {
          VALUES (UUID_TO_BIN('${itemUUID}'), UUID_TO_BIN('${adjustmentUUID}'), UUID_TO_BIN('${item_id}'), ${varIdBinary}, ?, ?, ?, ?, ?, UUID_TO_BIN('${created_by}'))`,
         [
           quantityBefore,
-          quantityCounted,
+          quantityAfter,
           quantityDifference,
-          unitCost,
+          finalUnitCost,
           notes || null
         ]
       )
@@ -176,13 +196,31 @@ export class AdjustmentRepository {
       if (existingQty.length > 0) {
         await conn.query(
           `UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN('${created_by}') WHERE id = ?`,
-          [quantityCounted, existingQty[0].id]
+          [quantityAfter, existingQty[0].id]
         )
       } else {
         const qtyUUID = crypto.randomUUID()
         await conn.query(
           `INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity, created_by) VALUES (UUID_TO_BIN('${qtyUUID}'), UUID_TO_BIN('${item_id}'), ${variation_id ? "UUID_TO_BIN('" + variation_id + "')" : 'NULL'}, UUID_TO_BIN('${location_id}'), ?, UUID_TO_BIN('${created_by}'))`,
-          [quantityCounted]
+          [quantityAfter]
+        )
+      }
+
+      if (isInput && finalUnitCost !== currentItemCost && finalUnitCost > 0) {
+        const currentStock = await this.getTotalStockForItem(conn, item_id)
+        const totalCurrentValue = currentStock * currentItemCost
+        const totalNewValue = parseFloat(quantity) * finalUnitCost
+        const totalQuantity = currentStock + parseFloat(quantity)
+
+        let averageCost = currentItemCost
+        if (totalQuantity > 0) {
+          averageCost = (totalCurrentValue + totalNewValue) / totalQuantity
+        }
+        averageCost = Math.round(averageCost * 100) / 100
+
+        await conn.query(
+          `UPDATE items SET cost_price = ? WHERE id = UUID_TO_BIN('${item_id}')`,
+          [averageCost]
         )
       }
 
@@ -202,11 +240,11 @@ export class AdjustmentRepository {
          VALUES (UUID_TO_BIN('${movementUUID}'), UUID_TO_BIN('${item_id}'), ${variation_id ? "UUID_TO_BIN('" + variation_id + "')" : 'NULL'}, UUID_TO_BIN('${location_id}'), ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN('${adjustmentUUID}'), UUID_TO_BIN('${created_by}'), ?)`,
         [
           dbMovementType,
-          quantityDifference,
+          quantityChange,
           quantityBefore,
-          quantityCounted,
-          unitCost,
-          Math.abs(unitCost * quantityDifference),
+          quantityAfter,
+          finalUnitCost,
+          Math.abs(finalUnitCost * quantityChange),
           'adjustment',
           notes || null
         ]
@@ -220,6 +258,13 @@ export class AdjustmentRepository {
     } finally {
       conn.release()
     }
+  }
+
+  async getTotalStockForItem(conn, itemId) {
+    const [result] = await conn.query(
+      `SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN('${itemId}')`
+    )
+    return parseFloat(result[0]?.total || 0)
   }
 
   async addItem(data) {
@@ -353,28 +398,49 @@ export class AdjustmentRepository {
     }
   }
 
-  async cancel(adjustmentId, userId) {
-    await this.db.query(
-      `UPDATE inventory_adjustments SET status = ?, updated_by = UUID_TO_BIN('${userId}') WHERE id = UUID_TO_BIN('${adjustmentId}')`,
-      ['cancelled']
-    )
+  async cancel(adjustmentId, userId, companyId = null) {
+    let query = 'UPDATE inventory_adjustments SET status = ?, updated_by = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)'
+    const params = ['cancelled', userId, adjustmentId]
+    
+    if (companyId) {
+      query += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    await this.db.query(query, params)
   }
 
-  async delete(adjustmentId) {
-    await this.db.query(
-      `UPDATE inventory_adjustments SET is_delete = 1 WHERE id = UUID_TO_BIN('${adjustmentId}')`
-    )
+  async delete(adjustmentId, companyId = null) {
+    let query = 'UPDATE inventory_adjustments SET is_delete = 1 WHERE id = UUID_TO_BIN(?)'
+    const params = [adjustmentId]
+    
+    if (companyId) {
+      query += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    await this.db.query(query, params)
   }
 
-  async deleteItem(adjustmentId, itemId) {
-    await this.db.query(
-      `DELETE FROM inventory_adjustment_items WHERE adjustment_id = UUID_TO_BIN('${adjustmentId}') AND item_id = UUID_TO_BIN('${itemId}')`
-    )
+  async deleteItem(adjustmentId, itemId, companyId = null) {
+    let query = 'DELETE FROM inventory_adjustment_items WHERE adjustment_id = UUID_TO_BIN(?) AND item_id = UUID_TO_BIN(?)'
+    const params = [adjustmentId, itemId]
+    
+    if (companyId) {
+      query += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    await this.db.query(query, params)
   }
 
-  async getNextNumber() {
+  async getNextNumber(companyId = null) {
+    const whereClause = companyId ? 'WHERE company_id = UUID_TO_BIN(?)' : ''
+    const params = companyId ? [companyId] : []
+    
     const rows = await this.db.query(
-      "SELECT adjustment_number FROM inventory_adjustments WHERE adjustment_number LIKE 'ADJ-%' ORDER BY id DESC LIMIT 1"
+      `SELECT adjustment_number FROM inventory_adjustments ${whereClause} ORDER BY id DESC LIMIT 1`,
+      params
     )
     
     if (rows.length === 0) {
@@ -386,15 +452,20 @@ export class AdjustmentRepository {
     return `ADJ-${num.toString().padStart(4, '0')}`
   }
 
-  async generateUniqueNumber() {
+  async generateUniqueNumber(companyId = null) {
     const maxNum = 9999
     
     for (let num = 1; num <= maxNum; num++) {
       const number = `ADJ-${num.toString().padStart(4, '0')}`
-      const existing = await this.db.query(
-        "SELECT id FROM inventory_adjustments WHERE adjustment_number = ?",
-        [number]
-      )
+      let query = 'SELECT id FROM inventory_adjustments WHERE adjustment_number = ?'
+      const params = [number]
+      
+      if (companyId) {
+        query += ' AND company_id = UUID_TO_BIN(?)'
+        params.push(companyId)
+      }
+      
+      const existing = await this.db.query(query, params)
       
       if (existing.length === 0) {
         return number

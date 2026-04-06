@@ -8,6 +8,7 @@ export class InventoryController {
       const { location_id, search, limit, offset } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const result = await this.inventoryModel.getStockByLocation({
         locationId: location_id,
@@ -15,7 +16,8 @@ export class InventoryController {
         isAdmin,
         search,
         limit: limit ? parseInt(limit) : 50,
-        offset: offset ? parseInt(offset) : 0
+        offset: offset ? parseInt(offset) : 0,
+        companyId
       })
       res.status(200).json({ success: true, data: result.data, total: result.total })
     } catch (error) {
@@ -28,13 +30,15 @@ export class InventoryController {
       const { item_id, location_id, limit } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const movements = await this.inventoryModel.getMovements(
         item_id, 
         location_id, 
         parseInt(limit) || 100,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       res.status(200).json({ success: true, data: movements, total: movements.length })
     } catch (error) {
@@ -65,8 +69,9 @@ export class InventoryController {
     try {
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
-      const lowStock = await this.inventoryModel.getLowStock(userLocations, isAdmin)
+      const lowStock = await this.inventoryModel.getLowStock(userLocations, isAdmin, companyId)
       res.status(200).json({ success: true, data: lowStock, total: lowStock.length })
     } catch (error) {
       next(error)
@@ -77,7 +82,8 @@ export class InventoryController {
     try {
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
-      const stockInTransit = await this.inventoryModel.getStockInTransit(userLocations, isAdmin)
+      const companyId = req.user?.company_id
+      const stockInTransit = await this.inventoryModel.getStockInTransit(userLocations, isAdmin, companyId)
       res.status(200).json({ success: true, data: stockInTransit, total: stockInTransit.length })
     } catch (error) {
       next(error)

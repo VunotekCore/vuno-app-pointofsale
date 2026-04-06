@@ -84,7 +84,7 @@ const pageLimit = ref(20)
 const totalRecords = ref(0)
 
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
-const isAdmin = computed(() => authStore.user?.role_name === 'admin')
+const isAdmin = computed(() => authStore.user?.role_name?.toLowerCase() === 'admin' || authStore.user?.is_admin)
 
 onMounted(async () => {
   const { from, to } = getCurrentMonthDates()

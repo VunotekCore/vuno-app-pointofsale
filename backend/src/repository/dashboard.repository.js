@@ -13,7 +13,7 @@ export class DashboardRepository {
     this.db = db
   }
 
-  async getDailySales(locationId, userLocations = [], isAdmin = false) {
+  async getDailySales(locationId, userLocations = [], isAdmin = false, companyId) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
@@ -26,9 +26,9 @@ export class DashboardRepository {
         COALESCE(SUM(tax_amount), 0) as total_tax,
         COALESCE(SUM(discount_amount), 0) as total_discounts
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date >= ? AND s.sale_date < ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date >= ? AND s.sale_date < ?
     `
-    const params = [today, tomorrow]
+    const params = [companyId, today, tomorrow]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -43,7 +43,7 @@ export class DashboardRepository {
     return rows[0]
   }
 
-  async getSalesByDateRange(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getSalesByDateRange(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         COUNT(*) as total_transactions,
@@ -51,9 +51,9 @@ export class DashboardRepository {
         COALESCE(SUM(tax_amount), 0) as total_tax,
         COALESCE(SUM(discount_amount), 0) as total_discounts
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -68,16 +68,16 @@ export class DashboardRepository {
     return rows[0]
   }
 
-  async getSalesByPeriod(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getSalesByPeriod(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         DATE(s.sale_date) as date,
         COUNT(*) as transactions,
         SUM(s.total) as total_sales
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -93,7 +93,7 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getTopSellingItems(locationId, startDate, endDate, limit = 10, userLocations = [], isAdmin = false) {
+  async getTopSellingItems(locationId, startDate, endDate, limit = 10, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(i.id) as id,
@@ -105,9 +105,9 @@ export class DashboardRepository {
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
       JOIN items i ON si.item_id = i.id
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -124,7 +124,7 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getPaymentSummary(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getPaymentSummary(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         sp.payment_type,
@@ -135,9 +135,9 @@ export class DashboardRepository {
       FROM sale_payments sp
       JOIN sales s ON sp.sale_id = s.id
       LEFT JOIN payment_methods pm ON sp.payment_type = pm.code
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -153,7 +153,7 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getLowStock(locationId = null, userLocations = [], isAdmin = false, limit = 20) {
+  async getLowStock(locationId = null, userLocations = [], isAdmin = false, limit = 20, companyId) {
     let query = `
       SELECT
         BIN_TO_UUID(i.id) as id,
@@ -169,9 +169,9 @@ export class DashboardRepository {
       LEFT JOIN item_quantities iq ON i.id = iq.item_id
       LEFT JOIN categories c ON i.category_id = c.id
       LEFT JOIN locations l ON iq.location_id = l.id
-      WHERE i.status = 'active' AND i.is_service = 0
+      WHERE i.company_id = UUID_TO_BIN(?) AND i.status = 'active' AND i.is_service = 0
     `
-    const params = []
+    const params = [companyId]
 
     if (locationId) {
       query += ' AND iq.location_id = UUID_TO_BIN(?)'
@@ -191,35 +191,35 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getNewCustomers(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getNewCustomers(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         COUNT(*) as total_new_customers
       FROM customers c
-      WHERE c.created_at BETWEEN ? AND ?
+      WHERE c.company_id = UUID_TO_BIN(?) AND c.created_at BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     const rows = await this.db.query(query, params)
     return rows[0]
   }
 
-  async getCustomersByPeriod(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getCustomersByPeriod(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         DATE(c.created_at) as date,
         COUNT(*) as new_customers
       FROM customers c
-      WHERE c.created_at BETWEEN ? AND ?
+      WHERE c.company_id = UUID_TO_BIN(?) AND c.created_at BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     query += ' GROUP BY DATE(c.created_at) ORDER BY date DESC'
 
     return await this.db.query(query, params)
   }
 
-  async getRecentSales(locationId, limit = 10, userLocations = [], isAdmin = false) {
+  async getRecentSales(locationId, limit = 10, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(s.id) as id,
@@ -236,9 +236,9 @@ export class DashboardRepository {
       JOIN users u ON s.created_by = u.id
       JOIN locations l ON s.location_id = l.id
       LEFT JOIN customers c ON s.customer_id = c.id
-      WHERE s.status = 'completed'
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed'
     `
-    const params = []
+    const params = [companyId]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -255,7 +255,7 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getRecentMovements(locationId, limit = 20, userLocations = [], isAdmin = false) {
+  async getRecentMovements(locationId, limit = 20, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(im.id) as id,
@@ -272,16 +272,16 @@ export class DashboardRepository {
       JOIN items i ON im.item_id = i.id
       JOIN locations l ON im.location_id = l.id
       LEFT JOIN users u ON im.user_id = u.id
-      WHERE 1=1
+      WHERE i.company_id = UUID_TO_BIN(?)
     `
-    const params = []
+    const params = [companyId]
 
     if (locationId) {
       query += ' AND im.location_id = UUID_TO_BIN(?)'
       params.push(locationId)
     } else if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
-      query += ` AND im.location_id IN (${placeholders})`
+      query += ' AND im.location_id IN (${placeholders})'
       params.push(...userLocations)
     }
 
@@ -291,11 +291,11 @@ export class DashboardRepository {
     return await this.db.query(query, params)
   }
 
-  async getLocations() {
-    return await this.db.query('SELECT BIN_TO_UUID(id) as id, name, code FROM locations WHERE is_active = 1 ORDER BY name')
+  async getLocations(companyId) {
+    return await this.db.query('SELECT BIN_TO_UUID(id) as id, name, code FROM locations WHERE is_active = 1 AND company_id = UUID_TO_BIN(?) ORDER BY name', [companyId])
   }
 
-  async getFinancialOverview(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getFinancialOverview(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let salesQuery = `
       SELECT 
         COALESCE(SUM(s.subtotal), 0) as total_revenue,
@@ -303,17 +303,17 @@ export class DashboardRepository {
         COALESCE(SUM(s.discount_amount), 0) as total_discounts,
         COUNT(*) as total_transactions
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
     let costQuery = `
       SELECT 
         COALESCE(SUM(si.cost_price * si.quantity), 0) as total_cogs
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
-    const paramsCost = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
+    const paramsCost = [companyId, startDate, endDate]
 
     if (locationId) {
       salesQuery += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -356,7 +356,7 @@ export class DashboardRepository {
     }
   }
 
-  async getYearOverYearComparison(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getYearOverYearComparison(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     const start = new Date(startDate)
     const end = new Date(endDate)
     const prevStart = new Date(start)
@@ -369,14 +369,16 @@ export class DashboardRepository {
       startDate, 
       endDate, 
       userLocations, 
-      isAdmin
+      isAdmin,
+      companyId
     )
     const previousPeriod = await this.getFinancialOverview(
       locationId,
       prevStart.toISOString().split('T')[0],
       prevEnd.toISOString().split('T')[0],
       userLocations,
-      isAdmin
+      isAdmin,
+      companyId
     )
 
     const revenueChange = previousPeriod.total_revenue > 0
@@ -396,7 +398,7 @@ export class DashboardRepository {
     }
   }
 
-  async getPnLByLocation(startDate, endDate, userLocations = [], isAdmin = false) {
+  async getPnLByLocation(startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(l.id) as location_id,
@@ -405,14 +407,17 @@ export class DashboardRepository {
         COALESCE(SUM(s.tax_amount), 0) as total_tax,
         COUNT(DISTINCT s.id) as transactions
       FROM locations l
-      LEFT JOIN sales s ON l.id = s.location_id AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      LEFT JOIN sales s ON l.id = s.location_id AND s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` WHERE l.id IN (${placeholders})`
       params.push(...userLocations)
+    } else if (isAdmin) {
+      query += ' WHERE l.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
     }
 
     query += ' GROUP BY l.id, l.name ORDER BY total_revenue DESC'
@@ -425,10 +430,10 @@ export class DashboardRepository {
         COALESCE(SUM(si.cost_price * si.quantity), 0) as total_cogs
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
       GROUP BY s.location_id
     `
-    const costs = await this.db.query(costQuery, [startDate, endDate])
+    const costs = await this.db.query(costQuery, [companyId, startDate, endDate])
     const costMap = {}
     costs.forEach(c => {
       costMap[c.location_id] = parseFloat(c.total_cogs) || 0
@@ -451,7 +456,7 @@ export class DashboardRepository {
     })
   }
 
-  async getCustomerLifetimeValue(startDate, endDate, userLocations = [], isAdmin = false) {
+  async getCustomerLifetimeValue(startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let customerQuery = `
       SELECT 
         c.id,
@@ -465,9 +470,9 @@ export class DashboardRepository {
         TIMESTAMPDIFF(DAY, MIN(s.sale_date), MAX(s.sale_date)) as customer_days
       FROM customers c
       JOIN sales s ON c.id = s.customer_id
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE c.company_id = UUID_TO_BIN(?) AND s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, companyId, startDate, endDate]
 
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
@@ -512,16 +517,16 @@ export class DashboardRepository {
     }
   }
 
-  async getTaxCompliance(startDate, endDate, userLocations = [], isAdmin = false) {
+  async getTaxCompliance(startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         COALESCE(SUM(s.tax_amount), 0) as total_tax_collected,
         COALESCE(SUM(s.subtotal), 0) as total_taxable_sales,
         COUNT(DISTINCT s.id) as taxable_transactions
       FROM sales s
-      WHERE s.status = 'completed' AND s.tax_amount > 0 AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.tax_amount > 0 AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
@@ -541,17 +546,17 @@ export class DashboardRepository {
     }
   }
 
-  async getCustomerAcquisitionCost(startDate, endDate, userLocations = [], isAdmin = false) {
+  async getCustomerAcquisitionCost(startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let salesQuery = `
       SELECT 
         COUNT(DISTINCT s.customer_id) as new_customers,
         COALESCE(SUM(s.total), 0) as total_revenue
       FROM sales s
-      WHERE s.status = 'completed' AND s.customer_id IS NOT NULL AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.customer_id IS NOT NULL AND s.sale_date BETWEEN ? AND ?
     `
     let campaignCost = 0
 
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       salesQuery += ` AND s.location_id IN (${placeholders})`
@@ -576,14 +581,14 @@ export class DashboardRepository {
     }
   }
 
-  async getInventoryTurnover(startDate, endDate, locationId, userLocations = [], isAdmin = false) {
+  async getInventoryTurnover(startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
     let salesQuery = `
       SELECT 
         COALESCE(SUM(si.quantity), 0) as units_sold,
         COALESCE(SUM(si.cost_price * si.quantity), 0) as cost_of_sold
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
     let avgInventoryQuery = `
       SELECT COALESCE(AVG(total_cost), 0) as avg_inventory_cost
@@ -591,10 +596,10 @@ export class DashboardRepository {
         SELECT SUM(iq.quantity * i.cost_price) as total_cost
         FROM item_quantities iq
         JOIN items i ON iq.item_id = i.id
-        WHERE i.status = 'active'
+        WHERE i.company_id = UUID_TO_BIN(?) AND i.status = 'active'
     `
-    const params = [startDate, endDate]
-    const paramsAvg = []
+    const params = [companyId, startDate, endDate]
+    const paramsAvg = [companyId]
 
     if (locationId) {
       salesQuery += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -633,7 +638,7 @@ export class DashboardRepository {
     }
   }
 
-  async getSalesByEmployee(startDate, endDate, locationId, userLocations = [], isAdmin = false) {
+  async getSalesByEmployee(startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         u.id,
@@ -643,9 +648,9 @@ export class DashboardRepository {
         COALESCE(SUM(s.subtotal), 0) as net_sales
       FROM users u
       JOIN sales s ON u.id = s.created_by
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -675,16 +680,16 @@ export class DashboardRepository {
     })
   }
 
-  async getSalesByHour(startDate, endDate, locationId, userLocations = [], isAdmin = false) {
+  async getSalesByHour(startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         HOUR(s.sale_date) as hour,
         COUNT(*) as transactions,
         COALESCE(SUM(s.total), 0) as total_sales
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'
@@ -727,7 +732,7 @@ export class DashboardRepository {
     }
   }
 
-  async getReturnsAndCancellations(startDate, endDate, locationId, userLocations = [], isAdmin = false) {
+  async getReturnsAndCancellations(startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
     let returnsQuery = `
       SELECT 
         COUNT(DISTINCT r.id) as total_returns,
@@ -735,23 +740,23 @@ export class DashboardRepository {
         COALESCE(SUM(ri.line_total), 0) as return_value
       FROM returns r
       JOIN return_items ri ON r.id = ri.return_id
-      WHERE r.status = 'completed' AND r.return_date BETWEEN ? AND ?
+      WHERE r.company_id = UUID_TO_BIN(?) AND r.status = 'completed' AND r.return_date BETWEEN ? AND ?
     `
     let cancelledQuery = `
       SELECT 
         COUNT(*) as total_cancelled,
         COALESCE(SUM(s.total), 0) as cancelled_value
       FROM sales s
-      WHERE s.status = 'cancelled' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'cancelled' AND s.sale_date BETWEEN ? AND ?
     `
     let completedQuery = `
       SELECT COUNT(*) as total_completed, COALESCE(SUM(s.total), 0) as completed_value
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
-    const paramsCancelled = [startDate, endDate]
-    const paramsCompleted = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
+    const paramsCancelled = [companyId, startDate, endDate]
+    const paramsCompleted = [companyId, startDate, endDate]
 
     if (locationId) {
       const locClause = ' AND s.location_id = UUID_TO_BIN(?)'
@@ -801,7 +806,7 @@ export class DashboardRepository {
     }
   }
 
-  async getCashDrawerDiscrepancies(startDate, endDate, locationId, userLocations = [], isAdmin = false) {
+  async getCashDrawerDiscrepancies(startDate, endDate, locationId, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         BIN_TO_UUID(da.id) as id,
@@ -816,9 +821,9 @@ export class DashboardRepository {
       JOIN cash_drawers cd ON da.drawer_id = cd.id
       JOIN locations l ON cd.location_id = l.id
       LEFT JOIN users u ON da.user_id = u.id
-      WHERE da.created_at BETWEEN ? AND ?
+      WHERE l.company_id = UUID_TO_BIN(?) AND da.created_at BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND cd.location_id = UUID_TO_BIN(?)'
@@ -864,15 +869,15 @@ export class DashboardRepository {
     }
   }
 
-  async getEmployeeSalesGoals(userId, startDate, endDate) {
+  async getEmployeeSalesGoals(userId, startDate, endDate, companyId) {
     const query = `
       SELECT 
         COUNT(s.id) as transactions,
         COALESCE(SUM(s.total), 0) as total_sales
       FROM sales s
-      WHERE s.created_by = ? AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.created_by = ? AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const rows = await this.db.query(query, [userId, startDate, endDate])
+    const rows = await this.db.query(query, [companyId, userId, startDate, endDate])
 
     return {
       transactions: parseInt(rows[0]?.transactions) || 0,
@@ -880,14 +885,14 @@ export class DashboardRepository {
     }
   }
 
-  async getAverageTransactionTime(locationId, startDate, endDate, userLocations = [], isAdmin = false) {
+  async getAverageTransactionTime(locationId, startDate, endDate, userLocations = [], isAdmin = false, companyId) {
     let query = `
       SELECT 
         COALESCE(AVG(TIMESTAMPDIFF(SECOND, s.created_at, s.sale_date)), 0) as avg_seconds
       FROM sales s
-      WHERE s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
+      WHERE s.company_id = UUID_TO_BIN(?) AND s.status = 'completed' AND s.sale_date BETWEEN ? AND ?
     `
-    const params = [startDate, endDate]
+    const params = [companyId, startDate, endDate]
 
     if (locationId) {
       query += ' AND s.location_id = UUID_TO_BIN(?)'

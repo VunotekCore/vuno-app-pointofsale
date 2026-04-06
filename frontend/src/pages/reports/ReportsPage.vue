@@ -51,7 +51,7 @@ const selectedUser = ref(null)
 const statusFilter = ref('')
 
 const users = ref([])
-const isAdmin = computed(() => authStore.user?.role_name === 'admin' || authStore.user?.is_admin == 1)
+const isAdmin = computed(() => authStore.user?.is_admin == 1 || authStore.user?.role_name?.toLowerCase() === 'admin')
 
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
 

@@ -53,21 +53,41 @@ export class CompanyModel {
         ]
       )
 
-      const [adminRole] = await conn.query(
-        'SELECT id FROM roles WHERE is_admin = 1 LIMIT 1'
-      )
+      const adminRoleId = await this.createRole(conn, companyId, {
+        name: 'Admin',
+        description: 'Administrador con todos los permisos',
+        is_admin: 1
+      })
 
-      if (!adminRole || adminRole.length === 0) {
-        throw new BadRequestError('No se encontró el rol de administrador')
+      const [allPermissions] = await conn.query(
+        'SELECT id FROM permissions'
+      )
+      for (const perm of allPermissions) {
+        await conn.query(
+          'INSERT INTO role_permissions (role_id, permission_id, company_id) VALUES (UUID_TO_BIN(?), ?, UUID_TO_BIN(?))',
+          [adminRoleId, perm.id, companyId]
+        )
       }
+
+      await this.createRole(conn, companyId, {
+        name: 'Manager',
+        description: 'Gerente',
+        is_admin: 0
+      })
+
+      await this.createRole(conn, companyId, {
+        name: 'Cashier',
+        description: 'Cajero',
+        is_admin: 0
+      })
 
       const userId = uuidv4()
       const passwordHash = bcrypt.hashSync(data.admin_password, 10)
 
       await conn.query(
         `INSERT INTO users (id, username, email, password_hash, role_id, company_id, is_active)
-         VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), 1)`,
-        [userId, data.admin_username, data.admin_email, passwordHash, adminRole[0].id, companyId]
+         VALUES (UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), 1)`,
+        [userId, data.admin_username, data.admin_email, passwordHash, adminRoleId, companyId]
       )
 
       await conn.commit()
@@ -91,6 +111,15 @@ export class CompanyModel {
     } finally {
       conn.release()
     }
+  }
+
+  async createRole (conn, companyId, roleData) {
+    const roleId = uuidv4()
+    await conn.query(
+      'INSERT INTO roles (id, name, description, is_admin, company_id) VALUES (UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?))',
+      [roleId, roleData.name, roleData.description || null, roleData.is_admin || 0, companyId]
+    )
+    return roleId
   }
 
   async getCompanyById (id) {

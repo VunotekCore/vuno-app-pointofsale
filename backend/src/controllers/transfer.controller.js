@@ -19,11 +19,13 @@ export class TransferController {
   async getAll(req, res, next) {
     try {
       const { isAdmin, userLocations } = getUserContext(req)
+      const companyId = req.user?.company_id
       const filters = {
         from_location_id: req.query.from_location_id,
         to_location_id: req.query.to_location_id,
         status: req.query.status,
         search: req.query.search,
+        company_id: companyId,
         limit: req.query.limit ? parseInt(req.query.limit) : 20,
         offset: req.query.offset ? parseInt(req.query.offset) : 0
       }
@@ -39,7 +41,8 @@ export class TransferController {
   async getPendingReceipt(req, res, next) {
     try {
       const { isAdmin, userLocations } = getUserContext(req)
-      const transfers = await transferModel.getPendingReceipt(userLocations, isAdmin)
+      const companyId = req.user?.company_id
+      const transfers = await transferModel.getPendingReceipt(userLocations, isAdmin, companyId)
       res.status(200).json({ success: true, data: transfers, total: transfers.length })
     } catch (error) {
       next(error)
@@ -49,7 +52,8 @@ export class TransferController {
   async getById(req, res, next) {
     try {
       const { isAdmin, userLocations } = getUserContext(req)
-      const transfer = await transferModel.getById(req.params.id, userLocations, isAdmin)
+      const companyId = req.user?.company_id
+      const transfer = await transferModel.getById(req.params.id, userLocations, isAdmin, companyId)
       res.status(200).json({ success: true, data: transfer })
     } catch (error) {
       next(error)
@@ -68,6 +72,7 @@ export class TransferController {
       }
 
       const { isAdmin, userLocations } = getUserContext(req)
+      const companyId = req.user?.company_id
 
       const result = await transferModel.create(
         {
@@ -77,7 +82,8 @@ export class TransferController {
         },
         req.user?.id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(201).json({
@@ -110,6 +116,7 @@ export class TransferController {
       }
 
       const { isAdmin, userLocations } = getUserContext(req)
+      const companyId = req.user?.company_id
 
       await transferModel.addItem(
         {
@@ -120,7 +127,8 @@ export class TransferController {
         },
         req.user?.id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(201).json({
@@ -136,8 +144,9 @@ export class TransferController {
     try {
       const { id, itemId } = req.params
       const { isAdmin, userLocations } = getUserContext(req)
+      const companyId = req.user?.company_id
 
-      await transferModel.removeItem(id, itemId, userLocations, isAdmin)
+      await transferModel.removeItem(id, itemId, userLocations, isAdmin, companyId)
 
       res.status(200).json({
         success: true,
@@ -151,7 +160,8 @@ export class TransferController {
   async ship(req, res, next) {
     try {
       const { isAdmin, userLocations } = getUserContext(req)
-      await transferModel.ship(req.params.id, req.user?.id, userLocations, isAdmin)
+      const companyId = req.user?.company_id
+      await transferModel.ship(req.params.id, req.user?.id, userLocations, isAdmin, companyId)
 
       res.status(200).json({
         success: true,
@@ -166,8 +176,9 @@ export class TransferController {
     try {
       const { items } = req.body
       const { isAdmin, userLocations } = getUserContext(req)
+      const companyId = req.user?.company_id
 
-      await transferModel.receive(req.params.id, req.user?.id, items || [], userLocations, isAdmin)
+      await transferModel.receive(req.params.id, req.user?.id, items || [], userLocations, isAdmin, companyId)
 
       res.status(200).json({
         success: true,
@@ -181,7 +192,8 @@ export class TransferController {
   async cancel(req, res, next) {
     try {
       const { isAdmin, userLocations } = getUserContext(req)
-      await transferModel.cancel(req.params.id, req.user?.id, userLocations, isAdmin)
+      const companyId = req.user?.company_id
+      await transferModel.cancel(req.params.id, req.user?.id, userLocations, isAdmin, companyId)
 
       res.status(200).json({
         success: true,

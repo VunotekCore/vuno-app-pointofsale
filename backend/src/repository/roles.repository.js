@@ -15,8 +15,8 @@ export class RolesRepository {
     this.db = db
   }
 
-  async getAll () {
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM `roles` WHERE is_delete = 0 OR is_delete IS NULL ORDER BY id')
+  async getAll (companyId) {
+    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM `roles` WHERE (is_delete = 0 OR is_delete IS NULL) AND company_id = UUID_TO_BIN(?) ORDER BY id', [companyId])
     for (const role of rows) {
       const permissions = await this.db.query(
         'SELECT BIN_TO_UUID(p.id) as id, p.code, p.description FROM `permissions` p JOIN `role_permissions` rp ON p.id = rp.permission_id WHERE rp.role_id = UUID_TO_BIN(?)',
@@ -27,8 +27,16 @@ export class RolesRepository {
     return rows
   }
 
-  async getById (id) {
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM `roles` WHERE id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)', [id])
+  async getById (id, companyId = null) {
+    let whereClause = 'WHERE id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)'
+    const params = [id]
+    
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(`SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM \`roles\` ${whereClause}`, params)
     if (!rows || rows.length === 0) {
       throw new NotFoundError('Rol no encontrado')
     }
@@ -39,8 +47,16 @@ export class RolesRepository {
     return { ...rows[0], permissions }
   }
 
-  async getByIdWithTablePermissions (id) {
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM `roles` WHERE id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)', [id])
+  async getByIdWithTablePermissions (id, companyId = null) {
+    let whereClause = 'WHERE id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)'
+    const params = [id]
+    
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const rows = await this.db.query(`SELECT BIN_TO_UUID(id) as id, name, description, is_delete, created_at, updated_at FROM \`roles\` ${whereClause}`, params)
     if (!rows || rows.length === 0) {
       throw new NotFoundError('Rol no encontrado')
     }
@@ -84,27 +100,45 @@ export class RolesRepository {
     return { ...rows[0], tablePermissions: Object.values(grouped), menuPermissions }
   }
 
-  async create ({ name, description, permissions = [], tablePermissions = [], menuPermissions = [] }, userId = null) {
+  async create ({ name, description, permissions = [], tablePermissions = [], menuPermissions = [], company_id = null }, userId = null) {
     if (!name) {
       throw new BadRequestError('Nombre del rol requerido')
     }
 
-    const existing = await this.db.query('SELECT id FROM `roles` WHERE name = ?', [name])
+    let existingQuery = 'SELECT id FROM `roles` WHERE name = ? AND (is_delete = 0 OR is_delete IS NULL)'
+    const existingParams = [name]
+    
+    if (company_id) {
+      existingQuery += ' AND company_id = UUID_TO_BIN(?)'
+      existingParams.push(company_id)
+    }
+    
+    const existing = await this.db.query(existingQuery, existingParams)
     if (existing && existing.length > 0) {
       throw new BadRequestError('El rol ya existe')
     }
 
     const fields = ['name', 'description']
     const values = [name, description || null]
+    const sqlFields = []
 
-    let sql = `INSERT INTO \`roles\` (id, ${fields.join(', ')}) VALUES (UUID_TO_BIN(UUID()), ${fields.map(() => '?').join(', ')})`
+    if (company_id) {
+      sqlFields.push('company_id = UUID_TO_BIN(?)')
+      values.push(company_id)
+    }
 
     if (userId) {
-      sql = `INSERT INTO \`roles\` (id, name, description, created_by) VALUES (UUID_TO_BIN(UUID()), ?, ?, UUID_TO_BIN(?))`
+      sqlFields.push('created_by = UUID_TO_BIN(?)')
       values.push(userId)
     }
 
-    await this.db.query(sql, values)
+    let sql = `INSERT INTO \`roles\` (id, name, description${company_id ? ', company_id' : ''}${userId ? ', created_by' : ''}) VALUES (UUID_TO_BIN(UUID()), ?, ?${company_id ? ', UUID_TO_BIN(?)' : ''}${userId ? ', UUID_TO_BIN(?)' : ''})`
+
+    const sqlValues = [name, description || null]
+    if (company_id) sqlValues.push(company_id)
+    if (userId) sqlValues.push(userId)
+
+    await this.db.query(sql, sqlValues)
 
     const role = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM roles WHERE name = ?', [name])
     const roleId = role[0]?.id
@@ -148,32 +182,40 @@ export class RolesRepository {
     return { id: roleId }
   }
 
-  async update (id, { name, description, permissions, tablePermissions, menuPermissions }, userId = null) {
-    const existing = await this.db.query('SELECT id, name, description, is_delete, created_at, updated_at FROM `roles` WHERE id = UUID_TO_BIN(?)', [id])
+  async update (id, { name, description, permissions, tablePermissions, menuPermissions }, userId = null, companyId = null) {
+    let whereClause = 'WHERE id = UUID_TO_BIN(?)'
+    const params = [id]
+    
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+    
+    const existing = await this.db.query(`SELECT id, name, description, is_delete, created_at, updated_at FROM \`roles\` ${whereClause}`, params)
     if (!existing || existing.length === 0) {
       throw new NotFoundError('Rol no encontrado')
     }
 
     const updates = []
-    const params = []
+    const updateParams = []
 
     if (name) {
       updates.push('name = ?')
-      params.push(name)
+      updateParams.push(name)
     }
     if (description !== undefined) {
       updates.push('description = ?')
-      params.push(description)
+      updateParams.push(description)
     }
     if (userId) {
       updates.push('updated_by = ?')
-      params.push('UUID_TO_BIN(?)')
-      params.push(userId)
+      updateParams.push('UUID_TO_BIN(?)')
+      updateParams.push(userId)
     }
 
     if (updates.length > 0) {
-      params.push(UUID_TO_BIN(id))
-      await this.db.query(`UPDATE \`roles\` SET ${updates.join(', ')} WHERE id = ?`, params)
+      updateParams.push(UUID_TO_BIN(id))
+      await this.db.query(`UPDATE \`roles\` SET ${updates.join(', ')} WHERE id = ?`, updateParams)
     }
 
     if (tablePermissions !== undefined || menuPermissions !== undefined) {
@@ -207,10 +249,10 @@ export class RolesRepository {
       if (permIdsToAdd.length > 0) {
         const roleBinId = `UUID_TO_BIN('${id}')`
         const placeholders = permIdsToAdd.map(() => `(${roleBinId}, UUID_TO_BIN(?))`).join(', ')
-        const params = [...permIdsToAdd]
+        const permParams = [...permIdsToAdd]
         await this.db.query(
           `INSERT INTO \`role_permissions\` (role_id, permission_id) VALUES ${placeholders}`,
-          params
+          permParams
         )
       }
     } else if (permissions !== undefined) {
@@ -219,10 +261,10 @@ export class RolesRepository {
       if (permissions.length > 0) {
         const roleBinId = `UUID_TO_BIN('${id}')`
         const placeholders = permissions.map(() => `(${roleBinId}, UUID_TO_BIN(?))`).join(', ')
-        const params = [...permissions]
+        const permParams = [...permissions]
         await this.db.query(
           `INSERT INTO \`role_permissions\` (role_id, permission_id) VALUES ${placeholders}`,
-          params
+          permParams
         )
       }
     }
@@ -230,18 +272,25 @@ export class RolesRepository {
     return { success: true }
   }
 
-  async delete (id, userId = null) {
+  async delete (id, userId = null, companyId = null) {
     if (id === 1) {
       throw new BadRequestError('No se puede eliminar el rol de administrador')
     }
 
-    const exists = await this.getById(id)
-    const values = [id]
+    const exists = await this.getById(id, companyId)
+    
+    let whereClause = 'WHERE id = UUID_TO_BIN(?)'
+    const params = [id]
+    
+    if (companyId) {
+      whereClause += ' AND company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (userId) {
-      await this.db.query(`UPDATE \`roles\` SET is_delete = 1, updated_by = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)`, [userId, id])
+      await this.db.query(`UPDATE \`roles\` SET is_delete = 1, updated_by = UUID_TO_BIN(?) ${whereClause}`, [userId, ...params])
     } else {
-      await this.db.query(`UPDATE \`roles\` SET is_delete = 1 WHERE id = UUID_TO_BIN(?)`, [id])
+      await this.db.query(`UPDATE \`roles\` SET is_delete = 1 ${whereClause}`, params)
     }
 
     return { success: true }
