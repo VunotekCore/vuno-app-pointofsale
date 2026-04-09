@@ -471,6 +471,13 @@ async function handleWithdrawal() {
               </div>
               <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
                 <div class="flex items-center gap-2 mb-1">
+                  <TrendingUp class="w-4 h-4 text-orange-500" />
+                  <span class="text-sm text-slate-500 dark:text-slate-400">Devoluciones</span>
+                </div>
+                <p class="text-xl font-bold text-orange-600 dark:text-orange-400">{{ formatMoney(cashSummary.total_refunds || 0) }}</p>
+              </div>
+              <div class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                <div class="flex items-center gap-2 mb-1">
                   <TrendingDown class="w-4 h-4 text-red-500" />
                   <span class="text-sm text-slate-500 dark:text-slate-400">Retiros</span>
                 </div>
@@ -604,6 +611,10 @@ async function handleWithdrawal() {
                 <div class="flex justify-between">
                   <span class="text-slate-500">Ventas en Efectivo:</span>
                   <span class="font-medium text-green-600 dark:text-green-400">+{{ formatMoney(cashSummary?.total_cash_sales) }}</span>
+                </div>
+                <div v-if="cashSummary?.total_refunds > 0" class="flex justify-between">
+                  <span class="text-slate-500">Devoluciones:</span>
+                  <span class="font-medium text-orange-600 dark:text-orange-400">-{{ formatMoney(cashSummary?.total_refunds) }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-slate-500">Retiros:</span>
@@ -773,6 +784,10 @@ async function handleWithdrawal() {
                 <div class="flex justify-between">
                   <span>Ventas Efectivo:</span>
                   <span class="font-semibold text-green-700">+{{ formatMoney(cashSummary?.total_cash_sales) }}</span>
+                </div>
+                <div v-if="cashSummary?.total_refunds > 0" class="flex justify-between">
+                  <span>Devoluciones:</span>
+                  <span class="font-semibold text-orange-700">-{{ formatMoney(cashSummary?.total_refunds) }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span>Retiros:</span>

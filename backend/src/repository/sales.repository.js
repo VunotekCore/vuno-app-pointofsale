@@ -548,12 +548,12 @@ export class SalesRepository {
     try {
       await conn.beginTransaction()
 
-      const [items] = await conn.query(
+      const items = await conn.query(
         `SELECT si.* FROM sale_items si WHERE si.sale_id = UUID_TO_BIN(?)`,
         [saleId]
       )
 
-      const [saleRows] = await conn.query('SELECT location_id FROM sales WHERE id = UUID_TO_BIN(?)', [saleId])
+      const saleRows = await conn.query('SELECT location_id FROM sales WHERE id = UUID_TO_BIN(?)', [saleId])
       const saleLocationId = saleRows[0]?.location_id
 
       for (const item of items) {
@@ -737,7 +737,8 @@ export class ReturnsRepository {
       total,
       refund_method,
       notes,
-      return_date
+      return_date,
+      return_type
     } = data
 
     const newId = crypto.randomUUID()
@@ -752,12 +753,12 @@ export class ReturnsRepository {
     if (saleIdBin !== 'NULL') params.push(sale_id)
     if (employeeIdBin !== 'NULL') params.push(employee_id)
     if (locationIdBin !== 'NULL') params.push(location_id)
-    params.push(subtotal, tax_amount, total, refund_method || 'cash', notes, return_date || new Date())
+    params.push(subtotal, tax_amount, total, refund_method || 'cash', notes, return_date || new Date(), return_type || 'refund')
     
     try {
       await conn.query(
-        `INSERT INTO returns (id, return_number, company_id, sale_id, employee_id, location_id, subtotal, tax_amount, total, refund_method, notes, status, return_date)
-         VALUES (UUID_TO_BIN(?), ?, ${companyIdBin}, ${saleIdBin}, ${employeeIdBin}, ${locationIdBin}, ?, ?, ?, ?, ?, 'pending', ?)`,
+        `INSERT INTO returns (id, return_number, company_id, sale_id, employee_id, location_id, subtotal, tax_amount, total, refund_method, notes, status, return_date, return_type)
+         VALUES (UUID_TO_BIN(?), ?, ${companyIdBin}, ${saleIdBin}, ${employeeIdBin}, ${locationIdBin}, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
         params
       )
     } catch (error) {
@@ -778,7 +779,7 @@ export class ReturnsRepository {
               BIN_TO_UUID(r.sale_id) as sale_id,
               BIN_TO_UUID(r.employee_id) as employee_id,
               BIN_TO_UUID(r.location_id) as location_id,
-              r.subtotal, r.tax_amount, r.total, r.refund_method, r.notes, r.status, r.return_date,
+              r.subtotal, r.tax_amount, r.total, r.refund_method, r.return_type, r.notes, r.status, r.return_date,
               BIN_TO_UUID(r.company_id) as company_id,
               u.username as employee_name, 
               l.name as location_name,
@@ -815,6 +816,7 @@ export class ReturnsRepository {
              r.tax_amount,
              r.total,
              r.refund_method,
+             r.return_type,
              r.notes,
              r.status,
              r.return_date,

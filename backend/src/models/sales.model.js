@@ -674,15 +674,22 @@ export class SalesModel {
 }
 
 export class ReturnsModel {
-  constructor (returnsRepository, salesRepository, inventoryRepository, itemsRepository) {
+  constructor (returnsRepository, salesRepository, inventoryRepository, itemsRepository, paymentRepository = null) {
     this.returnsRepo = returnsRepository
     this.salesRepo = salesRepository
     this.inventoryRepo = inventoryRepository
     this.itemsRepo = itemsRepository
+    this.paymentRepo = paymentRepository
   }
 
   async createReturn (data, userId, userLocations = [], isAdmin = false, companyId = null) {
-    const { sale_id, items, refund_method, notes, return_date } = data
+    const { sale_id, items, refund_method, notes, return_date, return_type } = data
+
+    if (!return_type || !['refund', 'exchange'].includes(return_type)) {
+      throw new BadRequestError('El tipo de devolución es obligatorio y debe ser "refund" o "exchange"')
+    }
+
+    const finalReturnType = return_type
 
     const sale = await this.salesRepo.getById(sale_id, companyId)
     if (!sale) {
@@ -760,7 +767,8 @@ export class ReturnsModel {
         total,
         refund_method,
         notes,
-        return_date
+        return_date,
+        return_type: finalReturnType
       })
 
       for (const item of items) {
@@ -796,6 +804,10 @@ export class ReturnsModel {
       throw new NotFoundError('Devolución no encontrada')
     }
 
+    if (returnData.status === 'completed') {
+      throw new BadRequestError('Esta devolución ya fue procesada')
+    }
+
     if (!isAdmin && userLocations.length > 0 && !userLocations.includes(returnData.location_id)) {
       throw new ForbiddenError('No tienes permiso para procesar devoluciones en esta ubicación')
     }
@@ -806,6 +818,16 @@ export class ReturnsModel {
     try {
       const dbConn = await conn.getConnection()
       await dbConn.beginTransaction()
+
+      if (returnData.return_type === 'exchange') {
+        await dbConn.query(
+          `UPDATE returns SET status = ? WHERE id = UUID_TO_BIN(?)`,
+          ['completed', returnId]
+        )
+        await dbConn.commit()
+        dbConn.release()
+        return await this.returnsRepo.getById(returnId, companyId)
+      }
 
       for (const item of items) {
         const itemData = await this.itemsRepo.getById(item.item_id, null, companyId)
@@ -871,10 +893,52 @@ export class ReturnsModel {
         }
       }
 
+      let drawerId = null
+
+      if (this.paymentRepo && returnData.refund_method === 'cash') {
+        const openDrawer = await this.paymentRepo.getOpenDrawer(returnData.location_id, userId, companyId)
+        if (openDrawer) {
+          drawerId = openDrawer.id
+
+          const refundAmount = -Math.abs(returnData.total)
+
+          const refundPaymentUUID = crypto.randomUUID()
+          await dbConn.query(
+            `INSERT INTO sale_payments (id, sale_id, payment_type, amount, transaction_id, reference_number, notes)
+             VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?)`,
+            [refundPaymentUUID, returnData.sale_id, 'cash', refundAmount, `REF-${returnData.return_number}`, returnData.return_number, `Reembolso de devolución ${returnData.return_number}`]
+          )
+
+          const drawerTransactionUUID = crypto.randomUUID()
+          await dbConn.query(
+            `INSERT INTO drawer_transactions (id, drawer_id, company_id, transaction_type, amount, notes, created_by)
+             VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), 'refund', ?, ?, UUID_TO_BIN(?))`,
+            [drawerTransactionUUID, drawerId, companyId, Math.abs(refundAmount), `Reembolso de ${returnData.return_number}`, userId]
+          )
+
+          const [drawerRows] = await dbConn.query(
+            `SELECT current_amount FROM cash_drawers WHERE id = UUID_TO_BIN(?)`,
+            [drawerId]
+          )
+
+          if (drawerRows.length > 0) {
+            const newAmount = parseFloat(drawerRows[0].current_amount) + Math.abs(refundAmount)
+            await dbConn.query(
+              `UPDATE cash_drawers SET current_amount = ? WHERE id = UUID_TO_BIN(?)`,
+              [newAmount, drawerId]
+            )
+          }
+        }
+      }
+
+      await dbConn.query(
+        `UPDATE returns SET status = ?, drawer_id = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)`,
+        ['completed', drawerId, returnId]
+      )
+
       await dbConn.commit()
       dbConn.release()
 
-      await this.returnsRepo.updateStatus(returnId, 'completed', companyId)
       return await this.returnsRepo.getById(returnId, companyId)
     } catch (error) {
       const dbConn = await conn.getConnection()
