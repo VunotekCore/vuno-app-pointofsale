@@ -20,7 +20,7 @@ const itemsRepo = new ItemsRepository(database)
 const paymentRepo = new PaymentRepository(database)
 
 const salesModel = new SalesModel(salesRepo, inventoryRepo, itemsRepo, paymentRepo)
-const returnsModel = new ReturnsModel(returnsRepo, salesRepo, inventoryRepo, itemsRepo)
+const returnsModel = new ReturnsModel(returnsRepo, salesRepo, inventoryRepo, itemsRepo, paymentRepo)
 
 const salesController = new SalesController(salesModel, returnsModel)
 const returnsController = new ReturnsController(returnsModel)

@@ -121,7 +121,8 @@ const selectedSale = ref(null)
 const returnItems = ref([])
 const returnForm = ref({
   reason: '',
-  notes: ''
+  notes: '',
+  return_type: 'refund'
 })
 
 async function loadReturns() {
@@ -163,8 +164,6 @@ async function searchSaleInModal() {
   searchingSale.value = true
   try {
     const { data } = await salesService.getSales({ search: modalSearchQuery.value, status: 'completed', limit: 10 })
-    console.log('[DEBUG] Search results:', data.data)
-    console.log('[DEBUG] Searching for:', modalSearchQuery.value)
     
     if (data.data && data.data.length > 0) {
       const foundSale = data.data.find(s => 
@@ -173,7 +172,6 @@ async function searchSaleInModal() {
       )
       
       const saleToUse = foundSale || data.data[0]
-      console.log('[DEBUG] Sale to use:', saleToUse.sale_number)
       
       if (!foundSale) {
         notification.warning(`No se encontró "${modalSearchQuery.value}", mostrando ${saleToUse.sale_number}`)
@@ -181,14 +179,12 @@ async function searchSaleInModal() {
       
       const { data: saleDetails } = await salesService.getSale(saleToUse.id)
       selectedSale.value = saleDetails.data
-      console.log('[DEBUG] Sale details with items:', saleDetails.data)
       
       returnItems.value = saleDetails.data.items?.map(item => ({
         ...item,
         return_quantity: 0,
         selected: false
       })) || []
-      console.log('[DEBUG] Return items count:', returnItems.value.length)
       
     } else {
       notification.warning('No se encontraron ventas con ese número')
@@ -197,7 +193,6 @@ async function searchSaleInModal() {
     }
   } catch (error) {
     notification.error('Error al buscar venta')
-    console.error('[DEBUG] Search error:', error)
   } finally {
     searchingSale.value = false
   }
@@ -226,6 +221,16 @@ async function createReturn() {
     return
   }
 
+  if (!returnForm.value.reason) {
+    notification.warning('Seleccione un motivo para la devolución')
+    return
+  }
+
+  if (!returnForm.value.return_type || !['refund', 'exchange'].includes(returnForm.value.return_type)) {
+    notification.warning('Seleccione el tipo de devolución (Reembolso o Cambio)')
+    return
+  }
+
   try {
     await salesService.createReturn({
       sale_id: selectedSale.value.id,
@@ -234,7 +239,8 @@ async function createReturn() {
       subtotal: selectedItems.reduce((sum, i) => sum + (i.unit_price * i.return_quantity), 0),
       tax_amount: selectedItems.reduce((sum, i) => (i.tax_amount / i.quantity) * i.return_quantity, 0),
       total: selectedItems.reduce((sum, i) => sum + (i.line_total / i.quantity) * i.return_quantity, 0),
-      refund_method: 'cash',
+      refund_method: returnForm.value.return_type === 'refund' ? 'cash' : 'original_payment',
+      return_type: returnForm.value.return_type,
       reason: returnForm.value.reason,
       notes: returnForm.value.notes,
       items: selectedItems.map(i => ({
@@ -570,6 +576,38 @@ onMounted(() => {
             <!-- Return Form -->
             <div class="space-y-3">
               <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Devolución</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    @click="returnForm.return_type = 'refund'"
+                    :class="[
+                      'px-3 py-2.5 border rounded-lg text-sm font-medium transition-colors',
+                      returnForm.return_type === 'refund' 
+                        ? 'bg-brand-500 text-white border-brand-500' 
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    ]"
+                  >
+                    Reembolso
+                  </button>
+                  <button
+                    type="button"
+                    @click="returnForm.return_type = 'exchange'"
+                    :class="[
+                      'px-3 py-2.5 border rounded-lg text-sm font-medium transition-colors',
+                      returnForm.return_type === 'exchange' 
+                        ? 'bg-brand-500 text-white border-brand-500' 
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    ]"
+                  >
+                    Cambio
+                  </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                  {{ returnForm.return_type === 'refund' ? 'Se reintegrará el dinero al cliente' : 'Solo se devolverá el producto al inventario' }}
+                </p>
+              </div>
+              <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Motivo</label>
                 <select
                   v-model="returnForm.reason"
@@ -608,7 +646,7 @@ onMounted(() => {
           </button>
           <button
             @click="createReturn"
-            :disabled="!selectedSale || returnTotal === 0"
+            :disabled="!selectedSale || returnTotal === 0 || !returnForm.reason || !returnForm.return_type"
             class="px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium"
           >
             Crear Devolución
@@ -643,6 +681,12 @@ onMounted(() => {
 
           <div class="space-y-3 text-sm">
             <div class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">Tipo:</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium" :class="selectedReturn.return_type === 'refund' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'">
+                {{ selectedReturn.return_type === 'refund' ? 'Reembolso' : 'Cambio' }}
+              </span>
+            </div>
+            <div class="flex justify-between">
               <span class="text-slate-500 dark:text-slate-400">Venta original:</span>
               <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.original_sale_number }}</span>
             </div>
@@ -653,6 +697,10 @@ onMounted(() => {
             <div class="flex justify-between">
               <span class="text-slate-500 dark:text-slate-400">Empleado:</span>
               <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.employee_name }}</span>
+            </div>
+            <div v-if="selectedReturn.notes" class="flex justify-between">
+              <span class="text-slate-500 dark:text-slate-400">Notas:</span>
+              <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.notes }}</span>
             </div>
             <div class="flex justify-between font-bold pt-3 border-t border-slate-200 dark:border-slate-700">
               <span class="text-slate-600 dark:text-slate-300">Total:</span>

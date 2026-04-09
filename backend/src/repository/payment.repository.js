@@ -350,7 +350,16 @@ export class PaymentRepository {
     
     const totalWithdrawals = parseFloat(withdrawalRows[0]?.total_withdrawals || 0)
     
-    const expectedCash = parseFloat(drawer.initial_amount) + totalCashSales - totalWithdrawals
+    const refundRows = await this.db.query(
+      `SELECT COALESCE(SUM(amount), 0) as total_refunds
+       FROM drawer_transactions 
+       WHERE drawer_id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?) AND transaction_type = 'refund'`,
+      [drawerId, companyId]
+    )
+    
+    const totalRefunds = parseFloat(refundRows[0]?.total_refunds || 0)
+    
+    const expectedCash = parseFloat(drawer.initial_amount) + totalCashSales - totalRefunds - totalWithdrawals
     
     const transactions = await this.db.query(
       `SELECT 
@@ -371,6 +380,7 @@ export class PaymentRepository {
       drawer,
       initial_amount: parseFloat(drawer.initial_amount),
       total_cash_sales: totalCashSales,
+      total_refunds: totalRefunds,
       total_withdrawals: totalWithdrawals,
       expected_cash: expectedCash,
       current_amount: parseFloat(drawer.current_amount),
