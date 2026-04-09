@@ -4,7 +4,7 @@ export class SyncModel {
     this.salesModel = salesModel
   }
 
-  async syncSalesBatch (sales, deviceId, userId, userLocations = [], isAdmin = false) {
+  async syncSalesBatch (sales, deviceId, userId, userLocations = [], isAdmin = false, companyId = null) {
     const results = {
       synced: [],
       failed: [],
@@ -43,7 +43,8 @@ export class SyncModel {
           fullSaleData,
           userId,
           userLocations,
-          isAdmin
+          isAdmin,
+          companyId
         )
 
         if (payments && payments.length > 0) {
@@ -52,7 +53,8 @@ export class SyncModel {
             payments,
             userId,
             userLocations,
-            isAdmin
+            isAdmin,
+            companyId
           )
         }
 

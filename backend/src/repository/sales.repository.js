@@ -2,46 +2,23 @@ import pool from '../config/database.js'
 import crypto from 'crypto'
 import { NotFoundError } from '../errors/NotFoundError.js'
 import { generateUUID, uuidToBin, binToUuid } from '../utils/uuid.utils.js'
+import { CompanyRepository } from './company.repository.js'
+import { SequenceRepository } from './sequence.repository.js'
 
 export class SalesRepository {
-  constructor(db = pool) {
+  constructor(db = pool, companyRepo = null, sequenceRepo = null) {
     this.db = db
+    this.companyRepo = companyRepo || new CompanyRepository(db)
+    this.sequenceRepo = sequenceRepo || new SequenceRepository(db, this.companyRepo)
   }
 
   async generateSaleNumber(companyId) {
-    const year = new Date().getFullYear()
-    const prefix = `SALE-${year}-`
-    
-    const rows = await this.db.query(
-      `SELECT sale_number FROM sales WHERE sale_number LIKE ? AND company_id = UUID_TO_BIN(?) ORDER BY created_at DESC LIMIT 1`,
-      [`${prefix}%`, companyId]
-    )
-    
-    let nextNum = 1
-    if (rows.length > 0) {
-      const lastNum = parseInt(rows[0].sale_number.replace(prefix, ''), 10)
-      nextNum = lastNum + 1
+    if (!companyId) {
+      throw new Error('companyId es requerido para generar número de venta')
     }
-    
-    return `${prefix}${String(nextNum).padStart(4, '0')}`
-  }
 
-  async generateReturnNumber(companyId) {
-    const year = new Date().getFullYear()
-    const prefix = `RET-${year}-`
-    
-    const rows = await this.db.query(
-      `SELECT return_number FROM returns WHERE return_number LIKE ? AND company_id = UUID_TO_BIN(?) ORDER BY created_at DESC LIMIT 1`,
-      [`${prefix}%`, companyId]
-    )
-    
-    let nextNum = 1
-    if (rows.length > 0) {
-      const lastNum = parseInt(rows[0].return_number.replace(prefix, ''), 10)
-      nextNum = lastNum + 1
-    }
-    
-    return `${prefix}${String(nextNum).padStart(4, '0')}`
+    const result = await this.sequenceRepo.getNext(companyId, 'sale')
+    return result.docNumber
   }
 
   async createSale(data) {
@@ -62,31 +39,159 @@ export class SalesRepository {
     } = data
 
     const saleUUID = crypto.randomUUID()
-    await this.db.query(
-      `INSERT INTO sales (id, sale_number, company_id, customer_id, created_by, location_id, drawer_id, subtotal, discount_amount, tax_amount, total, notes, status, sale_date)
-       VALUES (UUID_TO_BIN('${saleUUID}'), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        sale_number,
-        company_id,
-        customer_id,
-        created_by,
-        location_id,
-        drawer_id,
-        subtotal,
-        discount_amount,
-        tax_amount,
-        total,
-        notes,
-        status || 'pending',
-        sale_date || new Date()
-      ]
-    )
-
-    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM sales WHERE sale_number = ? AND company_id = UUID_TO_BIN(?)', [sale_number, company_id])
+    
+    const companyIdBin = company_id && company_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const customerIdBin = customer_id && customer_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const createdByBin = created_by && created_by !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const locationIdBin = location_id && location_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const drawerIdBin = drawer_id && drawer_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    
+    const params = [saleUUID, sale_number]
+    if (companyIdBin !== 'NULL') params.push(company_id)
+    if (customerIdBin !== 'NULL') params.push(customer_id)
+    if (createdByBin !== 'NULL') params.push(created_by)
+    if (locationIdBin !== 'NULL') params.push(location_id)
+    if (drawerIdBin !== 'NULL') params.push(drawer_id)
+    params.push(subtotal, discount_amount, tax_amount, total, notes, status || 'pending', sale_date || new Date())
+    
+    try {
+      await this.db.query(
+        `INSERT INTO sales (id, sale_number, company_id, customer_id, created_by, location_id, drawer_id, subtotal, discount_amount, tax_amount, total, notes, status, sale_date)
+         VALUES (UUID_TO_BIN(?), ?, ${companyIdBin}, ${customerIdBin}, ${createdByBin}, ${locationIdBin}, ${drawerIdBin}, ?, ?, ?, ?, ?, ?, ?)`,
+        params
+      )
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        const mysqlError = error.sqlMessage || ''
+        throw new Error(`Duplicate entry: ${mysqlError}`)
+      }
+      throw error
+    }
+    
+    const rows = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM sales WHERE id = UUID_TO_BIN(?)', [saleUUID])
     return rows[0]?.id
   }
 
+  async createSaleWithConnection(conn, data) {
+    const {
+      sale_number,
+      company_id,
+      customer_id,
+      created_by,
+      location_id,
+      drawer_id,
+      subtotal,
+      discount_amount,
+      tax_amount,
+      total,
+      notes,
+      status,
+      sale_date
+    } = data
+
+    const saleUUID = crypto.randomUUID()
+    
+    const companyIdBin = company_id && company_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const customerIdBin = customer_id && customer_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const createdByBin = created_by && created_by !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const locationIdBin = location_id && location_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const drawerIdBin = drawer_id && drawer_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    
+    const params = [saleUUID, sale_number]
+    if (companyIdBin !== 'NULL') params.push(company_id)
+    if (customerIdBin !== 'NULL') params.push(customer_id)
+    if (createdByBin !== 'NULL') params.push(created_by)
+    if (locationIdBin !== 'NULL') params.push(location_id)
+    if (drawerIdBin !== 'NULL') params.push(drawer_id)
+    params.push(subtotal, discount_amount, tax_amount, total, notes, status || 'pending', sale_date || new Date())
+    
+    try {
+      await conn.query(
+        `INSERT INTO sales (id, sale_number, company_id, customer_id, created_by, location_id, drawer_id, subtotal, discount_amount, tax_amount, total, notes, status, sale_date)
+         VALUES (UUID_TO_BIN(?), ?, ${companyIdBin}, ${customerIdBin}, ${createdByBin}, ${locationIdBin}, ${drawerIdBin}, ?, ?, ?, ?, ?, ?, ?)`,
+        params
+      )
+    } catch (error) {
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new Error(`Duplicate entry: ${error.sqlMessage || ''}`)
+      }
+      throw error
+    }
+    
+    return saleUUID
+  }
+
+  async addSaleItemWithConnection(conn, data) {
+    const {
+      sale_id,
+      item_id,
+      variation_id,
+      serial_number,
+      quantity,
+      unit_price,
+      discount_amount,
+      tax_amount,
+      cost_price,
+      line_total,
+      unit_abbreviation,
+      unit_name
+    } = data
+
+    const itemUUID = crypto.randomUUID()
+    await conn.query(
+      `INSERT INTO sale_items (id, sale_id, item_id, variation_id, serial_number, quantity, unit_price, discount_amount, tax_amount, cost_price, line_total, unit_abbreviation, unit_name)
+       VALUES (UUID_TO_BIN('${itemUUID}'), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sale_id,
+        item_id,
+        variation_id,
+        serial_number || null,
+        quantity,
+        unit_price,
+        discount_amount || 0,
+        tax_amount || 0,
+        cost_price || 0,
+        line_total,
+        unit_abbreviation || null,
+        unit_name || null
+      ]
+    )
+
+    return itemUUID
+  }
+
+  async addPaymentWithConnection(conn, data) {
+    const {
+      sale_id,
+      payment_type,
+      amount,
+      transaction_id,
+      reference_number,
+      notes
+    } = data
+
+    const paymentUUID = crypto.randomUUID()
+    await conn.query(
+      `INSERT INTO sale_payments (id, sale_id, payment_type, amount, transaction_id, reference_number, notes)
+       VALUES (UUID_TO_BIN('${paymentUUID}'), UUID_TO_BIN(?), ?, ?, ?, ?, ?)`,
+      [
+        sale_id,
+        payment_type,
+        amount,
+        transaction_id || null,
+        reference_number || null,
+        notes || null
+      ]
+    )
+
+    return paymentUUID
+  }
+
   async updateSale(id, data, companyId) {
+    return await this.updateSaleWithConnection(null, id, data, companyId)
+  }
+
+  async updateSaleWithConnection(conn, id, data, companyId) {
     const fields = []
     const values = []
 
@@ -103,7 +208,8 @@ export class SalesRepository {
 
     values.push(id, companyId)
     
-    await this.db.query(
+    const queryFn = conn ? conn.query.bind(conn) : this.db.query.bind(this.db)
+    await queryFn(
       `UPDATE sales SET ${fields.join(', ')} WHERE id = UUID_TO_BIN(?) AND company_id = UUID_TO_BIN(?)`,
       values
     )
@@ -112,9 +218,9 @@ export class SalesRepository {
   }
 
   async getById(id, companyId) {
-    const rows = await this.db.query(
-      `SELECT BIN_TO_UUID(s.id) as id, 
+    let query = `SELECT BIN_TO_UUID(s.id) as id, 
             s.sale_number,
+            BIN_TO_UUID(s.company_id) as company_id,
             BIN_TO_UUID(s.customer_id) as customer_id,
             s.subtotal,
             s.discount_amount,
@@ -136,15 +242,21 @@ export class SalesRepository {
       LEFT JOIN users u ON s.created_by = u.id
       JOIN locations l ON s.location_id = l.id
       LEFT JOIN customers c ON s.customer_id = c.id
-      WHERE s.id = UUID_TO_BIN(?) AND s.company_id = UUID_TO_BIN(?)`,
-      [id, companyId]
-    )
+      WHERE s.id = UUID_TO_BIN(?)`
+    
+    const params = [id]
+    
+    if (companyId && companyId !== 'undefined') {
+      query += ' AND s.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
+    const rows = await this.db.query(query, params)
     return rows[0] || null
   }
 
   async getAll(filters = {}) {
-    const { location_id, status, start_date, end_date, company_id, limit = 100, offset = 0 } = filters
+    const { location_id, status, start_date, end_date, company_id, search, limit = 100, offset = 0 } = filters
 
     let query = `
       SELECT 
@@ -182,6 +294,11 @@ export class SalesRepository {
     if (status) {
       query += ' AND s.status = ?'
       params.push(status)
+    }
+
+    if (search) {
+      query += ' AND s.sale_number LIKE ?'
+      params.push(`%${search}%`)
     }
 
     if (start_date) {
@@ -242,7 +359,7 @@ export class SalesRepository {
               si.discount_amount,
               si.tax_amount,
               si.line_total,
-              i.name as item_name, 
+              COALESCE(i.name, si.unit_name, 'Producto eliminado') as item_name, 
               i.item_number,
               i.is_serialized,
               iv.attributes as variation_attributes,
@@ -250,13 +367,13 @@ export class SalesRepository {
               si.unit_abbreviation,
               si.unit_name
        FROM sale_items si
-       JOIN items i ON si.item_id = i.id
+       LEFT JOIN items i ON si.item_id = i.id
        LEFT JOIN item_variations iv ON si.variation_id = iv.id
        WHERE si.sale_id = UUID_TO_BIN(?)`
     const params = [saleId]
     
     if (companyId) {
-      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      query += ' AND (i.company_id = UUID_TO_BIN(?) OR i.company_id IS NULL)'
       params.push(companyId)
     }
     
@@ -467,6 +584,10 @@ export class SalesRepository {
     const sale = await this.getById(id, companyId)
     if (!sale) return null
 
+    if (!companyId && sale.company_id) {
+      companyId = sale.company_id
+    }
+
     const items = await this.getItemsBySaleId(id, companyId)
     const payments = await this.getPaymentsBySaleId(id, companyId)
 
@@ -550,7 +671,7 @@ export class SalesRepository {
     return await this.db.query(query, params)
   }
 
-  async getSuspendedSales(locationId = null) {
+  async getSuspendedSales(locationId = null, companyId = null) {
     let query = `
       SELECT s.*, ss.suspension_date, ss.payments_made, ss.balance_due, ss.due_date,
              u.username as employee_name, l.name as location_name
@@ -559,11 +680,12 @@ export class SalesRepository {
       JOIN users u ON s.created_by = u.id
       JOIN locations l ON s.location_id = l.id
       WHERE s.status IN ('suspended', 'layaway')
+      AND s.company_id = UUID_TO_BIN(?)
     `
-    const params = []
+    const params = [companyId]
 
     if (locationId) {
-      query += ' AND s.location_id = ?'
+      query += ' AND s.location_id = UUID_TO_BIN(?)'
       params.push(locationId)
     }
 
@@ -574,16 +696,41 @@ export class SalesRepository {
 }
 
 export class ReturnsRepository {
-  constructor(db = pool) {
+  constructor(db = pool, companyRepo = null, sequenceRepo = null) {
     this.db = db
+    this.companyRepo = companyRepo || new CompanyRepository(db)
+    this.sequenceRepo = sequenceRepo || new SequenceRepository(db, this.companyRepo)
+  }
+
+  async generateReturnNumber(companyId) {
+    if (!companyId) {
+      throw new Error('companyId es requerido para generar número de devolución')
+    }
+
+    const result = await this.sequenceRepo.getNext(companyId, 'return')
+    return { returnNumber: result.docNumber, retSeq: result.sequence }
   }
 
   async createReturn(data) {
+    const conn = await this.db.getConnection()
+    try {
+      const result = await this.createReturnWithConnection(conn, data)
+      await conn.commit()
+      conn.release()
+      return result
+    } catch (error) {
+      await conn.rollback()
+      conn.release()
+      throw error
+    }
+  }
+
+  async createReturnWithConnection(conn, data) {
     const {
       return_number,
       company_id,
       sale_id,
-      created_by,
+      employee_id,
       location_id,
       subtotal,
       tax_amount,
@@ -594,39 +741,52 @@ export class ReturnsRepository {
     } = data
 
     const newId = crypto.randomUUID()
-
-    await this.db.query(
-      `INSERT INTO returns (id, return_number, company_id, sale_id, created_by, location_id, subtotal, tax_amount, total, refund_method, notes, status, return_date)
-       VALUES (?, ?, UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [
-        newId,
-        return_number,
-        company_id,
-        sale_id,
-        created_by,
-        location_id,
-        subtotal,
-        tax_amount,
-        total,
-        refund_method || 'cash',
-        notes,
-        return_date || new Date()
-      ]
-    )
+    
+    const companyIdBin = company_id && company_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const saleIdBin = sale_id && sale_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const employeeIdBin = employee_id && employee_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    const locationIdBin = location_id && location_id !== 'undefined' ? `UUID_TO_BIN(?)` : 'NULL'
+    
+    const params = [newId, return_number]
+    if (companyIdBin !== 'NULL') params.push(company_id)
+    if (saleIdBin !== 'NULL') params.push(sale_id)
+    if (employeeIdBin !== 'NULL') params.push(employee_id)
+    if (locationIdBin !== 'NULL') params.push(location_id)
+    params.push(subtotal, tax_amount, total, refund_method || 'cash', notes, return_date || new Date())
+    
+    try {
+      await conn.query(
+        `INSERT INTO returns (id, return_number, company_id, sale_id, employee_id, location_id, subtotal, tax_amount, total, refund_method, notes, status, return_date)
+         VALUES (UUID_TO_BIN(?), ?, ${companyIdBin}, ${saleIdBin}, ${employeeIdBin}, ${locationIdBin}, ?, ?, ?, ?, ?, 'pending', ?)`,
+        params
+      )
+    } catch (error) {
+      console.error('[DEBUG createReturn] Error:', error)
+      if (error.code === 'ER_DUP_ENTRY') {
+        throw new Error('Número de devolución ya existe')
+      }
+      throw error
+    }
 
     return newId
   }
 
   async getById(id, companyId) {
     const rows = await this.db.query(
-      `SELECT r.*, 
+      `SELECT BIN_TO_UUID(r.id) as id,
+              r.return_number,
+              BIN_TO_UUID(r.sale_id) as sale_id,
+              BIN_TO_UUID(r.employee_id) as employee_id,
+              BIN_TO_UUID(r.location_id) as location_id,
+              r.subtotal, r.tax_amount, r.total, r.refund_method, r.notes, r.status, r.return_date,
+              BIN_TO_UUID(r.company_id) as company_id,
               u.username as employee_name, 
               l.name as location_name,
               s.sale_number as original_sale_number
        FROM returns r
-       JOIN users u ON r.employee_id = u.id
-       JOIN locations l ON r.location_id = l.id
-       JOIN sales s ON r.sale_id = s.id
+       LEFT JOIN users u ON r.employee_id = u.id
+       LEFT JOIN locations l ON r.location_id = l.id
+       LEFT JOIN sales s ON r.sale_id = s.id
        WHERE r.id = UUID_TO_BIN(?) AND r.company_id = UUID_TO_BIN(?)`,
       [id, companyId]
     )
@@ -645,74 +805,109 @@ export class ReturnsRepository {
     const { location_id, start_date, end_date, status, search, company_id, limit = 20, offset = 0 } = filters
 
     let query = `
-      SELECT r.*, 
+      SELECT 
+             BIN_TO_UUID(r.id) as id,
+             r.return_number,
+             BIN_TO_UUID(r.sale_id) as sale_id,
+             BIN_TO_UUID(r.employee_id) as employee_id,
+             BIN_TO_UUID(r.location_id) as location_id,
+             r.subtotal,
+             r.tax_amount,
+             r.total,
+             r.refund_method,
+             r.notes,
+             r.status,
+             r.return_date,
+             BIN_TO_UUID(r.company_id) as company_id,
              u.username as employee_name, 
              l.name as location_name,
              s.sale_number as original_sale_number
       FROM returns r
-      JOIN users u ON r.employee_id = u.id
-      JOIN locations l ON r.location_id = l.id
-      JOIN sales s ON r.sale_id = s.id
+      LEFT JOIN users u ON r.employee_id = u.id
+      LEFT JOIN locations l ON r.location_id = l.id
+      LEFT JOIN sales s ON r.sale_id = s.id
       WHERE r.company_id = UUID_TO_BIN(?)
     `
     const params = [company_id]
-    const countParams = [company_id]
 
     if (location_id) {
-      query += ' AND r.location_id = ?'
-      countParams.push(location_id)
+      query += ' AND r.location_id = UUID_TO_BIN(?)'
+      params.push(location_id)
     }
 
     if (status) {
       query += ' AND r.status = ?'
       params.push(status)
-      countParams.push(status)
     }
 
     if (start_date) {
       query += ' AND r.return_date >= ?'
       params.push(start_date)
-      countParams.push(start_date)
     }
 
     if (end_date) {
       query += ' AND r.return_date <= ?'
       params.push(end_date)
-      countParams.push(end_date)
     }
 
     if (search) {
-      query += ' AND (r.return_number LIKE ? OR s.sale_number LIKE ?)'
+      query += ' AND (r.return_number LIKE ? OR r.return_number LIKE ?)'
       const searchTerm = `%${search}%`
       params.push(searchTerm, searchTerm)
+    }
+
+    let countQuery = `SELECT COUNT(*) as total FROM returns r WHERE r.company_id = UUID_TO_BIN(?)`
+    const countParams = [company_id]
+    
+    if (location_id) {
+      const locQuery = ' AND r.location_id = UUID_TO_BIN(?)'
+      query += locQuery
+      params.push(location_id)
+      countQuery += locQuery
+      countParams.push(location_id)
+    }
+    if (status) {
+      const statQuery = ' AND r.status = ?'
+      query += statQuery
+      params.push(status)
+      countQuery += statQuery
+      countParams.push(status)
+    }
+    if (start_date) {
+      const sdQuery = ' AND r.return_date >= ?'
+      query += sdQuery
+      params.push(start_date)
+      countQuery += sdQuery
+      countParams.push(start_date)
+    }
+    if (end_date) {
+      const edQuery = ' AND r.return_date <= ?'
+      query += edQuery
+      params.push(end_date)
+      countQuery += edQuery
+      countParams.push(end_date)
+    }
+    if (search) {
+      const srchQuery = ' AND (r.return_number LIKE ? OR r.return_number LIKE ?)'
+      const searchTerm = `%${search}%`
+      query += srchQuery
+      params.push(searchTerm, searchTerm)
+      countQuery += srchQuery
       countParams.push(searchTerm, searchTerm)
     }
 
-    const countQuery = `SELECT COUNT(*) as total FROM returns r JOIN sales s ON r.sale_id = s.id WHERE r.company_id = UUID_TO_BIN(?)` +
-      (location_id ? ' AND r.location_id = ?' : '') +
-      (status ? ' AND r.status = ?' : '') +
-      (start_date ? ' AND r.return_date >= ?' : '') +
-      (end_date ? ' AND r.return_date <= ?' : '') +
-      (search ? ' AND (r.return_number LIKE ? OR s.sale_number LIKE ?)' : '')
-
-    let countWhere = ' AND r.company_id = UUID_TO_BIN(?)'
-    if (location_id) countWhere += ' AND r.location_id = ?'
-    if (status) countWhere += ' AND r.status = ?'
-    if (start_date) countWhere += ' AND r.return_date >= ?'
-    if (end_date) countWhere += ' AND r.return_date <= ?'
-    if (search) countWhere += ' AND (r.return_number LIKE ? OR s.sale_number LIKE ?)'
-
-    const countResult = await this.db.query(`SELECT COUNT(*) as total FROM returns r JOIN sales s ON r.sale_id = s.id WHERE 1=1 ${countWhere}`, countParams)
-    const total = countResult[0]?.total || 0
-
-    query += ' ORDER BY r.return_date DESC LIMIT ? OFFSET ?'
+    query += ` ORDER BY r.return_date DESC LIMIT ? OFFSET ?`
     params.push(parseInt(limit), parseInt(offset))
 
     const rows = await this.db.query(query, params)
+    
+    const countResult = await this.db.query(countQuery, countParams)
+    const total = countResult[0]?.total || 0
+    
     return { data: rows, total }
   }
 
-  async addReturnItem(data) {
+  async addReturnItem(data, conn = null) {
     const {
       return_id,
       sale_item_id,
@@ -728,10 +923,17 @@ export class ReturnsRepository {
     } = data
 
     const newId = crypto.randomUUID()
+    const dbConn = conn || this.db
+    
+    // Ensure dbConn has query method
+    if (typeof dbConn.query !== 'function') {
+      console.error('[DEBUG addReturnItem] dbConn type:', typeof dbConn, 'keys:', Object.keys(dbConn || {}))
+      throw new Error('dbConn.query is not a function')
+    }
 
-    await this.db.query(
+    await dbConn.query(
       `INSERT INTO return_items (id, return_id, sale_item_id, item_id, variation_id, serial_number, quantity, unit_price, tax_amount, line_total, reason, item_condition)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?)`,
       [
         newId,
         return_id,
@@ -753,10 +955,21 @@ export class ReturnsRepository {
 
   async getItemsByReturnId(returnId, companyId) {
     let query = `
-      SELECT ri.*, 
-              i.name as item_name, 
-              i.item_number,
-              si.serial_number as original_serial
+      SELECT BIN_TO_UUID(ri.id) as id,
+             BIN_TO_UUID(ri.return_id) as return_id,
+             BIN_TO_UUID(ri.sale_item_id) as sale_item_id,
+             BIN_TO_UUID(ri.item_id) as item_id,
+             BIN_TO_UUID(ri.variation_id) as variation_id,
+             ri.serial_number,
+             ri.quantity,
+             ri.unit_price,
+             ri.tax_amount,
+             ri.line_total,
+             ri.reason,
+             ri.item_condition,
+             i.name as item_name, 
+             i.item_number,
+             si.serial_number as original_serial
        FROM return_items ri
        JOIN items i ON ri.item_id = i.id
        LEFT JOIN sale_items si ON ri.sale_item_id = si.id
@@ -774,6 +987,25 @@ export class ReturnsRepository {
     return rows
   }
 
+  async getAlreadyReturnedQuantity(saleItemId, companyId) {
+    let query = `
+      SELECT COALESCE(SUM(ri.quantity), 0) as returned_qty
+      FROM return_items ri
+      JOIN returns r ON ri.return_id = r.id
+      WHERE ri.sale_item_id = UUID_TO_BIN(?)
+        AND r.status = 'completed'
+    `
+    const params = [saleItemId]
+
+    if (companyId) {
+      query += ' AND r.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+
+    const rows = await this.db.query(query, params)
+    return Number(rows[0]?.returned_qty || 0)
+  }
+
   async processReturn(returnId, inventoryRepo, companyId) {
     const returnData = await this.getById(returnId, companyId)
     if (!returnData) throw new NotFoundError('Return not found')
@@ -785,15 +1017,15 @@ export class ReturnsRepository {
       await conn.beginTransaction()
 
       for (const item of items) {
-        const [currentStock] = await conn.query(
+        const currentStockRows = await conn.query(
           `SELECT quantity FROM item_quantities WHERE item_id = ? AND (variation_id = ? OR (variation_id IS NULL AND ? IS NULL)) AND location_id = ?`,
           [item.item_id, item.variation_id || null, item.variation_id || null, returnData.location_id]
         )
 
-        const quantityBefore = currentStock.length > 0 ? Number(currentStock[0].quantity) : 0
+        const quantityBefore = currentStockRows.length > 0 ? Number(currentStockRows[0].quantity) : 0
         const quantityAfter = quantityBefore + parseFloat(item.quantity)
 
-        if (currentStock.length > 0) {
+        if (currentStockRows.length > 0) {
           await conn.query(
             `UPDATE item_quantities 
              SET quantity = ?, updated_at = NOW() 

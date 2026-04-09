@@ -295,12 +295,13 @@ async function confirmCompleteSale() {
 
   completingSale.value = true
   try {
-    await salesService.completeSale(selectedSale.value.id, [
+    const response = await salesService.completeSale(selectedSale.value.id, [
       {
         payment_type: completePaymentMethod.value,
         amount: completeAmountPaid.value
       }
     ])
+    
     notification.success('Venta completada correctamente')
     showCompleteModal.value = false
     loadSales()

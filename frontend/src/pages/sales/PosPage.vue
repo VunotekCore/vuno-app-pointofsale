@@ -183,6 +183,8 @@ async function loadItems() {
 
     await itemsStore.loadItems(selectedLocation.value?.id)
     await loadCategories()
+    
+    await preloadItemUnits()
   } catch (error) {
     const cachedItems = await cacheService.getItems()
     if (cachedItems.length > 0) {
@@ -195,6 +197,12 @@ async function loadItems() {
       await loadCategories()
     }
   }
+}
+
+async function preloadItemUnits() {
+  const items = itemsStore.items
+  const promises = items.map(item => unitsStore.getItemUnits(item.id))
+  await Promise.all(promises)
 }
 
 async function loadCategories() {
@@ -213,14 +221,77 @@ const categories = computed(() => {
   return itemsStore.activeCategories
 })
 
+const rootCategories = computed(() => {
+  return itemsStore.rootCategories
+})
+
+const currentSubcategories = computed(() => {
+  if (!currentCategory.value) return []
+  return itemsStore.getSubcategoriesWithItems(currentCategory.value.id)
+})
+
+const currentDirectItems = computed(() => {
+  if (!currentCategory.value) return []
+  return itemsStore.getCategoryItems(currentCategory.value.id)
+})
+
+const categoryPath = computed(() => {
+  if (!currentCategory.value) return []
+  const path = []
+  let cat = currentCategory.value
+  
+  while (cat) {
+    path.unshift(cat)
+    if (cat.parent_id) {
+      cat = itemsStore.getCategoryById(cat.parent_id)
+    } else {
+      cat = null
+    }
+  }
+  
+  return path
+})
+
 function enterCategory(cat) {
   currentCategory.value = cat
   viewMode.value = 'products'
 }
 
 function backToCategories() {
+  if (currentCategory.value?.parent_id) {
+    const parent = itemsStore.getCategoryById(currentCategory.value.parent_id)
+    currentCategory.value = parent
+  } else {
+    currentCategory.value = null
+    viewMode.value = 'categories'
+  }
+}
+
+function backToRoot() {
   currentCategory.value = null
   viewMode.value = 'categories'
+}
+
+function navigateToCategory(cat) {
+  currentCategory.value = cat
+}
+
+function handleProductClick(item) {
+  const units = unitsStore.getItemUnitsSync(item.id)
+  
+  if (item.is_variable_sale && units.length > 0) {
+    selectedProductForUnit.value = item
+    selectedProductUnits.value = units
+    const defaultUnit = units.find(u => u.is_default) || units[0]
+    initVariableSale(defaultUnit)
+    showVariableModal.value = true
+  } else if (units.length <= 1) {
+    addToCart(item, units[0] || null)
+  } else {
+    selectedProductForUnit.value = item
+    selectedProductUnits.value = units
+    showUnitModal.value = true
+  }
 }
 
 watch([variableQuantity, variableUnit], () => {
@@ -276,24 +347,6 @@ async function searchItems() {
   }
   searching.value = true
   debouncedSearch(searchQuery.value)
-}
-
-async function handleProductClick(item) {
-  const units = await unitsStore.getItemUnits(item.id)
-  
-  if (item.is_variable_sale && units.length > 0) {
-    selectedProductForUnit.value = item
-    selectedProductUnits.value = units
-    const defaultUnit = units.find(u => u.is_default) || units[0]
-    initVariableSale(defaultUnit)
-    showVariableModal.value = true
-  } else if (units.length <= 1) {
-    addToCart(item, units[0] || null)
-  } else {
-    selectedProductForUnit.value = item
-    selectedProductUnits.value = units
-    showUnitModal.value = true
-  }
 }
 
 function initVariableSale(unit) {
@@ -568,7 +621,14 @@ async function processSale() {
 
   processingSale.value = true
   try {
-    const saleData = {
+    const payments = [
+      {
+        payment_type: paymentMethod.value,
+        amount: amountPaid.value
+      }
+    ]
+
+    const response = await offlineApi.post('/sales', {
       location_id: selectedLocation.value.id,
       customer_id: selectedCustomer.value?.id,
       subtotal: subtotal.value,
@@ -586,36 +646,18 @@ async function processSale() {
         discount_amount: item.discount_amount,
         tax_amount: item.tax_amount
       })),
-      notes: form.value.notes
-    }
-
-    const payments = [
-      {
-        payment_type: paymentMethod.value,
-        amount: amountPaid.value
-      }
-    ]
-
-    const response = await offlineApi.post('/sales', {
-      location_id: saleData.location_id,
-      customer_id: saleData.customer_id,
-      subtotal: saleData.subtotal,
-      tax_amount: saleData.tax_amount,
-      discount_amount: saleData.discount_amount,
-      total: saleData.total,
-      items: saleData.items,
       payments,
-      notes: saleData.notes
+      notes: form.value.notes,
+      auto_complete: true
     })
 
     const sale = response.data.data
 
-    if (sale.offline) {
-      notification.success(`Venta guardada offline (${sale.sale_number})`)
+    if (sale?.offline) {
+      notification.success(`Venta guardada offline (${sale?.sale_number})`)
       offlineStore.refreshStats()
     } else {
-      await salesService.completeSale(sale.id, payments)
-      notification.success('Venta procesada correctamente')
+      notification.success(`Venta ${sale?.sale_number} procesada correctamente`)
     }
 
     showPaymentModal.value = false
@@ -634,6 +676,7 @@ async function suspendSale() {
     return
   }
 
+  processingSale.value = true
   try {
     const saleData = {
       location_id: selectedLocation.value.id,
@@ -652,11 +695,21 @@ async function suspendSale() {
       notes: form.value.notes
     }
 
-    await salesService.createSale(saleData)
+    const response = await salesService.createSale(saleData)
+    const saleId = response.data.data.id
+
+    await salesService.suspendSale(saleId, {
+      notes: form.value.notes
+    })
+
     notification.success('Venta suspendida')
-    resetSale()
+    showPaymentModal.value = false
+    await resetSale()
+    backToCategories()
   } catch (error) {
     notification.error(error.response?.data?.message || 'Error al suspender venta')
+  } finally {
+    processingSale.value = false
   }
 }
 
@@ -665,7 +718,7 @@ async function resetSale() {
   form.value.notes = ''
   amountPaid.value = 0
   amountPaidDisplay.value = '0'
-  loadDefaultCustomer()
+  await loadDefaultCustomer()
   await cacheService.clearItemsCache()
   await loadItems()
   if (customerDisplayOpen.value) {
@@ -801,11 +854,11 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
           </div>
         </div>
 
-        <!-- Categories List -->
+        <!-- Categories List (root level) -->
         <div v-if="viewMode === 'categories' && !searchQuery" class="flex-1 overflow-y-auto p-4">
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             <button
-              v-for="cat in itemsByCategory"
+              v-for="cat in rootCategories"
               :key="cat.id"
               @click="enterCategory(cat)"
               class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md transition-all text-left"
@@ -816,56 +869,126 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
                 </div>
               </div>
               <p class="font-semibold text-slate-900 dark:text-white text-sm">{{ cat.name }}</p>
-              <p class="text-xs text-slate-400 mt-1">{{ cat.items.length }} productos</p>
+              <p class="text-xs text-slate-400 mt-1">
+                {{ itemsStore.getAllItemsForCategoryTree(cat.id).length }} productos
+              </p>
             </button>
           </div>
         </div>
 
         <!-- Products List (when category selected) -->
         <div v-else-if="viewMode === 'products'" class="flex-1 flex flex-col overflow-hidden">
-          <!-- Back button and category title -->
-          <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <button
-              @click="backToCategories"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <ChevronDown class="w-5 h-5 text-slate-500 rotate-90" />
-            </button>
-            <div>
-              <p class="font-semibold text-slate-900 dark:text-white">{{ currentCategory?.name }}</p>
-              <p class="text-xs text-slate-400">{{ currentCategory?.items.length }} productos</p>
+          <!-- Breadcrumb navigation -->
+          <div class="p-4 border-b border-slate-200 dark:border-slate-800">
+            <!-- Breadcrumb -->
+            <div class="flex items-center gap-1 mb-3 text-sm overflow-x-auto">
+              <button
+                @click="backToRoot"
+                class="text-brand-500 hover:text-brand-600 dark:text-brand-400 whitespace-nowrap"
+              >
+                Inicio
+              </button>
+              <template v-for="(cat, idx) in categoryPath" :key="cat.id">
+                <ChevronDown class="w-4 h-4 text-slate-400 rotate-90 flex-shrink-0" />
+                <button
+                  v-if="idx < categoryPath.length - 1"
+                  @click="navigateToCategory(cat)"
+                  class="text-slate-500 hover:text-slate-600 dark:text-slate-400 whitespace-nowrap"
+                >
+                  {{ cat.name }}
+                </button>
+                <span v-else class="text-slate-900 dark:text-white font-medium whitespace-nowrap">
+                  {{ cat.name }}
+                </span>
+              </template>
+            </div>
+            
+            <!-- Back button -->
+            <div class="flex items-center gap-2">
+              <button
+                @click="backToCategories"
+                class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <ChevronDown class="w-5 h-5 text-slate-500 rotate-90" />
+              </button>
+              <span class="text-sm text-slate-500">
+                {{ currentDirectItems.length }} productos directos
+                <span v-if="currentSubcategories.length > 0">
+                  · {{ currentSubcategories.length }} subcategorías
+                </span>
+              </span>
             </div>
           </div>
           
-          <!-- Products grid -->
+          <!-- Subcategories and products grid -->
           <div class="flex-1 overflow-y-auto p-4">
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              <button
-                v-for="item in currentCategory?.items || []"
-                :key="item.id"
-                @click="handleProductClick(item)"
-                class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
-              >
-                <div class="w-full h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
-                  <Package class="w-8 h-8 text-slate-400" />
-                  <span 
-                    v-if="Number(item.total_quantity) > 0"
-                    class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                    :class="Number(item.total_quantity) <= 5 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'"
+            <div class="space-y-4">
+              <!-- Subcategories -->
+              <div v-if="currentSubcategories.length > 0">
+                <p class="text-xs font-medium text-slate-400 uppercase mb-2">Subcategorías</p>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+                  <button
+                    v-for="subcat in currentSubcategories"
+                    :key="subcat.id"
+                    @click="enterCategory(subcat)"
+                    class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md transition-all text-left relative"
                   >
-                    {{ Number.isInteger(Number(item.total_quantity)) ? Number(item.total_quantity) : Number(item.total_quantity).toFixed(2) }}
-                  </span>
-                  <span 
-                    v-else
-                    class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                  >
-                    0
-                  </span>
+                    <div class="flex items-center gap-3 mb-2">
+                      <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                        <Tag class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div v-if="itemsStore.hasSubcategories(subcat.id)" class="absolute top-2 right-2">
+                        <ChevronDown class="w-4 h-4 text-slate-400 -rotate-90" />
+                      </div>
+                    </div>
+                    <p class="font-semibold text-slate-900 dark:text-white text-sm">{{ subcat.name }}</p>
+                    <p class="text-xs text-slate-400 mt-1">
+                      {{ itemsStore.getAllItemsForCategoryTree(subcat.id).length }} productos
+                    </p>
+                  </button>
                 </div>
-                <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.name }}</p>
-                <p class="text-xs text-slate-500 mb-1">{{ item.item_number }}</p>
-                <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(item.unit_price) }}</p>
-              </button>
+              </div>
+
+              <!-- Direct products -->
+              <div v-if="currentDirectItems.length > 0">
+                <p class="text-xs font-medium text-slate-400 uppercase mb-2">
+                  {{ currentSubcategories.length > 0 ? 'Productos en esta categoría' : 'Productos' }}
+                </p>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <button
+                    v-for="item in currentDirectItems"
+                    :key="item.id"
+                    @click="handleProductClick(item)"
+                    class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
+                  >
+                    <div class="w-full h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
+                      <Package class="w-8 h-8 text-slate-400" />
+                      <span 
+                        v-if="Number(item.total_quantity) > 0"
+                        class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                        :class="Number(item.total_quantity) <= 5 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'"
+                      >
+                        {{ Number.isInteger(Number(item.total_quantity)) ? Number(item.total_quantity) : Number(item.total_quantity).toFixed(2) }}
+                      </span>
+                      <span 
+                        v-else
+                        class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                      >
+                        0
+                      </span>
+                    </div>
+                    <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.name }}</p>
+                    <p class="text-xs text-slate-500 mb-1">{{ item.item_number }}</p>
+                    <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(item.unit_price) }}</p>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Empty state -->
+              <div v-if="currentSubcategories.length === 0 && currentDirectItems.length === 0" class="text-center py-8 text-slate-400">
+                <Package class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No hay productos en esta categoría</p>
+              </div>
             </div>
           </div>
         </div>

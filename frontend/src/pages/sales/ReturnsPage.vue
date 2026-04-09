@@ -38,6 +38,9 @@ const dateToInputRef = ref(null)
 let dateFromPicker = null
 let dateToPicker = null
 
+const modalSearchQuery = ref('')
+const searchingSale = ref(false)
+
 function getCurrentMonthDates() {
   const now = new Date()
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -154,24 +157,49 @@ watch(searchQuery, () => {
   debouncedSearch()
 })
 
-async function searchSale() {
-  if (!searchQuery.value) return
+async function searchSaleInModal() {
+  if (!modalSearchQuery.value) return
   
-  loading.value = true
+  searchingSale.value = true
   try {
-    const { data } = await salesService.getSales({ search: searchQuery.value, status: 'completed', limit: 5 })
+    const { data } = await salesService.getSales({ search: modalSearchQuery.value, status: 'completed', limit: 10 })
+    console.log('[DEBUG] Search results:', data.data)
+    console.log('[DEBUG] Searching for:', modalSearchQuery.value)
+    
     if (data.data && data.data.length > 0) {
-      selectedSale.value = data.data[0]
-      returnItems.value = selectedSale.value.items?.map(item => ({
+      const foundSale = data.data.find(s => 
+        s.sale_number.toLowerCase() === modalSearchQuery.value.toLowerCase() || 
+        s.sale_number.toLowerCase().includes(modalSearchQuery.value.toLowerCase())
+      )
+      
+      const saleToUse = foundSale || data.data[0]
+      console.log('[DEBUG] Sale to use:', saleToUse.sale_number)
+      
+      if (!foundSale) {
+        notification.warning(`No se encontró "${modalSearchQuery.value}", mostrando ${saleToUse.sale_number}`)
+      }
+      
+      const { data: saleDetails } = await salesService.getSale(saleToUse.id)
+      selectedSale.value = saleDetails.data
+      console.log('[DEBUG] Sale details with items:', saleDetails.data)
+      
+      returnItems.value = saleDetails.data.items?.map(item => ({
         ...item,
         return_quantity: 0,
         selected: false
       })) || []
+      console.log('[DEBUG] Return items count:', returnItems.value.length)
+      
+    } else {
+      notification.warning('No se encontraron ventas con ese número')
+      selectedSale.value = null
+      returnItems.value = []
     }
   } catch (error) {
     notification.error('Error al buscar venta')
+    console.error('[DEBUG] Search error:', error)
   } finally {
-    loading.value = false
+    searchingSale.value = false
   }
 }
 
@@ -270,7 +298,7 @@ function openCreateModal() {
   selectedSale.value = null
   returnItems.value = []
   returnForm.value = { reason: '', notes: '' }
-  searchQuery.value = ''
+  modalSearchQuery.value = ''
 }
 
 function closeCreateModal() {
@@ -473,18 +501,24 @@ onMounted(() => {
           <div v-if="!selectedSale">
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Buscar Venta</label>
             <div class="flex gap-2">
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Número de venta..."
-                class="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg"
-                @keyup.enter="searchSale"
-              />
+              <div class="relative flex-1">
+                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  v-model="modalSearchQuery"
+                  type="text"
+                  placeholder="Número de venta..."
+                  class="w-full pl-10 pr-10 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+                  @keyup.enter="searchSaleInModal"
+                />
+                <Loader2 v-if="searchingSale" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+              </div>
               <button
-                @click="searchSale"
-                class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg"
+                @click="searchSaleInModal"
+                :disabled="searchingSale"
+                class="px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg transition-colors flex items-center gap-2"
               >
-                Buscar
+                <Loader2 v-if="searchingSale" class="w-4 h-4 animate-spin" />
+                <span v-if="!searchingSale">Buscar</span>
               </button>
             </div>
           </div>
@@ -493,30 +527,33 @@ onMounted(() => {
           <div v-if="selectedSale" class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
             <div class="flex items-center justify-between mb-3">
               <div>
-                <p class="font-medium text-slate-900 dark:text-white">{{ selectedSale.sale_number }}</p>
-                <p class="text-sm text-slate-500">{{ formatDate(selectedSale.sale_date) }} - {{ selectedSale.location_name }}</p>
+                <p class="font-semibold text-slate-900 dark:text-white">{{ selectedSale.sale_number }}</p>
+                <p class="text-sm text-slate-600 dark:text-slate-400">{{ formatDate(selectedSale.sale_date) }} - {{ selectedSale.location_name }}</p>
               </div>
-              <button @click="selectedSale = null" class="text-slate-400 hover:text-red-500">
-                <X class="w-4 h-4" />
+              <button @click="selectedSale = null" class="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <X class="w-5 h-5" />
               </button>
             </div>
 
             <!-- Return Items -->
             <div class="space-y-2 mb-4">
               <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Seleccionar productos:</p>
+              <div v-if="returnItems.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400">
+                No hay productos en esta venta
+              </div>
               <div 
                 v-for="(item, index) in returnItems" 
                 :key="item.id"
-                class="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg"
+                class="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700"
               >
                 <input
                   type="checkbox"
                   v-model="item.selected"
-                  class="w-4 h-4 rounded border-slate-300"
+                  class="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-brand-500 focus:ring-brand-500"
                 />
-                <div class="flex-1">
-                  <p class="font-medium text-slate-900 dark:text-white text-sm">{{ item.item_name }}</p>
-                  <p class="text-xs text-slate-500">Disp: {{ item.quantity }} - {{ formatMoney(item.unit_price) }}</p>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.item_name }}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">Cant: {{ item.quantity }} - {{ formatMoney(item.unit_price) }}</p>
                 </div>
                 <input
                   type="number"
@@ -525,7 +562,7 @@ onMounted(() => {
                   :max="item.quantity"
                   min="0"
                   :disabled="!item.selected"
-                  class="w-20 px-2 py-1 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+                  class="w-20 px-2 py-2 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -536,7 +573,7 @@ onMounted(() => {
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Motivo</label>
                 <select
                   v-model="returnForm.reason"
-                  class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg"
+                  class="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
                 >
                   <option value="">Seleccionar motivo</option>
                   <option value="defectuoso">Producto defectuoso</option>
@@ -550,13 +587,13 @@ onMounted(() => {
                 <textarea
                   v-model="returnForm.notes"
                   rows="2"
-                  class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg"
+                  class="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
                   placeholder="Notas adicionales..."
                 ></textarea>
               </div>
               <div class="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-700">
-                <span class="font-medium text-slate-700 dark:text-slate-300">Total a devolver:</span>
-                <span class="text-lg font-bold text-brand-600 dark:text-brand-400">{{ formatMoney(returnTotal) }}</span>
+                <span class="font-semibold text-slate-700 dark:text-slate-300">Total a devolver:</span>
+                <span class="text-xl font-bold text-brand-600 dark:text-brand-400">{{ formatMoney(returnTotal) }}</span>
               </div>
             </div>
           </div>
@@ -606,20 +643,20 @@ onMounted(() => {
 
           <div class="space-y-3 text-sm">
             <div class="flex justify-between">
-              <span class="text-slate-500">Venta original:</span>
-              <span class="text-slate-900 dark:text-white">{{ selectedReturn.original_sale_number }}</span>
+              <span class="text-slate-500 dark:text-slate-400">Venta original:</span>
+              <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.original_sale_number }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Ubicación:</span>
-              <span class="text-slate-900 dark:text-white">{{ selectedReturn.location_name }}</span>
+              <span class="text-slate-500 dark:text-slate-400">Ubicación:</span>
+              <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.location_name }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-slate-500">Empleado:</span>
-              <span class="text-slate-900 dark:text-white">{{ selectedReturn.employee_name }}</span>
+              <span class="text-slate-500 dark:text-slate-400">Empleado:</span>
+              <span class="text-slate-700 dark:text-slate-200 font-medium">{{ selectedReturn.employee_name }}</span>
             </div>
-            <div class="flex justify-between font-bold pt-3 border-t">
-              <span>Total:</span>
-              <span class="text-brand-600">{{ formatMoney(selectedReturn.total) }}</span>
+            <div class="flex justify-between font-bold pt-3 border-t border-slate-200 dark:border-slate-700">
+              <span class="text-slate-600 dark:text-slate-300">Total:</span>
+              <span class="text-brand-600 dark:text-brand-400 font-semibold">{{ formatMoney(selectedReturn.total) }}</span>
             </div>
           </div>
         </div>
