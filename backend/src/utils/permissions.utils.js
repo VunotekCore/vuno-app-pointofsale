@@ -80,7 +80,6 @@ class PermissionsService {
       '/core/categories': 'categories',
       '/core/suppliers': 'suppliers',
       '/inventory': 'items',
-      '/company-config': 'company_config',
       '/shifts': 'shifts'
     }
 
@@ -95,7 +94,6 @@ class PermissionsService {
       '/categories': 'categories',
       '/suppliers': 'suppliers',
       '/inventory': 'inventory_transfers',
-      '/company-config': 'company_config',
       '/shifts': 'shift_configs',
       '/payments': 'payments',
       '/payments/drawers': 'cash_drawers',

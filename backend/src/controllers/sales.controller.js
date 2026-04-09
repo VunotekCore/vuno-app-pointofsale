@@ -6,20 +6,33 @@ export class SalesController {
 
   async create(req, res, next) {
     try {
-      const { items, ...saleData } = req.body
+      const { items, payments, auto_complete, ...saleData } = req.body
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
       const companyId = req.user?.company_id
       
-      const sale = await this.salesModel.createSale(
-        { ...saleData, items },
-        req.userId,
-        userLocations,
-        isAdmin,
-        companyId
-      )
+      let sale
+      const shouldComplete = auto_complete === true || auto_complete === 'true'
       
-      res.status(201).json({ success: true, message: 'Venta creada', data: sale })
+      if (shouldComplete) {
+        sale = await this.salesModel.createAndCompleteSale(
+          { ...saleData, items, payments },
+          req.userId,
+          userLocations,
+          isAdmin,
+          companyId
+        )
+        res.status(201).json({ success: true, message: 'Venta completada', data: sale })
+      } else {
+        sale = await this.salesModel.createSale(
+          { ...saleData, items },
+          req.userId,
+          userLocations,
+          isAdmin,
+          companyId
+        )
+        res.status(201).json({ success: true, message: 'Venta creada', data: sale })
+      }
     } catch (error) {
       next(error)
     }
@@ -226,11 +239,13 @@ export class SalesController {
       const { location_id } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const sales = await this.salesModel.getSuspendedSales(
         location_id,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
       
       res.status(200).json({ success: true, data: sales, total: sales.length })
@@ -353,9 +368,11 @@ export class ReturnsController {
       const { id } = req.params
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
       
       const returnObj = await this.returnsModel.getReturn(
         id,
+        companyId,
         userLocations,
         isAdmin
       )

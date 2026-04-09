@@ -47,6 +47,54 @@ export const useItemsStore = defineStore('items', () => {
     )
   })
 
+  const rootCategories = computed(() => {
+    return categories.value.filter(c => 
+      c.is_active && c.parent_id === null
+    ).sort((a, b) => a.name.localeCompare(b.name))
+  })
+
+  function getCategoryById(id) {
+    return categories.value.find(c => c.id === id) || null
+  }
+
+  function getSubcategories(parentId) {
+    return categories.value.filter(c => 
+      c.is_active && c.parent_id === parentId
+    ).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  function hasSubcategories(categoryId) {
+    return categories.value.some(c => c.is_active && c.parent_id === categoryId)
+  }
+
+  function getCategoryItems(categoryId) {
+    return items.value.filter(item => {
+      const qty = parseFloat(item.total_quantity) || 0
+      return qty > 0 && item.category_id === categoryId
+    })
+  }
+
+  function getSubcategoriesWithItems(parentId) {
+    const subs = getSubcategories(parentId)
+    return subs.filter(sub => {
+      const directItems = getCategoryItems(sub.id)
+      const childSubs = getSubcategoriesWithItems(sub.id)
+      return directItems.length > 0 || childSubs.length > 0
+    })
+  }
+
+  function getAllItemsForCategoryTree(categoryId) {
+    const directItems = getCategoryItems(categoryId)
+    const subcategories = getSubcategories(categoryId)
+    
+    let allItems = [...directItems]
+    for (const sub of subcategories) {
+      allItems = allItems.concat(getAllItemsForCategoryTree(sub.id))
+    }
+    
+    return allItems
+  }
+
   async function loadItems(locationId = null, force = false) {
     const currentLocation = locationId || 'default'
     
@@ -120,6 +168,13 @@ export const useItemsStore = defineStore('items', () => {
     loading,
     itemsByCategory,
     activeCategories,
+    rootCategories,
+    getCategoryById,
+    getSubcategories,
+    hasSubcategories,
+    getCategoryItems,
+    getSubcategoriesWithItems,
+    getAllItemsForCategoryTree,
     loadItems,
     loadCategories,
     loadAll,

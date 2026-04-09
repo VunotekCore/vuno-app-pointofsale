@@ -16,13 +16,15 @@ export class SyncController {
 
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
+      const companyId = req.user?.company_id
 
       const result = await this.syncModel.syncSalesBatch(
         sales,
         device_id || 'unknown',
         req.userId,
         userLocations,
-        isAdmin
+        isAdmin,
+        companyId
       )
 
       res.status(200).json({

@@ -36,16 +36,16 @@ export class CompanyRepository {
 
   async findById(id) {
     const rows = await this.db.query(
-      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
+      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
        FROM companies WHERE id = UUID_TO_BIN(?)`,
       [id]
     )
     return rows[0] || null
   }
 
-  async findBySlug(slug) {
+async findBySlug(slug) {
     const rows = await this.db.query(
-      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
+      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
        FROM companies WHERE slug = ?`,
       [slug]
     )
@@ -53,7 +53,7 @@ export class CompanyRepository {
   }
 
   async findAll(filters = {}) {
-    let sql = `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at FROM companies WHERE 1=1`
+    let sql = `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at FROM companies WHERE 1=1`
     const params = []
 
     if (filters.is_active !== undefined) {

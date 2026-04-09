@@ -3,18 +3,20 @@ import database from '../config/database.js'
 import { SalesRepository, ReturnsRepository } from '../repository/sales.repository.js'
 import { InventoryRepository } from '../repository/inventory.repository.js'
 import { ItemsRepository } from '../repository/items.repository.js'
-import { CompanyConfigRepository } from '../repository/company-config.repository.js'
+import { CompanyRepository } from '../repository/company.repository.js'
 import { PaymentRepository } from '../repository/payment.repository.js'
+import { SequenceRepository } from '../repository/sequence.repository.js'
 import { SalesModel, ReturnsModel } from '../models/sales.model.js'
 import { SalesController, ReturnsController } from '../controllers/sales.controller.js'
 import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
 import { generateTicketPDF } from '../utils/ticket.utils.js'
 
-const salesRepo = new SalesRepository(database)
-const returnsRepo = new ReturnsRepository(database)
+const companyRepo = new CompanyRepository(database)
+const sequenceRepo = new SequenceRepository(database, companyRepo)
+const salesRepo = new SalesRepository(database, companyRepo, sequenceRepo)
+const returnsRepo = new ReturnsRepository(database, companyRepo, sequenceRepo)
 const inventoryRepo = new InventoryRepository(database)
 const itemsRepo = new ItemsRepository(database)
-const companyConfigRepo = new CompanyConfigRepository(database)
 const paymentRepo = new PaymentRepository(database)
 
 const salesModel = new SalesModel(salesRepo, inventoryRepo, itemsRepo, paymentRepo)
@@ -53,6 +55,7 @@ router.get('/:id/ticket', authenticate, requireRoutePermission(salesBasePath), a
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
     const userLocations = req.userLocations || []
+    const companyId = req.user?.company_id
     
     const sale = await salesModel.getSale(id, userLocations, isAdmin)
     
@@ -60,8 +63,8 @@ router.get('/:id/ticket', authenticate, requireRoutePermission(salesBasePath), a
       return res.status(404).json({ success: false, message: 'Venta no encontrada' })
     }
 
-    const companyConfig = await companyConfigRepo.get()
-    const pdfBuffer = await generateTicketPDF(sale, companyConfig)
+    const company = await companyRepo.findById(companyId)
+    const pdfBuffer = await generateTicketPDF(sale, company)
     
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="ticket-${sale.sale_number}.pdf"`)
@@ -77,6 +80,7 @@ router.get('/:id/ticket/html', authenticate, requireRoutePermission(salesBasePat
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
     const userLocations = req.userLocations || []
+    const companyId = req.user?.company_id
     
     const sale = await salesModel.getSale(id, userLocations, isAdmin)
     
@@ -84,16 +88,16 @@ router.get('/:id/ticket/html', authenticate, requireRoutePermission(salesBasePat
       return res.status(404).json({ success: false, message: 'Venta no encontrada' })
     }
 
-    const companyConfig = await companyConfigRepo.get()
-    const invoicePrefix = companyConfig?.invoice_prefix || 'F'
-    const invoiceSequence = companyConfig?.invoice_sequence || 1
+    const company = await companyRepo.findById(companyId)
+    const invoicePrefix = company?.invoice_prefix || 'F'
+    const invoiceSequence = company?.invoice_sequence || 1
     const invoiceNumber = `${invoicePrefix}-${String(invoiceSequence).padStart(6, '0')}`
-    const currencySymbol = companyConfig?.currency_symbol || '$'
+    const currencySymbol = company?.currency_symbol || '$'
     
     res.json({ 
       success: true, 
       data: { 
-        html: generateTicketHTMLForPreview(sale, companyConfig, invoiceNumber, currencySymbol),
+        html: generateTicketHTMLForPreview(sale, company, invoiceNumber, currencySymbol),
         saleNumber: sale.sale_number 
       } 
     })

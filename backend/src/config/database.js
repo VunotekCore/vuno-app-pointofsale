@@ -65,7 +65,14 @@ export class Database {
   }
 
   async getConnection () {
-    return await this.pool.getConnection()
+    const conn = await this.pool.getConnection()
+    // Wrap connection to provide .query() method like pool (capture original first!)
+    const originalQuery = conn.query.bind(conn)
+    conn.query = async (sql, params) => {
+      const [rows] = await originalQuery(sql, params)
+      return rows
+    }
+    return conn
   }
 
   async testConnection () {

@@ -4,15 +4,15 @@ import { PaymentRepository } from '../repository/payment.repository.js'
 import { PaymentModel } from '../models/payment.model.js'
 import { PaymentController } from '../controllers/payment.controller.js'
 import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
-import { CompanyConfigRepository } from '../repository/company-config.repository.js'
+import { CompanyRepository } from '../repository/company.repository.js'
 import { ShiftRepository } from '../repository/shift.repository.js'
 import { generateDrawerClosePDF } from '../utils/drawer-close.utils.js'
 
 const paymentRepo = new PaymentRepository(database)
 const shiftRepo = new ShiftRepository(database)
+const companyRepo = new CompanyRepository(database)
 const paymentModel = new PaymentModel(paymentRepo, null, shiftRepo)
 const paymentController = new PaymentController(paymentModel)
-const companyConfigRepo = new CompanyConfigRepository(database)
 
 const router = Router()
 const paymentsBasePath = '/payments'
@@ -136,9 +136,9 @@ router.get('/drawers/:id/close-pdf', authenticate, requireRoutePermission(paymen
     }
     
     const drawer = await paymentRepo.getCashDrawerById(id, companyId)
-    const companyConfig = await companyConfigRepo.get()
+    const company = await companyRepo.findById(companyId)
     
-    const pdfBuffer = generateDrawerClosePDF(summary, companyConfig)
+    const pdfBuffer = generateDrawerClosePDF(summary, company)
     
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="cierre-caja-${drawer.name}-${new Date().toISOString().split('T')[0]}.pdf"`)
