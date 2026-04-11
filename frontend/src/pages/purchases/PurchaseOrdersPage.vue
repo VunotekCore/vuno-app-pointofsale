@@ -129,6 +129,11 @@ watch(filterStatus, () => {
   loadOrders()
 })
 
+watch(selectedLocationId, () => {
+  currentPage.value = 1
+  loadOrders()
+})
+
 async function loadSuppliers() {
   loadingSuppliers.value = true
   try {
@@ -142,12 +147,6 @@ async function loadSuppliers() {
 }
 
 async function loadLocations() {
-  if (locationStore.locations.length > 0) {
-    locations.value = locationStore.locations
-    selectedLocationId.value = locationStore.selectedLocationId || locations.value[0]?.id || null
-    return
-  }
-  
   loadingLocations.value = true
   try {
     const { data } = await coreService.getUserLocations()
@@ -160,12 +159,14 @@ async function loadLocations() {
         name: l.location_name,
         code: l.location_code,
         is_active: l.is_active,
-        is_default: l.is_default
+        is_default: l.is_default,
+        company_id: l.company_id
       }))
     
     locations.value = userLocations
+    locationStore.setLocations(userLocations)
+    
     if (locations.value.length > 0) {
-      locationStore.setLocations(locations.value)
       selectedLocationId.value = locationStore.selectedLocationId || locations.value[0]?.id || null
     }
   } catch (error) {

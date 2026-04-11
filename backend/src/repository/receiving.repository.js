@@ -1,10 +1,14 @@
 import pool from '../config/database.js'
 import { NotFoundError } from '../errors/NotFoundError.js'
 import { BadRequestError } from '../errors/BadRequestError.js'
+import { SequenceRepository } from './sequence.repository.js'
+import { CompanyRepository } from './company.repository.js'
 
 export class ReceivingRepository {
-  constructor (db = pool) {
+  constructor (db = pool, companyRepo = null, sequenceRepo = null) {
     this.db = db
+    this.companyRepo = companyRepo || new CompanyRepository(db)
+    this.sequenceRepo = sequenceRepo || new SequenceRepository(db, this.companyRepo)
   }
 
   async getAll (filters = {}) {
@@ -153,13 +157,9 @@ export class ReceivingRepository {
       FROM receiving_items ri
       LEFT JOIN items i ON ri.item_id = i.id
       LEFT JOIN item_variations iv ON ri.variation_id = iv.id
-      WHERE ri.receiving_id = UUID_TO_BIN(?)`
+      WHERE ri.receiving_id = UUID_TO_BIN(?)
+    `
     const params = [receivingId]
-    
-    if (companyId) {
-      query += ' AND ri.company_id = UUID_TO_BIN(?)'
-      params.push(companyId)
-    }
     
     const rows = await this.db.query(query, params)
     return rows || []
@@ -215,7 +215,13 @@ export class ReceivingRepository {
     if (purchase_order_id) {
       const conn = await this.db.getConnection()
       try {
+        await conn.beginTransaction()
         await this.updatePurchaseOrderReceivedAmountWithConn(conn, purchase_order_id)
+        await this.updatePurchaseOrderStatusWithConn(conn, purchase_order_id)
+        await conn.commit()
+      } catch (error) {
+        await conn.rollback()
+        throw error
       } finally {
         conn.release()
       }
@@ -281,14 +287,14 @@ export class ReceivingRepository {
           }
         }
 
-        await this.updateAverageCost(conn, item_id, quantity, cost_price)
+        await this.updateAverageCost(conn, item_id, quantity, cost_price, userId, companyId)
       }
 
       await conn.query('UPDATE receivings SET status = ?, received_at = NOW() WHERE id = UUID_TO_BIN(?)', ['completed', id])
 
       if (receiving.purchase_order_id) {
-        await this.updatePurchaseOrderStatusWithConn(conn, receiving.purchase_order_id)
         await this.updatePurchaseOrderReceivedAmountWithConn(conn, receiving.purchase_order_id)
+        await this.updatePurchaseOrderStatusWithConn(conn, receiving.purchase_order_id)
       }
 
       await conn.commit()
@@ -303,18 +309,18 @@ export class ReceivingRepository {
   }
 
   async updatePurchaseOrderReceivedAmount (purchaseOrderId) {
-    const [result] = await this.db.query(`
+    const result = await this.db.query(`
       SELECT COALESCE(SUM(total_amount), 0) as total FROM receivings 
       WHERE purchase_order_id = UUID_TO_BIN(?) AND status = 'completed'
     `, [purchaseOrderId])
 
     await this.db.query(`
       UPDATE purchase_orders SET received_amount = ? WHERE id = UUID_TO_BIN(?)
-    `, [result.total, purchaseOrderId])
+    `, [result[0].total, purchaseOrderId])
   }
 
   async updatePurchaseOrderStatus (purchaseOrderId) {
-    const [po] = await this.db.query(`
+    const po = await this.db.query(`
       SELECT total_amount, received_amount FROM purchase_orders WHERE id = UUID_TO_BIN(?)
     `, [purchaseOrderId])
 
@@ -341,8 +347,8 @@ export class ReceivingRepository {
     `, [purchaseOrderId])
 
     if (po.length > 0) {
-      const total = parseFloat(po[0].total_amount)
-      const received = parseFloat(po[0].received_amount)
+      const total = parseFloat(po[0].total_amount) || 0
+      const received = parseFloat(po[0].received_amount) || 0
 
       let newStatus = 'sent'
       if (received >= total && total > 0) {
@@ -363,9 +369,10 @@ export class ReceivingRepository {
       WHERE purchase_order_id = UUID_TO_BIN(?) AND status = 'completed'
     `, [purchaseOrderId])
 
+    const totalReceived = result[0]?.total || 0
     await conn.query(`
       UPDATE purchase_orders SET received_amount = ? WHERE id = UUID_TO_BIN(?)
-    `, [result.total, purchaseOrderId])
+    `, [totalReceived, purchaseOrderId])
   }
 
   async delete (id, companyId = null) {
@@ -418,55 +425,91 @@ export class ReceivingRepository {
   }
 
   async generateReceivingNumber (companyId) {
-    let whereClause = 'receiving_number LIKE \'RCV-%\''
-    const params = []
-    
-    if (companyId) {
-      whereClause += ' AND company_id = UUID_TO_BIN(?)'
-      params.push(companyId)
+    if (!companyId) {
+      throw new Error('companyId es requerido para generar número de recepción')
     }
-    
-    const rows = await this.db.query(`
-      SELECT MAX(CAST(SUBSTRING(receiving_number, 5) AS UNSIGNED)) as max_num 
-      FROM receivings 
-      WHERE ${whereClause}
-    `, params)
-    let maxNum = rows[0]?.max_num
-    if (!maxNum || maxNum === 0) {
-      maxNum = 0
-    }
-    const nextNum = maxNum + 1
-    console.log('Generating receiving number, maxNum:', maxNum, 'nextNum:', nextNum)
-    return `RCV-${String(nextNum).padStart(6, '0')}`
+    const result = await this.sequenceRepo.getNext(companyId, 'receiving')
+    return result.docNumber
   }
 
-  async updateAverageCost (conn, itemId, newQuantity, newCost) {
-    const [currentItem] = await conn.query(`
-      SELECT cost_price FROM items WHERE id = UUID_TO_BIN(?)
+  async updateAverageCost (conn, itemId, newQuantity, newCost, userId = null, companyId = null) {
+    console.log('[updateAverageCost] INICIO')
+    console.log('[updateAverageCost] itemId:', itemId)
+    console.log('[updateAverageCost] newQuantity (raw):', newQuantity, 'newCost (raw):', newCost)
+    
+    // Parsear correctamente los valores
+    const qtyNew = parseFloat(String(newQuantity).replace(',', '.')) || 0
+    const costNew = parseFloat(String(newCost).replace(',', '.')) || 0
+    
+    console.log('[updateAverageCost] qtyNew parseado:', qtyNew, 'costNew parseado:', costNew)
+    
+    const currentItem = await conn.query(`
+      SELECT cost_price, unit_price FROM items WHERE id = UUID_TO_BIN(?)
     `, [itemId])
 
-    if (currentItem.length === 0) return
-
-    const currentCost = parseFloat(currentItem[0].cost_price) || 0
-    const currentStock = await this.getTotalStock(conn, itemId)
-
-    const totalValue = (currentCost * currentStock) + (newCost * newQuantity)
-    const totalQuantity = currentStock + newQuantity
-
-    let newAverageCost = newCost
-    if (totalQuantity > 0) {
-      newAverageCost = totalValue / totalQuantity
+    if (!currentItem || currentItem.length === 0) {
+      console.log('[updateAverageCost] Item no encontrado')
+      return
     }
 
-    await conn.query(`
-      UPDATE items SET cost_price = ? WHERE id = UUID_TO_BIN(?)
-    `, [newAverageCost, itemId])
+    const currentCost = parseFloat(currentItem[0].cost_price) || 0
+    const currentPrice = parseFloat(currentItem[0].unit_price) || 0
+    const currentStockRaw = await this.getTotalStock(conn, itemId)
+    const currentStock = parseFloat(String(currentStockRaw).replace(',', '.')) || 0
+    
+    console.log('[updateAverageCost] currentCost:', currentCost, 'currentStock:', currentStock)
+
+    const totalValue = (currentCost * currentStock) + (costNew * qtyNew)
+    const totalQuantity = currentStock + qtyNew
+    
+    console.log('[updateAverageCost] totalValue:', totalValue, 'totalQuantity:', totalQuantity)
+
+    let newAverageCost = costNew
+    if (totalQuantity > 0 && totalValue > 0) {
+      newAverageCost = totalValue / totalQuantity
+    }
+    
+    // Redondear a 2 decimales
+    newAverageCost = Math.round(newAverageCost * 100) / 100
+    
+    console.log('[updateAverageCost] newAverageCost calculado:', newAverageCost)
+
+    if (newAverageCost > 0 && newAverageCost !== currentCost) {
+      await conn.query(`
+        UPDATE items SET cost_price = ? WHERE id = UUID_TO_BIN(?)
+      `, [newAverageCost, itemId])
+      console.log('[updateAverageCost] COSTO ACTUALIZADO A:', newAverageCost)
+      
+      // Guardar historial de precios
+      if (companyId) {
+        await conn.query(`
+          INSERT INTO product_price_history 
+            (item_id, company_id, cost_price_before, unit_price_before, margin_before, cost_price_after, unit_price_after, margin_after, created_by)
+          VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
+        `, [
+          itemId,
+          companyId,
+          currentCost,
+          currentPrice,
+          currentPrice > 0 ? Math.round(((currentPrice - currentCost) / currentPrice) * 10000) / 100 : 0,
+          newAverageCost,
+          currentPrice,
+          currentPrice > 0 ? Math.round(((currentPrice - newAverageCost) / currentPrice) * 10000) / 100 : 0,
+          userId
+        ])
+        console.log('[updateAverageCost] Historial de precios guardado')
+      }
+    } else {
+      console.log('[updateAverageCost] ERROR: newAverageCost es 0 o no hay cambio, no se actualiza')
+    }
   }
 
   async getTotalStock (conn, itemId) {
-    const [result] = await conn.query(`
+    const result = await conn.query(`
       SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN(?)
     `, [itemId])
-    return parseFloat(result[0].total) || 0
+    const total = parseFloat(result[0].total) || 0
+    console.log('[getTotalStock] itemId:', itemId, 'stock total:', total)
+    return total
   }
 }

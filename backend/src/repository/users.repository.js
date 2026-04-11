@@ -256,7 +256,7 @@ export class UsersRepository {
           'SELECT BIN_TO_UUID(location_id) as location_id FROM user_locations WHERE user_id = UUID_TO_BIN(?)',
           [id]
         )
-        const currentLocs = Array.isArray(currentLocsResult) ? currentLocsResult[0] : currentLocsResult
+        const currentLocs = currentLocsResult || []
         const currentIds = currentLocs.map(l => l.location_id)
         
         const toAdd = location_ids.filter(lid => !currentIds.includes(lid))
