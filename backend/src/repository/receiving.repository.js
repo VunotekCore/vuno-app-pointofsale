@@ -242,7 +242,7 @@ export class ReceivingRepository {
       for (const item of receiving.items) {
         const { item_id, variation_id, quantity, cost_price, serial_numbers } = item
 
-        const [existingStock] = await conn.query(`
+        const existingStock = await conn.query(`
           SELECT id, quantity FROM item_quantities 
           WHERE item_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?) AND (variation_id = UUID_TO_BIN(?) OR (variation_id IS NULL AND ? IS NULL))
         `, [item_id, receiving.location_id, variation_id, variation_id])
@@ -266,7 +266,7 @@ export class ReceivingRepository {
         `, [item_id, variation_id || null, receiving.location_id, quantity, cost_price, id, userId])
 
         if (receiving.purchase_order_id) {
-          const [poItems] = await conn.query(`
+          const poItems = await conn.query(`
             SELECT id, quantity_received FROM purchase_order_items 
             WHERE purchase_order_id = UUID_TO_BIN(?) AND item_id = UUID_TO_BIN(?) AND (variation_id = UUID_TO_BIN(?) OR (variation_id IS NULL AND ? IS NULL))
           `, [receiving.purchase_order_id, item_id, variation_id, variation_id])
@@ -336,7 +336,7 @@ export class ReceivingRepository {
   }
 
   async updatePurchaseOrderStatusWithConn (conn, purchaseOrderId) {
-    const [po] = await conn.query(`
+    const po = await conn.query(`
       SELECT total_amount, received_amount FROM purchase_orders WHERE id = UUID_TO_BIN(?)
     `, [purchaseOrderId])
 
@@ -358,7 +358,7 @@ export class ReceivingRepository {
   }
 
   async updatePurchaseOrderReceivedAmountWithConn (conn, purchaseOrderId) {
-    const [result] = await conn.query(`
+    const result = await conn.query(`
       SELECT COALESCE(SUM(total_amount), 0) as total FROM receivings 
       WHERE purchase_order_id = UUID_TO_BIN(?) AND status = 'completed'
     `, [purchaseOrderId])
@@ -379,7 +379,7 @@ export class ReceivingRepository {
         for (const item of receiving.items) {
           const { item_id, variation_id, quantity, cost_price } = item
           
-          const [existingStock] = await conn.query(`
+          const existingStock = await conn.query(`
             SELECT id, quantity FROM item_quantities 
             WHERE item_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?) AND (variation_id = UUID_TO_BIN(?) OR (variation_id IS NULL AND ? IS NULL))
           `, [item_id, receiving.location_id, variation_id, variation_id])

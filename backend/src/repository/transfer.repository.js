@@ -366,18 +366,16 @@ export class TransferRepository {
           throw new Error('Item ID is required')
         }
         
-        let current
+        let currentQuery
+        let currentParams
         if (variationId === null) {
-          [current] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.from_location_id]
-          )
+          currentQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentParams = [itemId, transfer.from_location_id]
         } else {
-          [current] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.from_location_id]
-          )
+          currentQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentParams = [itemId, variationId, transfer.from_location_id]
         }
+        const current = await conn.query(currentQuery, currentParams)
 
         const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
         const quantityInTransitBefore = current.length > 0 ? Number(current[0].quantity_in_transit) : 0
@@ -484,18 +482,16 @@ export class TransferRepository {
         
         const receivedQty = items.find(i => i.item_id === item.item_id && i.variation_id === item.variation_id)?.quantity_received ?? item.quantity
 
-        let currentDest
+        let currentDestQuery
+        let currentDestParams
         if (variationId === null) {
-          [currentDest] = await conn.query(
-            'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.to_location_id]
-          )
+          currentDestQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentDestParams = [itemId, transfer.to_location_id]
         } else {
-          [currentDest] = await conn.query(
-            'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.to_location_id]
-          )
+          currentDestQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentDestParams = [itemId, variationId, transfer.to_location_id]
         }
+        const currentDest = await conn.query(currentDestQuery, currentDestParams)
 
         const quantityBeforeDest = currentDest.length > 0 ? Number(currentDest[0].quantity) : 0
         const quantityAfterDest = Number(quantityBeforeDest) + parseFloat(receivedQty)
@@ -539,18 +535,16 @@ export class TransferRepository {
           ]
         )
 
-        let currentSource
+        let currentSourceQuery
+        let currentSourceParams
         if (variationId === null) {
-          [currentSource] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.from_location_id]
-          )
+          currentSourceQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentSourceParams = [itemId, transfer.from_location_id]
         } else {
-          [currentSource] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.from_location_id]
-          )
+          currentSourceQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentSourceParams = [itemId, variationId, transfer.from_location_id]
         }
+        const currentSource = await conn.query(currentSourceQuery, currentSourceParams)
 
         if (currentSource.length > 0) {
           const quantityInTransitBefore = Number(currentSource[0].quantity_in_transit) || 0
@@ -635,18 +629,16 @@ export class TransferRepository {
           const itemId = item.item_id || null
           const variationId = item.variation_id || null
           
-          let current
+          let currentQuery
+          let currentParams
           if (variationId === null) {
-            [current] = await conn.query(
-              'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-              [itemId, transfer.from_location_id]
-            )
+            currentQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+            currentParams = [itemId, transfer.from_location_id]
           } else {
-            [current] = await conn.query(
-              'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-              [itemId, variationId, transfer.from_location_id]
-            )
+            currentQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+            currentParams = [itemId, variationId, transfer.from_location_id]
           }
+          const current = await conn.query(currentQuery, currentParams)
 
           const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
           const quantityAfter = quantityBefore + parseFloat(item.quantity)

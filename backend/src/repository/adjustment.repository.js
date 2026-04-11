@@ -156,7 +156,7 @@ export class AdjustmentRepository {
         ]
       )
 
-      const [current] = await conn.query(
+      const current = await conn.query(
         `SELECT COALESCE(SUM(quantity), 0) as stock FROM item_quantities WHERE item_id = UUID_TO_BIN('${item_id}') ${variation_id ? "AND variation_id = UUID_TO_BIN('" + variation_id + "')" : 'AND variation_id IS NULL'} AND location_id = UUID_TO_BIN('${location_id}')`
       )
 
@@ -167,7 +167,7 @@ export class AdjustmentRepository {
       const quantityAfter = quantityBefore + signedQuantity
       const quantityChange = signedQuantity
 
-      const [itemData] = await conn.query(`SELECT cost_price FROM items WHERE id = UUID_TO_BIN('${item_id}')`)
+      const itemData = await conn.query(`SELECT cost_price FROM items WHERE id = UUID_TO_BIN('${item_id}')`)
       const currentItemCost = parseFloat(itemData[0]?.cost_price || 0)
       const finalUnitCost = (unit_cost !== undefined && unit_cost !== null && unit_cost !== '' && unit_cost !== 0)
         ? parseFloat(unit_cost)
@@ -189,7 +189,7 @@ export class AdjustmentRepository {
         ]
       )
 
-      const [existingQty] = await conn.query(
+      const existingQty = await conn.query(
         `SELECT id FROM item_quantities WHERE item_id = UUID_TO_BIN('${item_id}') ${variation_id ? "AND variation_id = UUID_TO_BIN('" + variation_id + "')" : 'AND variation_id IS NULL'} AND location_id = UUID_TO_BIN('${location_id}')`
       )
 
@@ -261,7 +261,7 @@ export class AdjustmentRepository {
   }
 
   async getTotalStockForItem(conn, itemId) {
-    const [result] = await conn.query(
+    const result = await conn.query(
       `SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN('${itemId}')`
     )
     return parseFloat(result[0]?.total || 0)
@@ -287,7 +287,7 @@ export class AdjustmentRepository {
     try {
       await conn.beginTransaction()
 
-      const [items] = await conn.query(
+      const items = await conn.query(
         `SELECT COUNT(*) as total_items, SUM(quantity_difference) as total_change FROM inventory_adjustment_items WHERE adjustment_id = UUID_TO_BIN('${adjustmentId}')`
       )
 
@@ -310,24 +310,21 @@ export class AdjustmentRepository {
     try {
       await conn.beginTransaction()
 
-      const [adjustmentData] = await conn.query(`SELECT BIN_TO_UUID(location_id) as location_id FROM inventory_adjustments WHERE id = UUID_TO_BIN('${adjustmentId}')`)
+      const adjustmentData = await conn.query(`SELECT BIN_TO_UUID(location_id) as location_id FROM inventory_adjustments WHERE id = UUID_TO_BIN('${adjustmentId}')`)
       const locationId = adjustmentData[0]?.location_id
 
-      const [items] = await conn.query(
+      const items = await conn.query(
         `SELECT id, adjustment_id, item_id, variation_id, quantity_before, quantity_counted, quantity_difference, unit_cost, reason, created_at FROM inventory_adjustment_items WHERE adjustment_id = UUID_TO_BIN('${adjustmentId}')`
       )
 
       for (const item of items) {
-        let current
+        let currentQuery
         if (item.variation_id === null) {
-          [current] = await conn.query(
-            `SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN('${item.item_id}') AND variation_id IS NULL AND location_id = UUID_TO_BIN('${locationId}')`
-          )
+          currentQuery = `SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN('${item.item_id}') AND variation_id IS NULL AND location_id = UUID_TO_BIN('${locationId}')`
         } else {
-          [current] = await conn.query(
-            `SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN('${item.item_id}') AND variation_id = UUID_TO_BIN('${item.variation_id}') AND location_id = UUID_TO_BIN('${locationId}')`
-          )
+          currentQuery = `SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN('${item.item_id}') AND variation_id = UUID_TO_BIN('${item.variation_id}') AND location_id = UUID_TO_BIN('${locationId}')`
         }
+        const current = await conn.query(currentQuery)
 
         const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
         const quantityAfter = Number(quantityBefore) + parseFloat(item.quantity_difference)
@@ -352,7 +349,7 @@ export class AdjustmentRepository {
           )
         }
 
-        const [adjustment] = await conn.query(`SELECT id, adjustment_number, BIN_TO_UUID(location_id) as location_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by, created_at, updated_at FROM inventory_adjustments WHERE id = UUID_TO_BIN('${adjustmentId}')`)
+        const adjustment = await conn.query(`SELECT id, adjustment_number, BIN_TO_UUID(location_id) as location_id, adjustment_type, status, notes, total_items, total_quantity_change, created_by, created_at, updated_at FROM inventory_adjustments WHERE id = UUID_TO_BIN('${adjustmentId}')`)
 
         const movementTypeMap = {
           count: 'adjustment',
