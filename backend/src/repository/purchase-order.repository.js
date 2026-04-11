@@ -144,13 +144,9 @@ export class PurchaseOrderRepository {
       FROM purchase_order_items poi
       LEFT JOIN items i ON poi.item_id = i.id
       LEFT JOIN item_variations iv ON poi.variation_id = iv.id
-      WHERE poi.purchase_order_id = UUID_TO_BIN(?)`
+      WHERE poi.purchase_order_id = UUID_TO_BIN(?)
+    `
     const params = [orderId]
-    
-    if (companyId) {
-      query += ' AND poi.company_id = UUID_TO_BIN(?)'
-      params.push(companyId)
-    }
     
     const rows = await this.db.query(query, params)
     return rows || []

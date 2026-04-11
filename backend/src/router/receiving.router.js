@@ -3,9 +3,13 @@ import database from '../config/database.js'
 import { ReceivingRepository } from '../repository/receiving.repository.js'
 import { ReceivingModel } from '../models/receiving.model.js'
 import { ReceivingController } from '../controllers/receiving.controller.js'
+import { CompanyRepository } from '../repository/company.repository.js'
+import { SequenceRepository } from '../repository/sequence.repository.js'
 import { authenticate } from '../middleware/auth.middleware.js'
 
-const receivingRepo = new ReceivingRepository(database)
+const companyRepo = new CompanyRepository(database)
+const sequenceRepo = new SequenceRepository(database, companyRepo)
+const receivingRepo = new ReceivingRepository(database, companyRepo, sequenceRepo)
 const receivingModel = new ReceivingModel(receivingRepo)
 const receivingController = new ReceivingController(receivingModel)
 

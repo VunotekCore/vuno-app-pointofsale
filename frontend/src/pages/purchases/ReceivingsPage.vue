@@ -70,6 +70,7 @@ const itemForm = ref({
   variation_id: ''
 })
 
+
 const availableItems = ref([])
 const loadingItems = ref(false)
 
@@ -181,10 +182,14 @@ async function loadPurchaseOrders() {
   }
 }
 
-async function loadAvailableItems() {
+async function loadAvailableItems(supplierId = null) {
   loadingItems.value = true
   try {
-    const { data } = await itemsService.getItems()
+    const params = {}
+    if (supplierId) {
+      params.supplier_id = supplierId
+    }
+    const { data } = await itemsService.getItems(params)
     availableItems.value = data.data || []
   } catch (error) {
     console.error('Error loading items:', error)
@@ -198,6 +203,7 @@ async function onOrderSelect() {
     form.value.supplier_id = ''
     form.value.location_id = ''
     form.value.items = []
+    await loadAvailableItems()
     return
   }
   
@@ -209,6 +215,10 @@ async function onOrderSelect() {
       form.value.supplier_id = order.supplier_id
       form.value.location_id = order.location_id
       form.value.notes = order.notes ? `Orden: ${order.po_number} - ${order.notes}` : `Orden: ${order.po_number}`
+      if (order.supplier_id) {
+        await loadAvailableItems(order.supplier_id)
+      }
+      
       form.value.items = (order.items || []).map(item => ({
         item_id: item.item_id,
         variation_id: item.variation_id,
@@ -229,7 +239,6 @@ async function openModal(receiving = null) {
   await loadSuppliers()
   await loadLocations()
   await loadPurchaseOrders()
-  await loadAvailableItems()
   
   if (receiving) {
     editingId.value = receiving.id
@@ -242,6 +251,7 @@ async function openModal(receiving = null) {
       notes: receiving.notes,
       items: receiving.items || []
     }
+    await loadAvailableItems(receiving.supplier_id)
   } else {
     editingId.value = null
     selectedReceiving.value = null
@@ -253,6 +263,7 @@ async function openModal(receiving = null) {
       notes: '',
       items: []
     }
+    await loadAvailableItems()
   }
   showModal.value = true
 }
@@ -261,6 +272,15 @@ function closeModal() {
   showModal.value = false
   editingId.value = null
   selectedReceiving.value = null
+}
+
+async function onSupplierChange() {
+  if (form.value.supplier_id) {
+    await loadAvailableItems(form.value.supplier_id)
+  } else {
+    await loadAvailableItems()
+  }
+  itemForm.value.item_id = ''
 }
 
 function addItem() {
@@ -313,8 +333,6 @@ async function saveReceiving() {
         cost_price: item.unit_cost
       }))
     }
-    
-    console.log('Creating receiving:', data)
     
     if (editingId.value) {
       notification.error('No se puede editar una recepción')
@@ -645,6 +663,7 @@ onMounted(() => {
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Proveedor *</label>
               <select
                 v-model="form.supplier_id"
+                @change="onSupplierChange"
                 class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 :disabled="loadingSuppliers || form.purchase_order_id"
               >
