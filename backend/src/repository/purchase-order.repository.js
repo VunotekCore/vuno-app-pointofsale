@@ -1,10 +1,14 @@
 import pool from '../config/database.js'
 import { NotFoundError } from '../errors/NotFoundError.js'
 import { BadRequestError } from '../errors/BadRequestError.js'
+import { SequenceRepository } from './sequence.repository.js'
+import { CompanyRepository } from './company.repository.js'
 
 export class PurchaseOrderRepository {
-  constructor (db = pool) {
+  constructor (db = pool, companyRepo = null, sequenceRepo = null) {
     this.db = db
+    this.companyRepo = companyRepo || new CompanyRepository(db)
+    this.sequenceRepo = sequenceRepo || new SequenceRepository(db, this.companyRepo)
   }
 
   async getAll (filters = {}) {
@@ -250,17 +254,11 @@ export class PurchaseOrderRepository {
   }
 
   async generatePONumber (companyId) {
-    let whereClause = 'po_number LIKE \'PO-%\''
-    const params = []
-    
-    if (companyId) {
-      whereClause += ' AND company_id = UUID_TO_BIN(?)'
-      params.push(companyId)
+    if (!companyId) {
+      throw new Error('companyId es requerido para generar número de orden de compra')
     }
-    
-    const rows = await this.db.query(`SELECT MAX(CAST(SUBSTRING(po_number, 4) AS UNSIGNED)) as max_num FROM purchase_orders WHERE ${whereClause}`, params)
-    const nextNum = (rows[0]?.max_num || 0) + 1
-    return `PO-${String(nextNum).padStart(6, '0')}`
+    const result = await this.sequenceRepo.getNext(companyId, 'purchase_order')
+    return result.docNumber
   }
 
   async getPendingReorderItems (locationId, companyId) {
