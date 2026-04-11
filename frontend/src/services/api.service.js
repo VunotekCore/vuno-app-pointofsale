@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { cacheService } from './cache.service.js'
 import { isNetworkOnline } from '../composables/useNetworkStatus.js'
+import { useAuthStore } from '../stores/auth.store.js'
 
 const API_URL = import.meta.env.VITE_APP_URL || 'https://vuno-app-pointofsale.onrender.com'
 const PORT = import.meta.env.VITE_APP_PORT
@@ -74,9 +75,11 @@ export const offlineApi = {
   },
 
   async queueSaleOffline(data) {
+    const authStore = useAuthStore()
     const offlineId = await cacheService.queueSaleOffline(
       {
         location_id: data.location_id,
+        company_id: authStore.companyId,  // Company del usuario autenticado
         customer_id: data.customer_id,
         subtotal: data.subtotal,
         tax_amount: data.tax_amount || 0,
