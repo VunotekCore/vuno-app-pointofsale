@@ -308,8 +308,8 @@ function getDayName(dayNum) {
       </div>
     </div>
 
-    <!-- Info Panel - hidden on mobile -->
-    <div class="hidden md:block w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex-shrink-0">
+    <!-- Info Panel - hidden on mobile and tablet -->
+    <div class="hidden lg:block w-80 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex-shrink-0">
       <h2 class="font-semibold text-slate-900 dark:text-white mb-4">Información</h2>
       <div class="space-y-4 text-sm text-slate-600 dark:text-slate-400">
         <p>

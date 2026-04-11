@@ -11,8 +11,8 @@ export class ItemsRepository {
     const { limit = 20, offset = 0, search = '', status = '', company_id } = filters
     
     const quantitySubquery = locationId 
-      ? `(SELECT quantity FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
-      : `(SELECT SUM(quantity) FROM item_quantities WHERE item_id = i.id) as total_quantity`
+      ? `(SELECT COALESCE(SUM(quantity), 0) FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
+      : `(SELECT COALESCE(SUM(quantity), 0) FROM item_quantities WHERE item_id = i.id) as total_quantity`
 
     const params = locationId ? [locationId] : []
     let whereClause = 'WHERE (i.is_delete = 0 OR i.is_delete IS NULL)'

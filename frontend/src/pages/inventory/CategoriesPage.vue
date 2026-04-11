@@ -26,6 +26,7 @@ const showModal = ref(false)
 const editingId = ref(null)
 const searchQuery = ref('')
 const statusFilter = ref('')
+const showFilters = ref(false)
 const currentPage = ref(1)
 const pageLimit = ref(50)
 const totalRecords = ref(0)
@@ -213,108 +214,171 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Search -->
-    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
-      <div class="flex-1 min-w-[150px] relative">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Buscar..."
-          class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-        />
-        <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+    <!-- Search & Filters -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4">
+      <!-- Mobile/Tablet Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="statusFilter" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            1
+          </span>
+        </button>
       </div>
-      <select
-        v-model="statusFilter"
-        class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-      >
-        <option value="">Todos los estados</option>
-        <option value="true">Activo</option>
-        <option value="false">Inactivo</option>
-      </select>
+
+      <!-- Desktop Search Bar (always visible) -->
+      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar categorías..."
+            class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+        </div>
+      </div>
+
+      <!-- Desktop Filters -->
+      <div class="hidden lg:flex flex-wrap gap-3 p-4">
+        <select
+          v-model="statusFilter"
+          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+        </div>
+        <select
+          v-model="statusFilter"
+          class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+        >
+          <option value="">Todos los estados</option>
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </div>
     </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Nombre</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Nivel</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-          <tr v-for="category in filteredCategories" :key="category.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="category.hasChildren"
-                  @click="toggleExpand(category.id)"
-                  class="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                >
-                  <ChevronDown v-if="category.isExpanded" class="w-3 h-3 text-slate-400" />
-                  <ChevronRight v-else class="w-3 h-3 text-slate-400" />
-                </button>
-                <div v-else class="w-4"></div>
-                <div :style="{ width: category.level * 16 + 'px' }" class="flex-shrink-0"></div>
-                <Folder 
-                  v-if="category.level === 0" 
-                  class="w-4 h-4 text-brand-500 flex-shrink-0" 
-                />
-                <FolderOpen 
-                  v-else 
-                  class="w-4 h-4 text-slate-400 flex-shrink-0" 
-                />
-                <span class="font-medium text-slate-900 dark:text-white">{{ category.name }}</span>
+      
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Nombre</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Nivel</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            <tr v-for="category in filteredCategories" :key="category.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <button v-if="category.hasChildren" @click="toggleExpand(category.id)" class="p-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
+                    <ChevronDown v-if="category.isExpanded" class="w-3 h-3 text-slate-400" />
+                    <ChevronRight v-else class="w-3 h-3 text-slate-400" />
+                  </button>
+                  <div v-else class="w-4"></div>
+                  <div :style="{ width: category.level * 16 + 'px' }" class="flex-shrink-0"></div>
+                  <Folder v-if="category.level === 0" class="w-4 h-4 text-brand-500 flex-shrink-0" />
+                  <FolderOpen v-else class="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <span class="font-medium text-slate-900 dark:text-white">{{ category.name }}</span>
+                </div>
+                <p v-if="category.description" class="text-xs text-slate-500 mt-0.5">{{ category.description }}</p>
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+                <span v-if="category.level === 0" class="text-xs font-medium text-slate-400">Principal</span>
+                <span v-else class="flex items-center gap-1">
+                  <ChevronRight class="w-3 h-3" />
+                  Nivel {{ category.level }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span :class="category.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'" class="px-2 py-0.5 rounded-md text-xs font-medium">
+                  {{ category.is_active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-1">
+                  <button @click="openModal(category)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors">
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button @click="deleteCategory(category.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="filteredCategories.length === 0">
+              <td colspan="4" class="px-4 py-8 text-center text-slate-400">
+                <Tag class="w-8 h-8 mx-auto mb-2 opacity-50" />
+                No hay categorías
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="filteredCategories.length === 0" class="p-8 text-center text-slate-400">
+          <Tag class="w-8 h-8 mx-auto mb-2 opacity-50" />
+          No hay categorías
+        </div>
+        <div v-for="category in filteredCategories" :key="category.id" class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <div :style="{ width: category.level * 12 + 'px' }" class="flex-shrink-0"></div>
+              <Folder v-if="category.level === 0" class="w-5 h-5 text-brand-500 flex-shrink-0" />
+              <FolderOpen v-else class="w-5 h-5 text-slate-400 flex-shrink-0" />
+              <div>
+                <p class="font-medium text-slate-900 dark:text-white">{{ category.name }}</p>
+                <p class="text-xs text-slate-500">{{ category.level === 0 ? 'Principal' : 'Nivel ' + category.level }}</p>
               </div>
-              <p v-if="category.description" class="text-xs text-slate-500 mt-0.5">{{ category.description }}</p>
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-              <span v-if="category.level === 0" class="text-xs font-medium text-slate-400">Principal</span>
-              <span v-else class="flex items-center gap-1">
-                <ChevronRight class="w-3 h-3" />
-                Nivel {{ category.level }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <span
-                :class="category.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'"
-                class="px-2 py-0.5 rounded-md text-xs font-medium"
-              >
-                {{ category.is_active ? 'Activo' : 'Inactivo' }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1">
-                <button
-                  @click="openModal(category)"
-                  class="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-colors"
-                >
-                  <Pencil class="w-4 h-4" />
-                </button>
-                <button
-                  @click="deleteCategory(category.id)"
-                  class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                >
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="filteredCategories.length === 0">
-            <td colspan="4" class="px-4 py-8 text-center text-slate-400">
-              <Tag class="w-8 h-8 mx-auto mb-2 opacity-50" />
-              No hay categorías
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+            <span :class="category.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'" class="px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap">
+              {{ category.is_active ? 'Activo' : 'Inactivo' }}
+            </span>
+          </div>
+          <p v-if="category.description" class="text-xs text-slate-500 mb-2">{{ category.description }}</p>
+          <div class="flex items-center justify-between">
+            <p v-if="category.hasChildren" class="text-xs text-slate-400">{{ category.children?.length || 0 }} subcategorías</p>
+            <div class="flex items-center gap-1">
+              <button @click="openModal(category)" class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button @click="deleteCategory(category.id)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->

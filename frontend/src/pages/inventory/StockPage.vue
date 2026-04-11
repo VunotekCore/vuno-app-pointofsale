@@ -29,6 +29,7 @@ const showModal = ref(false)
 const searchQuery = ref('')
 const selectedLocation = ref(null)
 const activeTab = ref('stock')
+const showFilters = ref(false)
 const currentPage = ref(1)
 const pageLimit = ref(50)
 const totalRecords = ref(0)
@@ -293,25 +294,67 @@ onMounted(loadData)
     <!-- TAB: STOCK -->
     <div v-if="activeTab === 'stock'">
       <!-- Filters -->
-      <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
-        <div class="relative flex-1 min-w-[150px]">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Buscar..."
-            class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-          />
-          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4">
+        <!-- Mobile/Tablet Filter Toggle -->
+        <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+          <button
+            @click="showFilters = !showFilters"
+            class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+          >
+            <Search class="w-4 h-4" />
+            {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+            <span v-if="searchQuery || selectedLocation" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+              {{ [searchQuery && 'Búsqueda', selectedLocation && 'Ubicación'].filter(Boolean).length }}
+            </span>
+          </button>
         </div>
-        <select
-          v-model="selectedLocation"
-          @change="filterByLocation"
-          class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-        >
-          <option :value="null">Todas las ubicaciones</option>
-          <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
-        </select>
+
+        <!-- Desktop Search Bar (always visible) -->
+        <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Buscar por SKU o nombre..."
+              class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+            />
+            <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+          </div>
+        </div>
+
+        <!-- Desktop Filters -->
+        <div class="hidden lg:flex flex-wrap gap-3 p-4">
+          <select
+            v-model="selectedLocation"
+            @change="filterByLocation"
+            class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          >
+            <option :value="null">Todas las ubicaciones</option>
+            <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
+          </select>
+        </div>
+
+        <!-- Mobile Filters Panel -->
+        <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Buscar..."
+              class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+            />
+          </div>
+          <select
+            v-model="selectedLocation"
+            @change="filterByLocation"
+            class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+          >
+            <option :value="null">Todas las ubicaciones</option>
+            <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
+          </select>
+        </div>
       </div>
 
       <!-- Summary Cards -->
@@ -356,65 +399,103 @@ onMounted(loadData)
       </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">SKU</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Producto</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-            <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Variación</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cantidad</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Reservado</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">En Tránsito</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-          <tr v-for="item in filteredStock" :key="item.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-4 py-3">
-              <span class="font-mono text-sm text-slate-600 dark:text-slate-300">{{ item.item_number }}</span>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <Package class="w-4 h-4 text-slate-400" />
-                <span class="font-medium text-slate-900 dark:text-white">{{ item.item_name }}</span>
-              </div>
-            </td>
-            <td class="px-4 py-3">
-              <div class="flex items-center gap-2">
-                <MapPin class="w-3 h-3 text-slate-400" />
-                <span class="text-sm text-slate-600 dark:text-slate-400">{{ item.location_name }} ({{ item.location_code }})</span>
-              </div>
-            </td>
-            <td class="px-4 py-3 text-center text-sm text-slate-600 dark:text-slate-400">
-              <span v-if="item.attributes" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs">
-                {{ item.attributes ? JSON.stringify(item.attributes) : '-' }}
-              </span>
-              <span v-else>-</span>
-            </td>
-            <td class="px-4 py-3 text-right">
-              <span :class="getQuantityClass(item.quantity)" class="font-medium">
-                {{ parseFloat(item.quantity || 0).toLocaleString() }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
-              {{ parseFloat(item.quantity_reserved || 0).toLocaleString() }}
-            </td>
-            <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
-              {{ parseFloat(item.quantity_in_transit || 0).toLocaleString() }}
-            </td>
-          </tr>
-          <tr v-if="filteredStock.length === 0">
-            <td colspan="7" class="px-4 py-8 text-center text-slate-400">
-              <Package class="w-8 h-8 mx-auto mb-2 opacity-50" />
-              No hay stock
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">SKU</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Producto</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+              <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Variación</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cantidad</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Reservado</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">En Tránsito</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            <tr v-for="item in filteredStock" :key="item.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3">
+                <span class="font-mono text-sm text-slate-600 dark:text-slate-300">{{ item.item_number }}</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <Package class="w-4 h-4 text-slate-400" />
+                  <span class="font-medium text-slate-900 dark:text-white">{{ item.item_name }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <MapPin class="w-3 h-3 text-slate-400" />
+                  <span class="text-sm text-slate-600 dark:text-slate-400">{{ item.location_name }} ({{ item.location_code }})</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-center text-sm text-slate-600 dark:text-slate-400">
+                <span v-if="item.attributes" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs">
+                  {{ item.attributes ? JSON.stringify(item.attributes) : '-' }}
+                </span>
+                <span v-else>-</span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <span :class="getQuantityClass(item.quantity)" class="font-medium">
+                  {{ parseFloat(item.quantity || 0).toLocaleString() }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
+                {{ parseFloat(item.quantity_reserved || 0).toLocaleString() }}
+              </td>
+              <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
+                {{ parseFloat(item.quantity_in_transit || 0).toLocaleString() }}
+              </td>
+            </tr>
+            <tr v-if="filteredStock.length === 0">
+              <td colspan="7" class="px-4 py-8 text-center text-slate-400">
+                <Package class="w-8 h-8 mx-auto mb-2 opacity-50" />
+                No hay stock
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="filteredStock.length === 0" class="p-8 text-center text-slate-400">
+          <Package class="w-8 h-8 mx-auto mb-2 opacity-50" />
+          No hay stock
+        </div>
+        <div
+          v-for="item in filteredStock"
+          :key="item.id"
+          class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p class="font-mono text-xs text-slate-500">{{ item.item_number }}</p>
+              <p class="font-medium text-slate-900 dark:text-white">{{ item.item_name }}</p>
+            </div>
+            <span :class="getQuantityClass(item.quantity)" class="font-bold text-lg">
+              {{ parseFloat(item.quantity || 0).toLocaleString() }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div>
+              <span class="text-slate-400">Ubicación:</span> {{ item.location_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Reservado:</span> {{ parseFloat(item.quantity_reserved || 0).toLocaleString() }}
+            </div>
+            <div v-if="item.attributes">
+              <span class="text-slate-400">Variación:</span> {{ JSON.stringify(item.attributes) }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -454,69 +535,116 @@ onMounted(loadData)
 
     <!-- TAB: HISTORIAL -->
     <div v-if="activeTab === 'history'">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div v-if="loading" class="p-8 flex justify-center">
           <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
         </div>
-        <table v-else class="w-full">
-          <thead class="bg-slate-50 dark:bg-slate-800/50">
-            <tr>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Producto</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tipo</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Antes</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cambio</th>
-              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Después</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Notas</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-            <tr v-for="mov in movements" :key="mov.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                {{ new Date(mov.created_at).toLocaleString() }}
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <Package class="w-4 h-4 text-slate-400" />
-                  <span class="font-medium text-slate-900 dark:text-white">{{ mov.item_name }}</span>
-                </div>
-                <span class="text-xs text-slate-500">{{ mov.item_number }}</span>
-              </td>
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <MapPin class="w-3 h-3 text-slate-400" />
-                  <span class="text-sm text-slate-600 dark:text-slate-400">{{ mov.location_name }} ({{ mov.location_code }})</span>
-                </div>
-              </td>
-              <td class="px-4 py-3">
-                <span :class="getMovementTypeClass(mov.movement_type)" class="px-2 py-1 rounded-full text-xs font-medium">
-                  {{ getMovementTypeLabel(mov.movement_type) }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
-                {{ parseFloat(mov.quantity_before || 0).toLocaleString() }}
-              </td>
-              <td class="px-4 py-3 text-right">
-                <span :class="getDifferenceClass(mov.quantity_change)" class="font-medium">
+        
+        <!-- Desktop Table -->
+        <div class="hidden lg:block overflow-x-auto">
+          <table class="w-full">
+            <thead class="bg-slate-50 dark:bg-slate-800/50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Producto</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Tipo</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Antes</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cambio</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Después</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Notas</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              <tr v-for="mov in movements" :key="mov.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+                  {{ new Date(mov.created_at).toLocaleString() }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <Package class="w-4 h-4 text-slate-400" />
+                    <span class="font-medium text-slate-900 dark:text-white">{{ mov.item_name }}</span>
+                  </div>
+                  <span class="text-xs text-slate-500">{{ mov.item_number }}</span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <MapPin class="w-3 h-3 text-slate-400" />
+                    <span class="text-sm text-slate-600 dark:text-slate-400">{{ mov.location_name }} ({{ mov.location_code }})</span>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span :class="getMovementTypeClass(mov.movement_type)" class="px-2 py-1 rounded-full text-xs font-medium">
+                    {{ getMovementTypeLabel(mov.movement_type) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-right text-sm text-slate-600 dark:text-slate-400">
+                  {{ parseFloat(mov.quantity_before || 0).toLocaleString() }}
+                </td>
+                <td class="px-4 py-3 text-right">
+                  <span :class="getDifferenceClass(mov.quantity_change)" class="font-medium">
+                    {{ mov.quantity_change > 0 ? '+' : '' }}{{ parseFloat(mov.quantity_change || 0).toLocaleString() }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-right text-sm font-medium text-slate-900 dark:text-white">
+                  {{ parseFloat(mov.quantity_after || 0).toLocaleString() }}
+                </td>
+                <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
+                  {{ mov.notes || '-' }}
+                </td>
+              </tr>
+              <tr v-if="movements.length === 0">
+                <td colspan="8" class="px-4 py-8 text-center text-slate-400">
+                  <ClipboardList class="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  No hay movimientos de inventario
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+          <div v-if="movements.length === 0" class="p-8 text-center text-slate-400">
+            <ClipboardList class="w-8 h-8 mx-auto mb-2 opacity-50" />
+            No hay movimientos
+          </div>
+          <div
+            v-for="mov in movements"
+            :key="mov.id"
+            class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          >
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <p class="font-medium text-slate-900 dark:text-white">{{ mov.item_name }}</p>
+                <p class="text-xs text-slate-500">{{ new Date(mov.created_at).toLocaleString() }}</p>
+              </div>
+              <span :class="getMovementTypeClass(mov.movement_type)" class="px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">
+                {{ getMovementTypeLabel(mov.movement_type) }}
+              </span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 text-xs mb-2">
+              <div class="text-center">
+                <p class="text-slate-400">Antes</p>
+                <p class="font-medium text-slate-600 dark:text-slate-300">{{ parseFloat(mov.quantity_before || 0).toLocaleString() }}</p>
+              </div>
+              <div class="text-center">
+                <p class="text-slate-400">Cambio</p>
+                <p :class="getDifferenceClass(mov.quantity_change)" class="font-bold">
                   {{ mov.quantity_change > 0 ? '+' : '' }}{{ parseFloat(mov.quantity_change || 0).toLocaleString() }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-right text-sm font-medium text-slate-900 dark:text-white">
-                {{ parseFloat(mov.quantity_after || 0).toLocaleString() }}
-              </td>
-              <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
-                {{ mov.notes || '-' }}
-              </td>
-            </tr>
-            <tr v-if="movements.length === 0">
-              <td colspan="8" class="px-4 py-8 text-center text-slate-400">
-                <ClipboardList class="w-8 h-8 mx-auto mb-2 opacity-50" />
-                No hay movimientos de inventario
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                </p>
+              </div>
+              <div class="text-center">
+                <p class="text-slate-400">Después</p>
+                <p class="font-medium text-slate-900 dark:text-white">{{ parseFloat(mov.quantity_after || 0).toLocaleString() }}</p>
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              <span class="text-slate-400">Ubicación:</span> {{ mov.location_name }}
+            </p>
+            <p v-if="mov.notes" class="text-xs text-slate-500 mt-1">{{ mov.notes }}</p>
+          </div>
+        </div>
       </div>
     </div>
 

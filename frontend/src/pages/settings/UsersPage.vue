@@ -5,7 +5,7 @@ import { useNotificationStore } from '../../stores/notification.store.js'
 import { usePhoneFormatter } from '../../utils/phone.utils.js'
 import { useDebounce } from '../../composables/useDebounce.js'
 import ImageUpload from '../../components/ImageUpload.vue'
-import { Plus, Trash2, X, Mail, Pencil, MapPin, User, Briefcase, Phone, Calendar, Loader2, Search } from 'lucide-vue-next'
+import { Plus, Trash2, X, Mail, Pencil, MapPin, Briefcase, Phone, Calendar, Loader2, Search, UserCircle } from 'lucide-vue-next'
 
 const notify = useNotificationStore()
 const { formatPhoneOnBlur } = usePhoneFormatter()
@@ -27,6 +27,7 @@ const searchQuery = ref('')
 const avatarFile = ref(null)
 const avatarPreview = ref('')
 const saving = ref(false)
+const showFilters = ref(false)
 
 const currentPage = ref(1)
 const pageLimit = ref(20)
@@ -350,9 +351,23 @@ watch(searchQuery, () => {
 
     <div v-if="loading" class="text-center py-8 text-slate-500">Cargando...</div>
 
-    <div v-else class="card overflow-x-auto">
-      <!-- Filters -->
-      <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+    <div v-else class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <!-- Mobile Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="searchQuery" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            1
+          </span>
+        </button>
+      </div>
+
+      <!-- Desktop Search (always visible) -->
+      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
         <div class="relative max-w-md">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -365,51 +380,117 @@ watch(searchQuery, () => {
         </div>
       </div>
 
-      <table class="w-full min-w-[600px]">
-          <thead class="bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <!-- <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">ID</th> -->
-            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Usuario</th>
-            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Email</th>
-            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Rol</th>
-            <th class="px-4 md:px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Ubicaciones</th>
-            <th class="px-4 md:px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
-          <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-4 md:px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{{ user.username }}</td>
-            <td class="px-4 md:px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
-              <Mail class="w-4 h-4 inline mr-1" />
-              {{ user.email }}
-            </td>
-            <td class="px-4 md:px-6 py-4 text-sm text-slate-500">
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-400">
-                {{ roles.find(r => r.id === user.role_id)?.name || 'Rol ' + user.role_id }}
-              </span>
-            </td>
-            <td class="px-4 md:px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
-              <span class="inline-flex items-center gap-1">
-                <MapPin class="w-3 h-3" />
-                {{ getUserLocations(user.id) }}
-              </span>
-            </td>
-            <td class="px-4 md:px-6 py-4 text-right">
-              <div class="flex justify-end gap-1">
-                <button @click="openEditModal(user)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                  <Pencil class="w-4 h-4" />
-                </button>
-                <button @click="deleteUser(user.id)" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Mobile Search Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar por usuario o email..."
+            class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+        </div>
+      </div>
 
-      <div v-if="users.length === 0" class="text-center py-12 text-slate-500">
-        No hay usuarios
+      <!-- Loading State -->
+      <div v-if="loading" class="p-8 flex justify-center">
+        <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
+      </div>
+
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full min-w-[600px]">
+          <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Usuario</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Email</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Rol</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicaciones</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-for="user in users" :key="user.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">{{ user.username }}</td>
+              <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  <Mail class="w-4 h-4" />
+                  {{ user.email }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-400">
+                  {{ roles.find(r => r.id === user.role_id)?.name || 'Rol ' + user.role_id }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1">
+                  <MapPin class="w-3 h-3" />
+                  {{ getUserLocations(user.id) }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex justify-end gap-1">
+                  <button @click="openEditModal(user)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button @click="deleteUser(user.id)" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="users.length === 0" class="text-center py-12 text-slate-500 dark:text-slate-400">
+          No hay usuarios
+        </div>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="users.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
+          No hay usuarios
+        </div>
+        <div
+          v-for="user in users"
+          :key="user.id"
+          class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 rounded-full flex items-center justify-center">
+                <UserCircle class="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              </div>
+              <div>
+                <p class="font-medium text-slate-900 dark:text-white">{{ user.username }}</p>
+                <p class="text-xs text-slate-500 flex items-center gap-1">
+                  <Mail class="w-3 h-3" />
+                  {{ user.email }}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1">
+              <button @click="openEditModal(user)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button @click="deleteUser(user.id)" class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 text-xs">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-400">
+              {{ roles.find(r => r.id === user.role_id)?.name || 'Rol ' + user.role_id }}
+            </span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+              <MapPin class="w-3 h-3" />
+              {{ getUserLocations(user.id) }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- Pagination -->
@@ -465,7 +546,7 @@ watch(searchQuery, () => {
             class="flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors"
             :class="activeTab === 'user' ? 'border-brand-500 text-brand-600 dark:text-brand-400' : 'border-transparent text-slate-500 hover:text-slate-700'"
           >
-            <User class="w-4 h-4" />
+            <UserCircle class="w-4 h-4" />
             Usuario
           </button>
           <button 

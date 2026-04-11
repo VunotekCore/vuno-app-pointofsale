@@ -47,11 +47,14 @@ const currentPage = ref(1)
 const pageLimit = ref(20)
 const totalRecords = ref(0)
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
+const showFilters = ref(false)
 
 const dateFrom = ref('')
 const dateTo = ref('')
-const dateFromInputRef = ref(null)
-const dateToInputRef = ref(null)
+const dateFromInputRefDesktop = ref(null)
+const dateToInputRefDesktop = ref(null)
+const dateFromInputRefMobile = ref(null)
+const dateToInputRefMobile = ref(null)
 let dateFromPicker = null
 let dateToPicker = null
 
@@ -103,8 +106,8 @@ onMounted(async () => {
     }
   }
 
-  if (dateFromInputRef.value) {
-    dateFromPicker = flatpickr(dateFromInputRef.value, {
+  if (dateFromInputRefDesktop.value) {
+    dateFromPicker = flatpickr(dateFromInputRefDesktop.value, {
       dateFormat: 'Y-m-d',
       altInput: true,
       altFormat: 'd/m/Y',
@@ -118,8 +121,8 @@ onMounted(async () => {
     dateFromPicker.setDate(from)
   }
 
-  if (dateToInputRef.value) {
-    dateToPicker = flatpickr(dateToInputRef.value, {
+  if (dateToInputRefDesktop.value) {
+    dateToPicker = flatpickr(dateToInputRefDesktop.value, {
       dateFormat: 'Y-m-d',
       altInput: true,
       altFormat: 'd/m/Y',
@@ -131,6 +134,34 @@ onMounted(async () => {
       }
     })
     dateToPicker.setDate(to)
+  }
+
+  if (dateFromInputRefMobile.value) {
+    flatpickr(dateFromInputRefMobile.value, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      locale: spanishLocale,
+      onChange: (selectedDates, dateStr) => {
+        dateFrom.value = dateStr
+        currentPage.value = 1
+        loadClosures()
+      }
+    })
+  }
+
+  if (dateToInputRefMobile.value) {
+    flatpickr(dateToInputRefMobile.value, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      locale: spanishLocale,
+      onChange: (selectedDates, dateStr) => {
+        dateTo.value = dateStr
+        currentPage.value = 1
+        loadClosures()
+      }
+    })
   }
   
   await loadLocations()
@@ -302,8 +333,23 @@ function goToCaja() {
       </div>
 
       <!-- Filters -->
-      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-        <div class="flex flex-col md:flex-row gap-2 md:gap-4">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+        <!-- Mobile Filter Toggle -->
+        <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+          <button
+            @click="showFilters = !showFilters"
+            class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+          >
+            <Search class="w-4 h-4" />
+            {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+            <span v-if="searchQuery || selectedLocation" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+              {{ [searchQuery && 'Búsqueda', selectedLocation && 'Ubicación'].filter(Boolean).length }}
+            </span>
+          </button>
+        </div>
+
+        <!-- Desktop Filters (always visible) -->
+        <div class="hidden lg:flex flex-row gap-3 p-4">
           <div class="flex-1 min-w-[150px]">
             <div class="relative">
               <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -319,7 +365,7 @@ function goToCaja() {
           <select
             v-model="selectedLocation"
             @change="loadClosures"
-            class="w-full md:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+            class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
           >
             <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
               {{ loc.name }}
@@ -327,17 +373,59 @@ function goToCaja() {
           </select>
           <div class="relative">
             <input
-              ref="dateFromInputRef"
+              ref="dateFromInputRefDesktop"
+              v-model="dateFrom"
               type="text"
-              class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+              class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
             />
           </div>
           <div class="relative">
             <input
-              ref="dateToInputRef"
+              ref="dateToInputRefDesktop"
+              v-model="dateTo"
               type="text"
-              class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+              class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
             />
+          </div>
+        </div>
+
+        <!-- Mobile Filters Panel -->
+        <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Buscar..."
+              class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+            />
+          </div>
+          <select
+            v-model="selectedLocation"
+            @change="loadClosures"
+            class="w-full px-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
+          >
+            <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
+              {{ loc.name }}
+            </option>
+          </select>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <input
+                ref="dateFromInputRefMobile"
+                v-model="dateFrom"
+                type="text"
+                class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+              />
+            </div>
+            <div class="flex-1">
+              <input
+                ref="dateToInputRefMobile"
+                v-model="dateTo"
+                type="text"
+                class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+              />
+            </div>
           </div>
         </div>
       </div>
