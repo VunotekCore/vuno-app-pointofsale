@@ -125,37 +125,41 @@ export class InventoryRepository {
       const varId = variationId || null
       const signedQuantity = isEntry ? Math.abs(parseFloat(quantity)) : -Math.abs(parseFloat(quantity))
 
-      let current
+      let queryStock
       if (varId === null) {
-        [current] = await conn.query(
-          'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id IS NULL AND location_id = UUID_TO_BIN(\'' + locationId + '\')'
-        )
+        queryStock = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
       } else {
-        [current] = await conn.query(
-          'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id = UUID_TO_BIN(\'' + varId + '\') AND location_id = UUID_TO_BIN(\'' + locationId + '\')'
-        )
+        queryStock = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
       }
 
-      const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
+      const stockParams = varId === null ? [itemId, locationId] : [itemId, varId, locationId]
+      const currentStock = await conn.query(queryStock, stockParams)
+
+      const quantityBefore = currentStock.length > 0 ? Number(currentStock[0].quantity) : 0
       const quantityAfter = Number(quantityBefore) + signedQuantity
 
-      if (current.length > 0) {
+      if (quantityAfter < 0) {
+        throw new Error(`Stock insuficiente: actual=${quantityBefore}, cambio=${signedQuantity}, resultado=${quantityAfter}`)
+      }
+
+      if (currentStock.length > 0) {
         if (varId === null) {
           await conn.query(
-            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(\'' + createdBy + '\') WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id IS NULL AND location_id = UUID_TO_BIN(\'' + locationId + '\')',
-            [quantityAfter]
+            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(?) WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
+            [quantityAfter, createdBy, itemId, locationId]
           )
         } else {
           await conn.query(
-            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(\'' + createdBy + '\') WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id = UUID_TO_BIN(\'' + varId + '\') AND location_id = UUID_TO_BIN(\'' + locationId + '\')',
-            [quantityAfter]
+            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(?) WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
+            [quantityAfter, createdBy, itemId, varId, locationId]
           )
         }
       } else {
         const qtyUUID = crypto.randomUUID()
+        const varIdBin = varId ? `UUID_TO_BIN('${varId}')` : 'NULL'
         await conn.query(
-          'INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity, created_by) VALUES (UUID_TO_BIN(\'' + qtyUUID + '\'), UUID_TO_BIN(\'' + itemId + '\'), ' + (varId ? "UUID_TO_BIN('" + varId + "')" : 'NULL') + ', UUID_TO_BIN(\'' + locationId + '\'), ?, UUID_TO_BIN(\'' + createdBy + '\'))',
-          [quantityAfter]
+          'INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity, created_by) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ?, UUID_TO_BIN(?))',
+          [qtyUUID, itemId, varIdBin, locationId, quantityAfter, createdBy]
         )
       }
 
