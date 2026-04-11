@@ -8,7 +8,7 @@ export class ItemsRepository {
   }
 
   async getAll (locationId = null, filters = {}) {
-    const { limit = 20, offset = 0, search = '', status = '', company_id } = filters
+    const { limit = 20, offset = 0, search = '', status = '', company_id, supplier_id } = filters
     
     const quantitySubquery = locationId 
       ? `(SELECT COALESCE(SUM(quantity), 0) FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
@@ -31,6 +31,11 @@ export class ItemsRepository {
     if (status) {
       whereClause += ' AND i.status = ?'
       params.push(status)
+    }
+
+    if (supplier_id) {
+      whereClause += ' AND (i.supplier_id = UUID_TO_BIN(?) OR i.preferred_supplier_id = UUID_TO_BIN(?))'
+      params.push(supplier_id, supplier_id)
     }
     
     const countParams = [...params]
