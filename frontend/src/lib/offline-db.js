@@ -11,6 +11,11 @@ db.version(1).stores({
   metadata: 'key'
 })
 
+// Version 2: Agregar company_id a syncQueue para ventas offline
+db.version(2).stores({
+  syncQueue: '++id, type, status, created_at, synced_at, company_id'
+})
+
 export const DB_TABLES = {
   ITEMS: 'items',
   CATEGORIES: 'categories',
