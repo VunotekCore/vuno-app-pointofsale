@@ -3,9 +3,13 @@ import database from '../config/database.js'
 import { PurchaseOrderRepository } from '../repository/purchase-order.repository.js'
 import { PurchaseOrderModel } from '../models/purchase-order.model.js'
 import { PurchaseOrderController } from '../controllers/purchase-order.controller.js'
+import { CompanyRepository } from '../repository/company.repository.js'
+import { SequenceRepository } from '../repository/sequence.repository.js'
 import { authenticate } from '../middleware/auth.middleware.js'
 
-const poRepo = new PurchaseOrderRepository(database)
+const companyRepo = new CompanyRepository(database)
+const sequenceRepo = new SequenceRepository(database, companyRepo)
+const poRepo = new PurchaseOrderRepository(database, companyRepo, sequenceRepo)
 const poModel = new PurchaseOrderModel(poRepo)
 const poController = new PurchaseOrderController(poModel)
 
