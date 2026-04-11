@@ -33,13 +33,16 @@ const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value
 
 const dateFrom = ref('')
 const dateTo = ref('')
-const dateFromInputRef = ref(null)
-const dateToInputRef = ref(null)
+const dateFromInputRefDesktop = ref(null)
+const dateToInputRefDesktop = ref(null)
+const dateFromInputRefMobile = ref(null)
+const dateToInputRefMobile = ref(null)
 let dateFromPicker = null
 let dateToPicker = null
 
 const modalSearchQuery = ref('')
 const searchingSale = ref(false)
+const showFilters = ref(false)
 
 function getCurrentMonthDates() {
   const now = new Date()
@@ -83,35 +86,33 @@ onMounted(async () => {
     }
   }
 
-  if (dateFromInputRef.value) {
-    dateFromPicker = flatpickr(dateFromInputRef.value, {
-      dateFormat: 'Y-m-d',
-      altInput: true,
-      altFormat: 'd/m/Y',
-      locale: spanishLocale,
-      onChange: (selectedDates, dateStr) => {
-        dateFrom.value = dateStr
-        currentPage.value = 1
-        loadReturns()
-      }
-    })
-    dateFromPicker.setDate(from)
+  const initDatePicker = (inputRef, setter) => {
+    if (inputRef.value) {
+      const picker = flatpickr(inputRef.value, {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd/m/Y',
+        locale: spanishLocale,
+        onChange: (selectedDates, dateStr) => {
+          if (setter === 'from') {
+            dateFrom.value = dateStr
+          } else {
+            dateTo.value = dateStr
+          }
+          currentPage.value = 1
+          loadReturns()
+        }
+      })
+      picker.setDate(setter === 'from' ? from : to)
+      return picker
+    }
+    return null
   }
 
-  if (dateToInputRef.value) {
-    dateToPicker = flatpickr(dateToInputRef.value, {
-      dateFormat: 'Y-m-d',
-      altInput: true,
-      altFormat: 'd/m/Y',
-      locale: spanishLocale,
-      onChange: (selectedDates, dateStr) => {
-        dateTo.value = dateStr
-        currentPage.value = 1
-        loadReturns()
-      }
-    })
-    dateToPicker.setDate(to)
-  }
+  dateFromPicker = initDatePicker(dateFromInputRefDesktop, 'from')
+  dateToPicker = initDatePicker(dateToInputRefDesktop, 'to')
+  initDatePicker(dateFromInputRefMobile, 'from')
+  initDatePicker(dateToInputRefMobile, 'to')
   
   await loadReturns()
 })
@@ -351,90 +352,209 @@ onMounted(() => {
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-      <div class="flex flex-col md:flex-row gap-2 md:gap-4 mb-4">
-        <div class="flex-1 min-w-[150px]">
-          <div class="relative">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Buscar..."
-              class="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-            />
-            <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
-          </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4">
+      <!-- Mobile/Tablet Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="dateFrom || dateTo || searchQuery" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ [searchQuery && 'Búsqueda', dateFrom && 'Fecha', dateTo && 'Fecha'].filter(Boolean).length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Desktop Search Bar (always visible) -->
+      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar por número o venta original..."
+            class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
         </div>
+      </div>
+
+      <!-- Desktop Filters -->
+      <div class="hidden lg:flex flex-wrap gap-3 p-4">
         <div class="relative">
           <input
-            ref="dateFromInputRef"
+            ref="dateFromInputRefDesktop"
+            v-model="dateFrom"
             type="text"
-            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
         <div class="relative">
           <input
-            ref="dateToInputRef"
+            ref="dateToInputRefDesktop"
+            v-model="dateTo"
             type="text"
-            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
       </div>
-      <button
-        @click="openCreateModal"
-        class="w-full md:w-auto px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-      >
-        <Plus class="w-4 h-4" />
-        Nueva Devolución
-      </button>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <input
+              ref="dateFromInputRefMobile"
+              v-model="dateFrom"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
+          <div class="flex-1">
+            <input
+              ref="dateToInputRefMobile"
+              v-model="dateTo"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Create Button -->
+      <div class="p-4 pt-0 lg:pt-0">
+        <button
+          @click="openCreateModal"
+          class="w-full lg:w-auto px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <Plus class="w-4 h-4" />
+          Nueva Devolución
+        </button>
+      </div>
     </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Número</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Venta Original</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-          <tr v-for="ret in filteredReturns" :key="ret.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-4 py-3">
-              <span class="font-medium text-slate-900 dark:text-white">{{ ret.return_number }}</span>
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ formatDate(ret.return_date) }}
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ ret.original_sale_number }}
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ ret.location_name }}
-            </td>
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
-              {{ formatMoney(ret.total) }}
-            </td>
-            <td class="px-4 py-3">
-              <span 
-                class="inline-flex px-2 py-1 text-xs font-medium rounded-full"
-                :class="ret.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
-              >
-                {{ ret.status === 'completed' ? 'Procesada' : 'Pendiente' }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-right">
+      
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Número</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Venta Original</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-for="ret in filteredReturns" :key="ret.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3">
+                <span class="font-medium text-slate-900 dark:text-white">{{ ret.return_number }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ formatDate(ret.return_date) }}
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ ret.original_sale_number }}
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ ret.location_name }}
+              </td>
+              <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                {{ formatMoney(ret.total) }}
+              </td>
+              <td class="px-4 py-3">
+                <span 
+                  class="inline-flex px-2 py-1 text-xs font-medium rounded-full"
+                  :class="ret.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
+                >
+                  {{ ret.status === 'completed' ? 'Procesada' : 'Pendiente' }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    @click="viewReturn(ret)"
+                    class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Ver detalles"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
+                  <button
+                    v-if="ret.status !== 'completed'"
+                    @click="processReturn(ret)"
+                    class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Procesar devolución"
+                  >
+                    <RefreshCw class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="filteredReturns.length === 0">
+              <td colspan="7" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                No hay devoluciones registradas
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="filteredReturns.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
+          No hay devoluciones registradas
+        </div>
+        <div
+          v-for="ret in filteredReturns"
+          :key="ret.id"
+          class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">{{ ret.return_number }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ formatDate(ret.return_date) }}</p>
+            </div>
+            <span 
+              class="px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
+              :class="ret.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'"
+            >
+              {{ ret.status === 'completed' ? 'Procesada' : 'Pendiente' }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div>
+              <span class="text-slate-400">Venta:</span> {{ ret.original_sale_number }}
+            </div>
+            <div>
+              <span class="text-slate-400">Ubicación:</span> {{ ret.location_name }}
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(ret.total) }}</p>
+            <div class="flex items-center gap-1">
               <button
                 @click="viewReturn(ret)"
-                class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
                 title="Ver detalles"
               >
                 <Eye class="w-4 h-4" />
@@ -442,20 +562,15 @@ onMounted(() => {
               <button
                 v-if="ret.status !== 'completed'"
                 @click="processReturn(ret)"
-                class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                title="Procesar devolución"
+                class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                title="Procesar"
               >
                 <RefreshCw class="w-4 h-4" />
               </button>
-            </td>
-          </tr>
-          <tr v-if="filteredReturns.length === 0">
-            <td colspan="7" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-              No hay devoluciones registradas
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->

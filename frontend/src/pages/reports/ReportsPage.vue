@@ -41,10 +41,13 @@ const pageLimit = ref(20)
 
 const dateFrom = ref('')
 const dateTo = ref('')
-const dateFromInputRef = ref(null)
-const dateToInputRef = ref(null)
+const dateFromInputRefDesktop = ref(null)
+const dateToInputRefDesktop = ref(null)
+const dateFromInputRefMobile = ref(null)
+const dateToInputRefMobile = ref(null)
 let dateFromPicker = null
 let dateToPicker = null
+const showFilters = ref(false)
 
 const selectedLocation = ref(null)
 const selectedUser = ref(null)
@@ -162,8 +165,8 @@ onMounted(async () => {
     }
   }
 
-  if (dateFromInputRef.value) {
-    dateFromPicker = flatpickr(dateFromInputRef.value, {
+  if (dateFromInputRefDesktop.value) {
+    dateFromPicker = flatpickr(dateFromInputRefDesktop.value, {
       dateFormat: 'Y-m-d',
       altInput: true,
       altFormat: 'd/m/Y',
@@ -176,8 +179,8 @@ onMounted(async () => {
     dateFromPicker.setDate(from)
   }
 
-  if (dateToInputRef.value) {
-    dateToPicker = flatpickr(dateToInputRef.value, {
+  if (dateToInputRefDesktop.value) {
+    dateToPicker = flatpickr(dateToInputRefDesktop.value, {
       dateFormat: 'Y-m-d',
       altInput: true,
       altFormat: 'd/m/Y',
@@ -188,6 +191,32 @@ onMounted(async () => {
       }
     })
     dateToPicker.setDate(to)
+  }
+
+  if (dateFromInputRefMobile.value) {
+    flatpickr(dateFromInputRefMobile.value, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      locale: spanishLocale,
+      onChange: (selectedDates, dateStr) => {
+        dateFrom.value = dateStr
+        loadData()
+      }
+    })
+  }
+
+  if (dateToInputRefMobile.value) {
+    flatpickr(dateToInputRefMobile.value, {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      locale: spanishLocale,
+      onChange: (selectedDates, dateStr) => {
+        dateTo.value = dateStr
+        loadData()
+      }
+    })
   }
 
   await loadLocations()
@@ -415,8 +444,23 @@ function exportData(format) {
         </nav>
       </div>
 
-      <div class="p-4">
-        <div class="flex flex-wrap gap-4">
+      <!-- Mobile Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Filter class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="selectedUser || selectedLocation || statusFilter" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ [selectedUser && 'Usuario', selectedLocation && 'Ubicación', statusFilter && 'Estado'].filter(Boolean).length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Desktop Filters (always visible) -->
+      <div class="hidden lg:block p-4">
+        <div class="flex flex-wrap gap-3">
           <div class="flex-1 min-w-[200px]">
             <select
               v-model="selectedUser"
@@ -452,7 +496,7 @@ function exportData(format) {
 
           <div class="relative">
             <input
-              ref="dateFromInputRef"
+              ref="dateFromInputRefDesktop"
               v-model="dateFrom"
               type="text"
               class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
@@ -460,7 +504,7 @@ function exportData(format) {
           </div>
           <div class="relative">
             <input
-              ref="dateToInputRef"
+              ref="dateToInputRefDesktop"
               v-model="dateTo"
               type="text"
               class="px-4 py-2.5 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
@@ -485,9 +529,79 @@ function exportData(format) {
           </div>
         </div>
       </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <select
+          v-model="selectedUser"
+          class="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option :value="null">Todos los usuarios</option>
+          <option v-for="user in users" :key="user.id" :value="user">
+            {{ user.name }}
+          </option>
+        </select>
+
+        <select
+          v-if="isAdmin"
+          v-model="selectedLocation"
+          class="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option :value="null">Todas las ubicaciones</option>
+          <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
+            {{ loc.name }}
+          </option>
+        </select>
+
+        <select
+          v-if="statusOptions.length > 0"
+          v-model="statusFilter"
+          class="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <input
+              ref="dateFromInputRefMobile"
+              v-model="dateFrom"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
+          <div class="flex-1">
+            <input
+              ref="dateToInputRefMobile"
+              v-model="dateTo"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button
+            @click="exportData('csv')"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+          >
+            <FileSpreadsheet class="w-4 h-4" />
+            CSV
+          </button>
+          <button
+            @click="exportData('excel')"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition-colors"
+          >
+            <Download class="w-4 h-4" />
+            Excel
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
@@ -495,7 +609,8 @@ function exportData(format) {
         No hay datos para mostrar
       </div>
       <template v-else>
-        <div class="overflow-x-auto">
+        <!-- Desktop Table -->
+        <div class="hidden lg:block overflow-x-auto">
           <table class="w-full">
             <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
               <tr>
@@ -545,6 +660,50 @@ function exportData(format) {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+          <div
+            v-for="(row, index) in data"
+            :key="index"
+            class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          >
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <p class="font-medium text-slate-900 dark:text-white text-sm">
+                  {{ row.sale_number || row.document_number || row.receiving_number || row.po_number || tableColumns[0]?.key ? row[tableColumns[0]?.key] : '' }}
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ row.sale_date || row.created_at || row.document_date || '' }}
+                </p>
+              </div>
+              <template v-if="row.status || row.movement_type">
+                <span
+                  v-if="row.status"
+                  class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize whitespace-nowrap"
+                  :class="getStatusClass(row.status)"
+                >
+                  {{ row.status }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize whitespace-nowrap"
+                  :class="row.movement_type === 'in' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : row.movement_type === 'out' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'"
+                >
+                  {{ row.movement_type === 'in' ? 'Entrada' : row.movement_type === 'out' ? 'Salida' : 'Ajuste' }}
+                </span>
+              </template>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div v-for="col in tableColumns.filter(c => !['sale_number', 'document_number', 'sale_date', 'created_at', 'document_date', 'status', 'movement_type'].includes(c.key))" :key="col.key">
+                <span class="text-slate-400">{{ col.label }}:</span>
+                <span :class="col.key === 'quantity_change' ? (parseFloat(row[col.key]) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400') : 'text-slate-600 dark:text-slate-300'" class="ml-1">
+                  {{ getCellValue(row, col) }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </template>
     </div>
