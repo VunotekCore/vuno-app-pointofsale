@@ -48,6 +48,8 @@ const companyData = ref({
   logo_url: ''
 })
 
+const defaultLogo = 'https://ik.imagekit.io/vijys5g3r/logos/logovuno_sMoyvkfEfv.webp?updatedAt=1774315093026'
+
 const loadCompanyData = async () => {
   try {
     const response = await api.get('/companies')
@@ -349,8 +351,8 @@ const backToPlatform = () => {
             <img :src="companyData.logo_url" alt="Logo" class="w-9 h-9 rounded-xl object-cover" />
           </template>
           <template v-else>
-            <div class="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/30">
-              POS
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/30">
+              <img :src="defaultLogo" alt="Logo" class="w-9 h-9 rounded-xl object-contain" />
             </div>
           </template>
           <span v-if="isSidebarOpen" class="font-bold text-xl tracking-tight text-slate-900 dark:text-white">
