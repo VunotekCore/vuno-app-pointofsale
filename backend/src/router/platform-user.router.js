@@ -14,7 +14,6 @@ const router = Router()
 // console.log('platformUserRouter loaded')
 
 router.post('/login', (req, res, next) => {
-  console.log('login route hit')
   platformUserController.login(req, res, next)
 })
 router.post('/register', (req, res, next) => platformUserController.register(req, res, next))
