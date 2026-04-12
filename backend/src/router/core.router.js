@@ -26,7 +26,7 @@ const tableConfig = {
 
 function createCrudRouter (tableName, config) {
   const genericRepo = new GenericRepository(database, tableName)
-  const genericModel = new GenericModel(genericRepo, config)
+  const genericModel = new GenericModel(genericRepo, config, tableName)
   const genericController = new GenericController(genericModel)
 
   const router = Router()

@@ -7,8 +7,9 @@ export class InventoryRepository {
   }
 
   async getStockByLocation(filters = {}) {
-    const { locationId, userLocations, isAdmin, search, limit, offset } = filters
+    const { locationId, userLocations, isAdmin, search, limit, offset, companyId } = filters
     const params = []
+    const countParams = []
 
     let query = `
       SELECT
@@ -35,19 +36,28 @@ export class InventoryRepository {
       WHERE 1=1
     `
 
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+      countParams.push(companyId)
+    }
+
     if (locationId) {
       query += ' AND iq.location_id = UUID_TO_BIN(?)'
       params.push(locationId)
+      countParams.push(locationId)
     } else if (!isAdmin && userLocations && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND iq.location_id IN (${placeholders})`
       params.push(...userLocations)
+      countParams.push(...userLocations)
     }
 
     if (search) {
       query += ' AND (i.name LIKE ? OR i.item_number LIKE ?)'
       const searchTerm = `%${search}%`
       params.push(searchTerm, searchTerm)
+      countParams.push(searchTerm, searchTerm)
     }
 
     const countQuery = `SELECT COUNT(*) as total FROM item_quantities iq
@@ -56,21 +66,20 @@ export class InventoryRepository {
       WHERE 1=1`
     
     let countWhere = ''
-    const countParams = []
+    
+    if (companyId) {
+      countWhere += ' AND i.company_id = UUID_TO_BIN(?)'
+    }
     
     if (locationId) {
       countWhere += ' AND iq.location_id = UUID_TO_BIN(?)'
-      countParams.push(locationId)
     } else if (!isAdmin && userLocations && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       countWhere += ` AND iq.location_id IN (${placeholders})`
-      countParams.push(...userLocations)
     }
     
     if (search) {
       countWhere += ' AND (i.name LIKE ? OR i.item_number LIKE ?)'
-      const searchTerm = `%${search}%`
-      countParams.push(searchTerm, searchTerm)
     }
 
     const totalResult = await this.db.query(countQuery + countWhere, countParams)
@@ -108,49 +117,54 @@ export class InventoryRepository {
     return parseFloat(rows[0]?.total || 0)
   }
 
-  async updateStock(itemId, variationId, locationId, quantity, createdBy) {
+  async updateStock(itemId, variationId, locationId, quantity, createdBy, isEntry = true) {
     const conn = await this.db.getConnection()
     try {
       await conn.beginTransaction()
 
       const varId = variationId || null
+      const signedQuantity = isEntry ? Math.abs(parseFloat(quantity)) : -Math.abs(parseFloat(quantity))
 
-      let current
+      let queryStock
       if (varId === null) {
-        [current] = await conn.query(
-          'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id IS NULL AND location_id = UUID_TO_BIN(\'' + locationId + '\')'
-        )
+        queryStock = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
       } else {
-        [current] = await conn.query(
-          'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id = UUID_TO_BIN(\'' + varId + '\') AND location_id = UUID_TO_BIN(\'' + locationId + '\')'
-        )
+        queryStock = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
       }
 
-      const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
-      const quantityAfter = Number(quantityBefore) + Number(parseFloat(quantity))
+      const stockParams = varId === null ? [itemId, locationId] : [itemId, varId, locationId]
+      const currentStock = await conn.query(queryStock, stockParams)
 
-      if (current.length > 0) {
+      const quantityBefore = currentStock.length > 0 ? Number(currentStock[0].quantity) : 0
+      const quantityAfter = Number(quantityBefore) + signedQuantity
+
+      if (quantityAfter < 0) {
+        throw new Error(`Stock insuficiente: actual=${quantityBefore}, cambio=${signedQuantity}, resultado=${quantityAfter}`)
+      }
+
+      if (currentStock.length > 0) {
         if (varId === null) {
           await conn.query(
-            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(\'' + createdBy + '\') WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id IS NULL AND location_id = UUID_TO_BIN(\'' + locationId + '\')',
-            [quantityAfter]
+            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(?) WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
+            [quantityAfter, createdBy, itemId, locationId]
           )
         } else {
           await conn.query(
-            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(\'' + createdBy + '\') WHERE item_id = UUID_TO_BIN(\'' + itemId + '\') AND variation_id = UUID_TO_BIN(\'' + varId + '\') AND location_id = UUID_TO_BIN(\'' + locationId + '\')',
-            [quantityAfter]
+            'UPDATE item_quantities SET quantity = ?, updated_by = UUID_TO_BIN(?) WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
+            [quantityAfter, createdBy, itemId, varId, locationId]
           )
         }
       } else {
         const qtyUUID = crypto.randomUUID()
+        const varIdBin = varId ? `UUID_TO_BIN('${varId}')` : 'NULL'
         await conn.query(
-          'INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity, created_by) VALUES (UUID_TO_BIN(\'' + qtyUUID + '\'), UUID_TO_BIN(\'' + itemId + '\'), ' + (varId ? "UUID_TO_BIN('" + varId + "')" : 'NULL') + ', UUID_TO_BIN(\'' + locationId + '\'), ?, UUID_TO_BIN(\'' + createdBy + '\'))',
-          [quantityAfter]
+          'INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity, created_by) VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, UUID_TO_BIN(?), ?, UUID_TO_BIN(?))',
+          [qtyUUID, itemId, varIdBin, locationId, quantityAfter, createdBy]
         )
       }
 
       await conn.commit()
-      return { quantityBefore, quantityAfter }
+      return { quantityBefore, quantityAfter, signedQuantity }
     } catch (error) {
       await conn.rollback()
       throw error
@@ -159,7 +173,7 @@ export class InventoryRepository {
     }
   }
 
-  async getMovements(itemId = null, locationId = null, limit = 100, userLocations = [], isAdmin = false) {
+  async getMovements(itemId = null, locationId = null, limit = 100, userLocations = [], isAdmin = false, companyId = null) {
     let query = `
       SELECT
         BIN_TO_UUID(im.id) as id,
@@ -189,20 +203,30 @@ export class InventoryRepository {
       LEFT JOIN item_variations iv ON im.variation_id = iv.id
       WHERE 1=1
     `
+    const params = []
+
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (itemId) {
-      query += ` AND im.item_id = UUID_TO_BIN('${itemId}')`
+      query += ' AND im.item_id = UUID_TO_BIN(?)'
+      params.push(itemId)
     }
     if (locationId) {
-      query += ` AND im.location_id = UUID_TO_BIN('${locationId}')`
+      query += ' AND im.location_id = UUID_TO_BIN(?)'
+      params.push(locationId)
     } else if (!isAdmin && userLocations.length > 0) {
-      const placeholders = userLocations.map(id => `'${id}'`).join(',')
+      const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND im.location_id IN (${placeholders})`
+      params.push(...userLocations)
     }
 
-    query += ' ORDER BY im.created_at DESC LIMIT ' + parseInt(limit)
+    query += ' ORDER BY im.created_at DESC LIMIT ?'
+    params.push(parseInt(limit))
 
-    const rows = await this.db.query(query)
+    const rows = await this.db.query(query, params)
     return rows
   }
 
@@ -293,7 +317,7 @@ export class InventoryRepository {
     return rows
   }
 
-  async getLowStock(userLocations = [], isAdmin = false) {
+  async getLowStock(userLocations = [], isAdmin = false, companyId = null) {
     let query = `
       SELECT
         BIN_TO_UUID(i.id) as id,
@@ -307,21 +331,28 @@ export class InventoryRepository {
       LEFT JOIN categories c ON i.category_id = c.id
       WHERE i.status = 'active' AND i.is_service = 0
     `
+    const params = []
+
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (!isAdmin && userLocations.length > 0) {
-      const placeholders = userLocations.map(id => `'${id}'`).join(',')
+      const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND iq.location_id IN (${placeholders})`
+      params.push(...userLocations)
     }
 
     query += ` GROUP BY i.id
       HAVING COALESCE(SUM(iq.quantity), 0) <= i.reorder_level OR i.reorder_level = 0
       ORDER BY total_quantity ASC`
 
-    const rows = await this.db.query(query)
+    const rows = await this.db.query(query, params)
     return rows
   }
 
-  async getStockInTransit(locationIds = [], isAdmin = false) {
+  async getStockInTransit(locationIds = [], isAdmin = false, companyId = null) {
     let query = `
       SELECT 
         BIN_TO_UUID(iq.id) as id,
@@ -342,15 +373,22 @@ export class InventoryRepository {
       LEFT JOIN item_variations iv ON iq.variation_id = iv.id
       WHERE iq.quantity_in_transit > 0
     `
+    const params = []
+
+    if (companyId) {
+      query += ' AND i.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
 
     if (!isAdmin && locationIds.length > 0) {
-      const placeholders = locationIds.map(id => `'${id}'`).join(',')
+      const placeholders = locationIds.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND iq.location_id IN (${placeholders})`
+      params.push(...locationIds)
     }
 
     query += ' ORDER BY l.name, i.name'
 
-    const rows = await this.db.query(query)
+    const rows = await this.db.query(query, params)
     return rows
   }
 }

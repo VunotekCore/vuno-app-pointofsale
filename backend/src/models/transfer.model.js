@@ -23,8 +23,8 @@ export class TransferModel {
     return await this.transferRepo.getPendingReceipt(userLocations, isAdmin)
   }
 
-  async getById (id, userLocations = [], isAdmin = false) {
-    const transfer = await this.transferRepo.getById(id)
+  async getById (id, userLocations = [], isAdmin = false, companyId = null) {
+    const transfer = await this.transferRepo.getById(id, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }
@@ -41,7 +41,7 @@ export class TransferModel {
     return { ...transfer, items }
   }
 
-  async create (data, userId, userLocations = [], isAdmin = false) {
+  async create (data, userId, userLocations = [], isAdmin = false, companyId) {
     if (data.from_location_id === data.to_location_id) {
       throw new BadRequestError('La ubicación de origen y destino no pueden ser iguales')
     }
@@ -60,19 +60,20 @@ export class TransferModel {
       from_location_id: data.from_location_id,
       to_location_id: data.to_location_id,
       notes: data.notes,
-      created_by: userId
+      created_by: userId,
+      company_id: companyId
     })
 
     return { id, transfer_number: transferNumber }
   }
 
-  async addItem (data, userId, userLocations = [], isAdmin = false) {
-    const item = await this.itemsRepo.getById(data.item_id)
+  async addItem (data, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const item = await this.itemsRepo.getById(data.item_id, null, companyId)
     if (!item) {
       throw new NotFoundError('Producto no encontrado')
     }
 
-    const transfer = await this.transferRepo.getById(data.transfer_id)
+    const transfer = await this.transferRepo.getById(data.transfer_id, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }
@@ -108,8 +109,8 @@ export class TransferModel {
     await this.transferRepo.updateTotals(data.transfer_id)
   }
 
-  async removeItem (transferId, itemId, userLocations = [], isAdmin = false) {
-    const transfer = await this.transferRepo.getById(transferId)
+  async removeItem (transferId, itemId, userLocations = [], isAdmin = false, companyId = null) {
+    const transfer = await this.transferRepo.getById(transferId, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }
@@ -129,8 +130,8 @@ export class TransferModel {
     await this.transferRepo.updateTotals(transferId)
   }
 
-  async ship (id, userId, userLocations = [], isAdmin = false) {
-    const transfer = await this.transferRepo.getById(id)
+  async ship (id, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const transfer = await this.transferRepo.getById(id, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }
@@ -167,8 +168,8 @@ export class TransferModel {
     return true
   }
 
-  async receive (id, userId, items = [], userLocations = [], isAdmin = false) {
-    const transfer = await this.transferRepo.getById(id)
+  async receive (id, userId, items = [], userLocations = [], isAdmin = false, companyId = null) {
+    const transfer = await this.transferRepo.getById(id, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }
@@ -188,8 +189,8 @@ export class TransferModel {
     return true
   }
 
-  async cancel (id, userId, userLocations = [], isAdmin = false) {
-    const transfer = await this.transferRepo.getById(id)
+  async cancel (id, userId, userLocations = [], isAdmin = false, companyId = null) {
+    const transfer = await this.transferRepo.getById(id, companyId)
     if (!transfer) {
       throw new NotFoundError('Transferencia no encontrada')
     }

@@ -30,8 +30,9 @@
   const showModal = ref(false)
   const selectedTransfer = ref(null)
   const searchQuery = ref('')
-  const selectedFilter = ref('')
-  const saving = ref(false)
+const selectedFilter = ref('')
+const showFilters = ref(false)
+const saving = ref(false)
   const currentPage = ref(1)
   const pageLimit = ref(20)
   const totalRecords = ref(0)
@@ -307,127 +308,164 @@ function openModal(transfer = null) {
       </button>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4">
-      <div class="relative flex-1 min-w-[150px]">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Buscar..."
-          class="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-        />
-        <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+    <!-- Search & Filters -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4">
+      <!-- Mobile/Tablet Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="selectedFilter" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            1
+          </span>
+        </button>
       </div>
-      <select
-        v-model="selectedFilter"
-        class="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-      >
-        <option value="">Todos los estados</option>
-        <option value="pending">Pendiente</option>
-        <option value="in_transit">En Tránsito</option>
-        <option value="completed">Completado</option>
-        <option value="cancelled">Cancelado</option>
-      </select>
+
+      <!-- Desktop Search Bar (always visible) -->
+      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar transferencias..."
+            class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+        </div>
+      </div>
+
+      <!-- Desktop Filters -->
+      <div class="hidden lg:flex flex-wrap gap-3 p-4">
+        <select
+          v-model="selectedFilter"
+          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendiente</option>
+          <option value="in_transit">En Tránsito</option>
+          <option value="completed">Completado</option>
+          <option value="cancelled">Cancelado</option>
+        </select>
+      </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+        </div>
+        <select
+          v-model="selectedFilter"
+          class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+        >
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendiente</option>
+          <option value="in_transit">En Tránsito</option>
+          <option value="completed">Completado</option>
+          <option value="cancelled">Cancelado</option>
+        </select>
+      </div>
     </div>
 
-    <div
-      class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto"
-    >
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800/50">
-          <tr>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Número
-            </th>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Origen
-            </th>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Destino
-            </th>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Items
-            </th>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Estado
-            </th>
-            <th
-              class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Fecha
-            </th>
-            <th
-              class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase"
-            >
-              Acción
-            </th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-          <tr
-            v-for="transfer in filteredTransfers"
-            :key="transfer.id"
-            class="hover:bg-slate-50 dark:hover:bg-slate-800/50"
-          >
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">
-              {{ transfer.transfer_number }}
-            </td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
-              <div class="flex items-center gap-2">
-                <MapPin class="w-3.5 h-3.5" />
-                {{ transfer.from_location_name }}
-              </div>
-            </td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
-              <div class="flex items-center gap-2">
-                <MapPin class="w-3.5 h-3.5" />
-                {{ transfer.to_location_name }}
-              </div>
-            </td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
-              {{ transfer.total_items || 0 }}
-            </td>
-            <td class="px-4 py-3">
-              <span
-                :class="[
-                  'px-2 py-0.5 rounded-md text-xs font-medium',
-                  getStatusBadge(transfer.status).class
-                ]"
-              >
-                {{ getStatusBadge(transfer.status).label }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-slate-500 dark:text-slate-400 text-sm">
-              {{ new Date(transfer.created_at).toLocaleDateString() }}
-            </td>
-            <td class="px-4 py-3 text-right">
-              <button
-                @click="openModal(transfer)"
-                class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                title="Ver detalles"
-              >
-                <Eye class="w-4 h-4" />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="!loading && filteredTransfers.length === 0" class="p-8 text-center text-slate-400">
-        <ArrowRightLeft class="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No hay transferencias
+      
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Número</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Origen</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Destino</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Items</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acción</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-for="transfer in filteredTransfers" :key="transfer.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ transfer.transfer_number }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+                <div class="flex items-center gap-2">
+                  <MapPin class="w-3.5 h-3.5" />
+                  {{ transfer.from_location_name }}
+                </div>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-400">
+                <div class="flex items-center gap-2">
+                  <MapPin class="w-3.5 h-3.5" />
+                  {{ transfer.to_location_name }}
+                </div>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-400">{{ transfer.total_items || 0 }}</td>
+              <td class="px-4 py-3">
+                <span :class="['px-2 py-0.5 rounded-md text-xs font-medium', getStatusBadge(transfer.status).class]">
+                  {{ getStatusBadge(transfer.status).label }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-500 dark:text-slate-400 text-sm">{{ new Date(transfer.created_at).toLocaleDateString() }}</td>
+              <td class="px-4 py-3 text-right">
+                <button @click="openModal(transfer)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Ver detalles">
+                  <Eye class="w-4 h-4" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="filteredTransfers.length === 0" class="p-8 text-center text-slate-400">
+          <ArrowRightLeft class="w-8 h-8 mx-auto mb-2 opacity-50" />
+          No hay transferencias
+        </div>
+        <div v-for="transfer in filteredTransfers" :key="transfer.id" class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">{{ transfer.transfer_number }}</p>
+              <p class="text-xs text-slate-500">{{ new Date(transfer.created_at).toLocaleDateString() }}</p>
+            </div>
+            <span :class="['px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap', getStatusBadge(transfer.status).class]">
+              {{ getStatusBadge(transfer.status).label }}
+            </span>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div class="flex items-center gap-1">
+              <span class="text-slate-400">De:</span>
+              <MapPin class="w-3 h-3" />
+              {{ transfer.from_location_name }}
+            </div>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div class="flex items-center gap-1">
+              <span class="text-slate-400">A:</span>
+              <MapPin class="w-3 h-3" />
+              {{ transfer.to_location_name }}
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-slate-500">
+              <span class="text-slate-400">{{ transfer.total_items || 0 }}</span> items
+            </p>
+            <button @click="openModal(transfer)" class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+              <Eye class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

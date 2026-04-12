@@ -70,6 +70,10 @@ export const useUnitsStore = defineStore('units', () => {
     return units.value.find(u => u.id === unitId) || null
   }
 
+  function getItemUnitsSync(itemId) {
+    return itemUnitsCache.value[itemId] || []
+  }
+
   return {
     units,
     itemUnitsCache,
@@ -80,6 +84,7 @@ export const useUnitsStore = defineStore('units', () => {
     deleteItemUnit,
     clearItemUnitsCache,
     getDefaultUnit,
-    getUnitById
+    getUnitById,
+    getItemUnitsSync
   }
 })

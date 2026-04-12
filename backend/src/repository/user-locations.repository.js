@@ -39,7 +39,7 @@ export class UserLocationsRepository {
     return rows
   }
 
-  async add(userId, locationId, isDefault = false) {
+  async add(userId, locationId, isDefault = false, companyId = null) {
     if (isDefault) {
       await this.db.query(
         'UPDATE user_locations SET is_default = 0 WHERE user_id = UUID_TO_BIN(?)',
@@ -47,11 +47,15 @@ export class UserLocationsRepository {
       )
     }
     
+    const companyIdField = companyId ? ', company_id' : ''
+    const companyIdValue = companyId ? ', UUID_TO_BIN(?)' : ''
+    const params = companyId ? [userId, locationId, isDefault ? 1 : 0, isDefault ? 1 : 0, companyId] : [userId, locationId, isDefault ? 1 : 0, isDefault ? 1 : 0]
+    
     await this.db.query(
-      `INSERT INTO user_locations (id, user_id, location_id, is_default) 
-       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?)
+      `INSERT INTO user_locations (id, user_id, location_id, is_default${companyIdField}) 
+       VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), ?${companyIdValue})
        ON DUPLICATE KEY UPDATE is_default = ?`,
-      [userId, locationId, isDefault ? 1 : 0, isDefault ? 1 : 0]
+      params
     )
   }
 

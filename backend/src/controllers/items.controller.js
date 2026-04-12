@@ -7,12 +7,15 @@ export class ItemsController {
 
   async getAll (req, res, next) {
     try {
-      const { location_id, limit, offset, search, status } = req.query
+      const { location_id, limit, offset, search, status, supplier_id } = req.query
+      const companyId = req.user?.company_id
       const filters = {
         limit: parseInt(limit) || 20,
         offset: parseInt(offset) || 0,
         search: search || '',
-        status: status || ''
+        status: status || '',
+        company_id: companyId,
+        supplier_id: supplier_id || null
       }
       const result = await this.itemsModel.getAll(location_id, filters)
       res.status(200).json({ success: true, data: result.items, total: result.total })
@@ -23,7 +26,9 @@ export class ItemsController {
 
   async getById (req, res, next) {
     try {
-      const item = await this.itemsModel.getById(req.params.id)
+      const { location_id } = req.query
+      const companyId = req.user?.company_id
+      const item = await this.itemsModel.getById(req.params.id, location_id || null, companyId)
       res.status(200).json({ success: true, data: item })
     } catch (error) {
       next(error)
@@ -33,7 +38,8 @@ export class ItemsController {
   async create (req, res, next) {
     try {
       const userId = req.user?.user_id || null
-      const item = await this.itemsModel.create(req.body, userId)
+      const companyId = req.user?.company_id
+      const item = await this.itemsModel.create(req.body, userId, companyId)
       res.status(201).json({ success: true, message: 'Producto creado', data: item })
     } catch (error) {
       next(error)
@@ -43,7 +49,8 @@ export class ItemsController {
   async update (req, res, next) {
     try {
       const userId = req.user?.user_id || null
-      const item = await this.itemsModel.update(req.params.id, req.body, userId)
+      const companyId = req.user?.company_id
+      const item = await this.itemsModel.update(req.params.id, req.body, userId, companyId)
       res.status(200).json({ success: true, message: 'Producto actualizado', data: item })
     } catch (error) {
       next(error)
@@ -53,7 +60,8 @@ export class ItemsController {
   async delete (req, res, next) {
     try {
       const userId = req.user?.user_id || null
-      await this.itemsModel.delete(req.params.id, userId)
+      const companyId = req.user?.company_id
+      await this.itemsModel.delete(req.params.id, userId, companyId)
       res.status(200).json({ success: true, message: 'Producto eliminado' })
     } catch (error) {
       next(error)
@@ -62,7 +70,8 @@ export class ItemsController {
 
   async restore (req, res, next) {
     try {
-      await this.itemsModel.restore(req.params.id)
+      const companyId = req.user?.company_id
+      await this.itemsModel.restore(req.params.id, companyId)
       res.status(200).json({ success: true, message: 'Producto restaurado' })
     } catch (error) {
       next(error)
@@ -72,7 +81,8 @@ export class ItemsController {
   async getPriceHistory (req, res, next) {
     try {
       const limit = parseInt(req.query.limit) || 50
-      const history = await this.itemsModel.getPriceHistory(req.params.id, limit)
+      const companyId = req.user?.company_id
+      const history = await this.itemsModel.getPriceHistory(req.params.id, limit, companyId)
       res.status(200).json({ success: true, data: history })
     } catch (error) {
       next(error)
@@ -121,7 +131,8 @@ export class ItemsController {
       })
 
       // Update item's image_url
-      await this.itemsModel.updateImageUrl(req.params.id, result.url)
+      const companyId = req.user?.company_id
+      await this.itemsModel.updateImageUrl(req.params.id, result.url, companyId)
 
       res.status(200).json({
         success: true,

@@ -4,15 +4,15 @@ import { PaymentRepository } from '../repository/payment.repository.js'
 import { PaymentModel } from '../models/payment.model.js'
 import { PaymentController } from '../controllers/payment.controller.js'
 import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
-import { CompanyConfigRepository } from '../repository/company-config.repository.js'
+import { CompanyRepository } from '../repository/company.repository.js'
 import { ShiftRepository } from '../repository/shift.repository.js'
 import { generateDrawerClosePDF } from '../utils/drawer-close.utils.js'
 
 const paymentRepo = new PaymentRepository(database)
 const shiftRepo = new ShiftRepository(database)
+const companyRepo = new CompanyRepository(database)
 const paymentModel = new PaymentModel(paymentRepo, null, shiftRepo)
 const paymentController = new PaymentController(paymentModel)
-const companyConfigRepo = new CompanyConfigRepository(database)
 
 const router = Router()
 const paymentsBasePath = '/payments'
@@ -41,8 +41,9 @@ router.post('/adjustments', authenticate, requireRoutePermission(paymentsBasePat
     const { drawer_id, adjustment_type, amount, notes } = req.body
     const isAdmin = req.user?.is_admin == 1
     const userLocations = req.userLocations || []
+    const companyId = req.user?.company_id
 
-    const drawer = await paymentRepo.getCashDrawerById(drawer_id)
+    const drawer = await paymentRepo.getCashDrawerById(drawer_id, companyId)
     if (!drawer) {
       return res.status(404).json({ success: false, message: 'Caja no encontrada' })
     }
@@ -52,7 +53,7 @@ router.post('/adjustments', authenticate, requireRoutePermission(paymentsBasePat
     }
 
     const userId = req.userId
-    await paymentModel.createAdjustment(drawer_id, userId, adjustment_type, amount, notes)
+    await paymentModel.createAdjustment(drawer_id, userId, companyId, adjustment_type, amount, notes)
     res.status(201).json({ success: true, message: 'Ajuste registrado' })
   } catch (error) {
     next(error)
@@ -64,8 +65,9 @@ router.get('/drawers/:id/adjustments', authenticate, requireRoutePermission(paym
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
     const userLocations = req.userLocations || []
+    const companyId = req.user?.company_id
 
-    const drawer = await paymentRepo.getCashDrawerById(id)
+    const drawer = await paymentRepo.getCashDrawerById(id, companyId)
     if (!drawer) {
       return res.status(404).json({ success: false, message: 'Caja no encontrada' })
     }
@@ -74,7 +76,7 @@ router.get('/drawers/:id/adjustments', authenticate, requireRoutePermission(paym
       return res.status(403).json({ success: false, message: 'Sin permiso para esta caja' })
     }
 
-    const adjustments = await paymentModel.getAdjustmentsByDrawer(id)
+    const adjustments = await paymentModel.getAdjustmentsByDrawer(id, companyId)
     res.status(200).json({ success: true, data: adjustments })
   } catch (error) {
     next(error)
@@ -85,7 +87,8 @@ router.get('/my-adjustments', authenticate, requireRoutePermission(paymentsBaseP
   try {
     const { status, search, limit = 20, offset = 0, start_date, end_date } = req.query
     const userId = req.userId
-    const result = await paymentModel.getUserAdjustments(userId, { status, search, limit: parseInt(limit), offset: parseInt(offset), start_date, end_date })
+    const companyId = req.user?.company_id
+    const result = await paymentModel.getUserAdjustments(userId, { status, search, limit: parseInt(limit), offset: parseInt(offset), start_date, end_date }, companyId)
     res.status(200).json({ success: true, data: result.data, total: result.total })
   } catch (error) {
     next(error)
@@ -97,6 +100,7 @@ router.put('/adjustments/:id/status', authenticate, requireRoutePermission(payme
     const { id } = req.params
     const { status } = req.body
     const isAdmin = req.user?.is_admin == 1
+    const companyId = req.user?.company_id
 
     if (!isAdmin) {
       return res.status(403).json({ success: false, message: 'Solo administradores pueden aprobar/rechazar ajustes' })
@@ -106,12 +110,12 @@ router.put('/adjustments/:id/status', authenticate, requireRoutePermission(payme
       return res.status(400).json({ success: false, message: 'Estado inválido' })
     }
 
-    const adjustment = await paymentRepo.getAdjustmentById(id)
+    const adjustment = await paymentRepo.getAdjustmentById(id, companyId)
     if (!adjustment) {
       return res.status(404).json({ success: false, message: 'Ajuste no encontrado' })
     }
 
-    await paymentModel.updateAdjustmentStatus(id, status, adjustment.user_id)
+    await paymentModel.updateAdjustmentStatus(id, status, adjustment.user_id, companyId)
     res.status(200).json({ success: true, message: `Ajuste ${status}` })
   } catch (error) {
     next(error)
@@ -123,17 +127,18 @@ router.get('/drawers/:id/close-pdf', authenticate, requireRoutePermission(paymen
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
     const userLocations = req.userLocations || []
+    const companyId = req.user?.company_id
     
-    const summary = await paymentModel.getCashDrawerSummary(id, userLocations, isAdmin)
+    const summary = await paymentModel.getCashDrawerSummary(id, userLocations, isAdmin, null, null, companyId)
     
     if (!summary) {
       return res.status(404).json({ success: false, message: 'Caja no encontrada' })
     }
     
-    const drawer = await paymentRepo.getCashDrawerById(id)
-    const companyConfig = await companyConfigRepo.get()
+    const drawer = await paymentRepo.getCashDrawerById(id, companyId)
+    const company = await companyRepo.findById(companyId)
     
-    const pdfBuffer = generateDrawerClosePDF(summary, companyConfig)
+    const pdfBuffer = generateDrawerClosePDF(summary, company)
     
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="cierre-caja-${drawer.name}-${new Date().toISOString().split('T')[0]}.pdf"`)
@@ -148,13 +153,14 @@ router.get('/accounts-receivable', authenticate, requireRoutePermission(payments
   try {
     const { user_id, status, search, limit = 20, offset = 0, start_date, end_date } = req.query
     const isAdmin = req.user?.is_admin == 1
+    const companyId = req.user?.company_id
     
     let targetUserId = user_id
     if (!isAdmin) {
       targetUserId = req.userId
     }
     
-    const result = await paymentModel.getAccountsReceivable({ userId: targetUserId, status, search, limit: parseInt(limit), offset: parseInt(offset), start_date, end_date })
+    const result = await paymentModel.getAccountsReceivable({ userId: targetUserId, status, search, limit: parseInt(limit), offset: parseInt(offset), start_date, end_date }, companyId)
     const accounts = result.data
     
     const summary = {
@@ -172,7 +178,8 @@ router.get('/accounts-receivable', authenticate, requireRoutePermission(payments
 
 router.get('/cashiers', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
   try {
-    const cashiers = await paymentModel.getCashiers()
+    const companyId = req.user?.company_id
+    const cashiers = await paymentModel.getCashiers(companyId)
     res.status(200).json({ success: true, data: cashiers })
   } catch (error) {
     next(error)
@@ -184,6 +191,7 @@ router.post('/accounts-receivable/:id/payment', authenticate, requireRoutePermis
     const { id } = req.params
     const { amount } = req.body
     const isAdmin = req.user?.is_admin == 1
+    const companyId = req.user?.company_id
     
     if (!isAdmin) {
       return res.status(403).json({ success: false, message: 'Solo administradores pueden registrar pagos' })
@@ -193,7 +201,7 @@ router.post('/accounts-receivable/:id/payment', authenticate, requireRoutePermis
       return res.status(400).json({ success: false, message: 'Monto inválido' })
     }
 
-    const result = await paymentModel.updateAccountReceivable(id, amount)
+    const result = await paymentModel.updateAccountReceivable(id, amount, companyId)
     res.status(200).json({ success: true, data: result })
   } catch (error) {
     next(error)

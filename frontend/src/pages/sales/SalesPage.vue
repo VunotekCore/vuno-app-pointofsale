@@ -38,8 +38,10 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const dateFromDisplay = ref('')
 const dateToDisplay = ref('')
-const dateFromInputRef = ref(null)
-const dateToInputRef = ref(null)
+const dateFromInputRefDesktop = ref(null)
+const dateToInputRefDesktop = ref(null)
+const dateFromInputRefMobile = ref(null)
+const dateToInputRefMobile = ref(null)
 const selectedLocation = ref(null)
 let dateFromPicker = null
 let dateToPicker = null
@@ -58,6 +60,7 @@ const ticketHtml = ref(null)
 const ticketSaleNumber = ref('')
 const ticketSaleId = ref('')
 const loadingTicket = ref(false)
+const showFilters = ref(false)
 
 function getCurrentMonthDates() {
   const now = new Date()
@@ -84,7 +87,7 @@ const pageLimit = ref(20)
 const totalRecords = ref(0)
 
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
-const isAdmin = computed(() => authStore.user?.role_name === 'admin')
+const isAdmin = computed(() => authStore.user?.role_name?.toLowerCase() === 'admin' || authStore.user?.is_admin)
 
 onMounted(async () => {
   const { from, to } = getCurrentMonthDates()
@@ -107,33 +110,32 @@ onMounted(async () => {
     }
   }
 
-  if (dateFromInputRef.value) {
-    dateFromPicker = flatpickr(dateFromInputRef.value, {
-      dateFormat: 'Y-m-d',
-      altInput: true,
-      altFormat: 'd/m/Y',
-      locale: spanishLocale,
-      onChange: (selectedDates, dateStr) => {
-        dateFrom.value = dateStr
-        loadSales()
-      }
-    })
-    dateFromPicker.setDate(from)
+  const initDatePicker = (inputRef, setter) => {
+    if (inputRef.value) {
+      const picker = flatpickr(inputRef.value, {
+        dateFormat: 'Y-m-d',
+        altInput: true,
+        altFormat: 'd/m/Y',
+        locale: spanishLocale,
+        onChange: (selectedDates, dateStr) => {
+          if (setter === 'from') {
+            dateFrom.value = dateStr
+          } else {
+            dateTo.value = dateStr
+          }
+          loadSales()
+        }
+      })
+      picker.setDate(setter === 'from' ? from : to)
+      return picker
+    }
+    return null
   }
 
-  if (dateToInputRef.value) {
-    dateToPicker = flatpickr(dateToInputRef.value, {
-      dateFormat: 'Y-m-d',
-      altInput: true,
-      altFormat: 'd/m/Y',
-      locale: spanishLocale,
-      onChange: (selectedDates, dateStr) => {
-        dateTo.value = dateStr
-        loadSales()
-      }
-    })
-    dateToPicker.setDate(to)
-  }
+  dateFromPicker = initDatePicker(dateFromInputRefDesktop, 'from')
+  dateToPicker = initDatePicker(dateToInputRefDesktop, 'to')
+  initDatePicker(dateFromInputRefMobile, 'from')
+  initDatePicker(dateToInputRefMobile, 'to')
   
   await loadLocations()
   await loadSales()
@@ -295,12 +297,13 @@ async function confirmCompleteSale() {
 
   completingSale.value = true
   try {
-    await salesService.completeSale(selectedSale.value.id, [
+    const response = await salesService.completeSale(selectedSale.value.id, [
       {
         payment_type: completePaymentMethod.value,
         amount: completeAmountPaid.value
       }
     ])
+    
     notification.success('Venta completada correctamente')
     showCompleteModal.value = false
     loadSales()
@@ -417,25 +420,42 @@ onMounted(loadSales)
     </div>
 
     <!-- Filters -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 mb-4">
-      <div class="flex flex-col md:flex-row gap-2 md:gap-4">
-        <div class="flex-1 min-w-[150px]">
-          <div class="relative">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Buscar..."
-              class="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-            />
-            <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
-          </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4">
+      <!-- Mobile/Tablet Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="statusFilter || dateFrom || dateTo || selectedLocation" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ [statusFilter && 'Estado', dateFrom && 'Fecha', selectedLocation && 'Ubicación'].filter(Boolean).length }}
+          </span>
+        </button>
+      </div>
+
+      <!-- Desktop Search Bar (always visible) -->
+      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar por número, cliente o empleado..."
+            class="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
         </div>
+      </div>
+
+      <!-- Desktop Filters -->
+      <div class="hidden lg:flex flex-wrap gap-3 p-4">
         <select
           v-if="isAdmin"
           v-model="selectedLocation"
           @change="loadSales"
-          class="w-full md:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option :value="null">Todas las ubicaciones</option>
           <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
@@ -444,7 +464,7 @@ onMounted(loadSales)
         </select>
         <select
           v-model="statusFilter"
-          class="w-full md:w-auto px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option value="">Todos los estados</option>
           <option value="pending">Pendiente</option>
@@ -454,96 +474,208 @@ onMounted(loadSales)
         </select>
         <div class="relative">
           <input
-            ref="dateFromInputRef"
+            ref="dateFromInputRefDesktop"
             v-model="dateFrom"
             type="text"
-            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
         <div class="relative">
           <input
-            ref="dateToInputRef"
+            ref="dateToInputRefDesktop"
             v-model="dateTo"
             type="text"
-            class="w-full md:w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
+            class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
+        </div>
+      </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+        </div>
+        <select
+          v-if="isAdmin"
+          v-model="selectedLocation"
+          @change="loadSales"
+          class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+        >
+          <option :value="null">Todas las ubicaciones</option>
+          <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
+            {{ loc.name }}
+          </option>
+        </select>
+        <select
+          v-model="statusFilter"
+          class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+        >
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendiente</option>
+          <option value="completed">Completada</option>
+          <option value="suspended">Suspendida</option>
+          <option value="cancelled">Cancelada</option>
+        </select>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <input
+              ref="dateFromInputRefMobile"
+              v-model="dateFrom"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
+          <div class="flex-1">
+            <input
+              ref="dateToInputRefMobile"
+              v-model="dateTo"
+              type="text"
+              class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white cursor-pointer"
+            />
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Table -->
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div v-if="loading" class="p-8 flex justify-center">
         <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
       </div>
-      <table v-else class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Número</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cliente</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Empleado</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
-            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-          <tr v-for="sale in filteredSales" :key="sale.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <td class="px-4 py-3">
-              <span class="font-medium text-slate-900 dark:text-white">{{ sale.sale_number }}</span>
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              {{ formatDate(sale.sale_date) }}
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ sale.customer_name || '-' }}
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ sale.employee_name }}
-            </td>
-            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
-              {{ sale.location_name }}
-            </td>
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">
-              {{ formatMoney(sale.total) }}
-            </td>
-            <td class="px-4 py-3">
-              <span 
-                class="inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize"
-                :class="statusColors[sale.status] || 'bg-slate-100 text-slate-700'"
+      
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Número</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cliente</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Empleado</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Total</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-for="sale in filteredSales" :key="sale.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <td class="px-4 py-3">
+                <span class="font-medium text-slate-900 dark:text-white">{{ sale.sale_number }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                {{ formatDate(sale.sale_date) }}
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ sale.customer_name || '-' }}
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ sale.employee_name }}
+              </td>
+              <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                {{ sale.location_name }}
+              </td>
+              <td class="px-4 py-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                {{ formatMoney(sale.total) }}
+              </td>
+              <td class="px-4 py-3">
+                <span 
+                  class="inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize"
+                  :class="statusColors[sale.status] || 'bg-slate-100 text-slate-700'"
+                >
+                  {{ sale.status }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    v-if="sale.status === 'completed'"
+                    @click="downloadTicket(sale)"
+                    class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Descargar ticket"
+                  >
+                    <Receipt class="w-4 h-4" />
+                  </button>
+                  <button
+                    @click="viewSale(sale)"
+                    class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Ver detalles"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="filteredSales.length === 0">
+              <td colspan="8" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                No hay ventas registradas
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="filteredSales.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
+          No hay ventas registradas
+        </div>
+        <div
+          v-for="sale in filteredSales"
+          :key="sale.id"
+          class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">{{ sale.sale_number }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ formatDate(sale.sale_date) }}</p>
+            </div>
+            <span 
+              class="px-2 py-0.5 text-xs font-medium rounded-full capitalize whitespace-nowrap"
+              :class="statusColors[sale.status] || 'bg-slate-100 text-slate-700'"
+            >
+              {{ sale.status }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div>
+              <span class="text-slate-400">Cliente:</span> {{ sale.customer_name || '-' }}
+            </div>
+            <div>
+              <span class="text-slate-400">Ubicación:</span> {{ sale.location_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Empleado:</span> {{ sale.employee_name }}
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(sale.total) }}</p>
+            <div class="flex items-center gap-1">
+              <button
+                v-if="sale.status === 'completed'"
+                @click="downloadTicket(sale)"
+                class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                title="Ticket"
               >
-                {{ sale.status }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex items-center justify-end gap-1">
-                <button
-                  v-if="sale.status === 'completed'"
-                  @click="downloadTicket(sale)"
-                  class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                  title="Descargar ticket"
-                >
-                  <Receipt class="w-4 h-4" />
-                </button>
-                <button
-                  @click="viewSale(sale)"
-                  class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                  title="Ver detalles"
-                >
-                  <Eye class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="filteredSales.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-              No hay ventas registradas
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <Receipt class="w-4 h-4" />
+              </button>
+              <button
+                @click="viewSale(sale)"
+                class="p-1.5 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                title="Ver detalles"
+              >
+                <Eye class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->

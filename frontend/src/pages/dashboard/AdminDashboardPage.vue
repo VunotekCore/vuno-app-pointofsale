@@ -34,6 +34,7 @@ const currencyStore = useCurrencyStore()
 const loading = ref(true)
 const dashboard = ref(null)
 const dateRange = ref('month')
+const showFilters = ref(false)
 
 const selectedLocation = computed(() => locationStore.getSelectedLocation())
 const userLocations = computed(() => locationStore.locations)
@@ -142,34 +143,37 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-6 animate-fade-in">
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-      <div>
-        <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
-          Panel Estratégico y Financiero
-        </p>
-      </div>
-      <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3 w-full">
-        <div class="flex items-center gap-2 w-full sm:w-auto">
-          <label class="text-sm text-slate-500 dark:text-slate-400">Período:</label>
-          <select v-model="dateRange" class="input-field w-full sm:w-32">
-            <option value="week">Semana</option>
-            <option value="month">Mes</option>
-            <option value="quarter">Trimestre</option>
-            <option value="year">Año</option>
-          </select>
+    <!-- Filters -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 p-4">
+        <div>
+          <p class="text-sm font-medium text-slate-500 dark:text-slate-400">
+            Panel Estratégico y Financiero
+          </p>
         </div>
-        <div v-if="userLocations.length > 0" class="flex items-center gap-2 w-full sm:w-auto">
-          <label class="text-sm text-slate-500 dark:text-slate-400">Ubicación:</label>
-          <select
-            :value="locationStore.selectedLocationId"
-            @change="onLocationChange($event.target.value)"
-            class="input-field w-full sm:w-48"
-          >
-            <option :value="null">Todas las ubicaciones</option>
-            <option v-for="loc in userLocations" :key="loc.id" :value="loc.id">
-              {{ loc.name }}
-            </option>
-          </select>
+        <div class="flex flex-col sm:flex-row items-start sm:items-end gap-3 w-full lg:w-auto">
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <label class="text-sm text-slate-500 dark:text-slate-400">Período:</label>
+            <select v-model="dateRange" class="input-field w-full sm:w-32">
+              <option value="week">Semana</option>
+              <option value="month">Mes</option>
+              <option value="quarter">Trimestre</option>
+              <option value="year">Año</option>
+            </select>
+          </div>
+          <div v-if="userLocations.length > 0" class="flex items-center gap-2 w-full sm:w-auto">
+            <label class="text-sm text-slate-500 dark:text-slate-400">Ubicación:</label>
+            <select
+              :value="locationStore.selectedLocationId"
+              @change="onLocationChange($event.target.value)"
+              class="input-field w-full sm:w-48"
+            >
+              <option :value="null">Todas las ubicaciones</option>
+              <option v-for="loc in userLocations" :key="loc.id" :value="loc.id">
+                {{ loc.name }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

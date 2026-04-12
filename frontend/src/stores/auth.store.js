@@ -15,7 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperAdmin = computed(() => user.value?.is_super_admin_impersonating === true)
 
   const hasPermission = (permissionCode) => {
-    if (user.value?.role_name === 'admin') {
+    if (user.value?.is_admin === true || user.value?.role_name?.toLowerCase() === 'admin') {
       return true
     }
     if (!permissions.value.length) {

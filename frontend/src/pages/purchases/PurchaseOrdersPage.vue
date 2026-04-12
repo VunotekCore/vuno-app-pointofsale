@@ -40,6 +40,7 @@ const currentPage = ref(1)
 const pageLimit = ref(20)
 const totalRecords = ref(0)
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
+const showFilters = ref(false)
 
 const { debounced: debouncedSearch } = useDebounce(() => {
   currentPage.value = 1
@@ -128,6 +129,11 @@ watch(filterStatus, () => {
   loadOrders()
 })
 
+watch(selectedLocationId, () => {
+  currentPage.value = 1
+  loadOrders()
+})
+
 async function loadSuppliers() {
   loadingSuppliers.value = true
   try {
@@ -141,12 +147,6 @@ async function loadSuppliers() {
 }
 
 async function loadLocations() {
-  if (locationStore.locations.length > 0) {
-    locations.value = locationStore.locations
-    selectedLocationId.value = locationStore.selectedLocationId || locations.value[0]?.id || null
-    return
-  }
-  
   loadingLocations.value = true
   try {
     const { data } = await coreService.getUserLocations()
@@ -159,12 +159,14 @@ async function loadLocations() {
         name: l.location_name,
         code: l.location_code,
         is_active: l.is_active,
-        is_default: l.is_default
+        is_default: l.is_default,
+        company_id: l.company_id
       }))
     
     locations.value = userLocations
+    locationStore.setLocations(userLocations)
+    
     if (locations.value.length > 0) {
-      locationStore.setLocations(locations.value)
       selectedLocationId.value = locationStore.selectedLocationId || locations.value[0]?.id || null
     }
   } catch (error) {
@@ -178,10 +180,14 @@ async function loadLocations() {
   }
 }
 
-async function loadAvailableItems() {
+async function loadAvailableItems(supplierId = null) {
   loadingItems.value = true
   try {
-    const { data } = await itemsService.getItems()
+    const params = {}
+    if (supplierId) {
+      params.supplier_id = supplierId
+    }
+    const { data } = await itemsService.getItems(params)
     availableItems.value = data.data || []
   } catch (error) {
     console.error('Error loading items:', error)
@@ -190,13 +196,21 @@ async function loadAvailableItems() {
   }
 }
 
+async function onSupplierChange() {
+  if (form.value.supplier_id) {
+    await loadAvailableItems(form.value.supplier_id)
+  } else {
+    await loadAvailableItems()
+  }
+  itemForm.value.item_id = ''
+}
+
 async function openModal(order = null) {
   showModal.value = true
   
   await Promise.all([
     loadSuppliers(),
-    loadLocations(),
-    loadAvailableItems()
+    loadLocations()
   ])
   
   if (order) {
@@ -225,6 +239,7 @@ async function openModal(order = null) {
           total_cost: item.total_cost
         }))
       }
+      await loadAvailableItems(fullOrder.supplier_id)
     } catch (error) {
       notification.error('Error al cargar orden')
       return
@@ -239,6 +254,7 @@ async function openModal(order = null) {
       notes: '',
       items: []
     }
+    await loadAvailableItems()
   }
   showModal.value = true
 }
@@ -414,83 +430,176 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4">
-      <div class="flex-1 relative">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Buscar..."
-          class="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-        />
-        <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <!-- Mobile Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="searchQuery || filterStatus" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ [searchQuery && 'Búsqueda', filterStatus && 'Estado'].filter(Boolean).length }}
+          </span>
+        </button>
       </div>
-      <select
-        v-model="filterStatus"
-        class="w-full sm:w-auto px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
-      >
-        <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+
+      <!-- Desktop Filters (always visible) -->
+      <div class="hidden lg:flex flex-col sm:flex-row gap-2 sm:gap-4 p-4">
+        <div class="flex-1 relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+        </div>
+        <select
+          v-model="filterStatus"
+          class="w-full sm:w-auto px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
+        >
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 pt-0 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+          />
+        </div>
+        <select
+          v-model="filterStatus"
+          class="w-full px-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
+        >
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-      <table class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Número</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Proveedor</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Total</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Estado</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-          <tr v-if="loading">
-            <td colspan="7" class="px-4 py-8 text-center">
-              <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
-            </td>
-          </tr>
-          <tr v-else-if="filteredOrders.length === 0">
-            <td colspan="7" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-              No hay órdenes de compra
-            </td>
-          </tr>
-          <tr v-for="order in filteredOrders" :key="order.id" class="hover:bg-slate-50 dark:hover:bg-slate-800">
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ order.po_number }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.supplier_name }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.location_name }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">C$ {{ parseFloat(order.total_amount || 0).toFixed(2) }}</td>
-            <td class="px-4 py-3">
-              <span :class="['px-2 py-1 text-xs font-medium rounded-full', statusColors[order.status]]">
-                {{ statusLabels[order.status] }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.created_at?.split('T')[0] }}</td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex justify-end gap-2">
-                <button @click="viewOrder(order)" class="p-1 text-slate-400 hover:text-brand-500">
-                  <Package class="w-4 h-4" />
-                </button>
-                <button 
-                  @click="openModal(order)" 
-                  class="p-1 hover:text-brand-500"
-                  :class="order.status === 'draft' ? 'text-slate-400' : 'text-slate-300 cursor-not-allowed'"
-                  :disabled="order.status !== 'draft'"
-                >
-                  <Pencil class="w-4 h-4" />
-                </button>
-                <button @click="deleteOrder(order.id)" class="p-1 text-slate-400 hover:text-red-500">
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Número</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Proveedor</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Total</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-if="loading">
+              <td colspan="7" class="px-4 py-8 text-center">
+                <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
+              </td>
+            </tr>
+            <tr v-else-if="filteredOrders.length === 0">
+              <td colspan="7" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                No hay órdenes de compra
+              </td>
+            </tr>
+            <tr v-for="order in filteredOrders" :key="order.id" class="hover:bg-slate-50 dark:hover:bg-slate-800">
+              <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ order.po_number }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.supplier_name }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.location_name }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">C$ {{ parseFloat(order.total_amount || 0).toFixed(2) }}</td>
+              <td class="px-4 py-3">
+                <span :class="['px-2 py-1 text-xs font-medium rounded-full', statusColors[order.status]]">
+                  {{ statusLabels[order.status] }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ order.created_at?.split('T')[0] }}</td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex justify-end gap-2">
+                  <button @click="viewOrder(order)" class="p-1 text-slate-400 hover:text-brand-500">
+                    <Package class="w-4 h-4" />
+                  </button>
+                  <button 
+                    @click="openModal(order)" 
+                    class="p-1 hover:text-brand-500"
+                    :class="order.status === 'draft' ? 'text-slate-400' : 'text-slate-300 cursor-not-allowed'"
+                    :disabled="order.status !== 'draft'"
+                  >
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button @click="deleteOrder(order.id)" class="p-1 text-slate-400 hover:text-red-500">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="loading" class="p-8 text-center">
+          <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
+        </div>
+        <div v-else-if="filteredOrders.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
+          No hay órdenes de compra
+        </div>
+        <div
+          v-for="order in filteredOrders"
+          :key="order.id"
+          class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">{{ order.po_number }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ order.created_at?.split('T')[0] }}</p>
+            </div>
+            <span :class="['px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap', statusColors[order.status]]">
+              {{ statusLabels[order.status] }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
+            <div>
+              <span class="text-slate-400">Proveedor:</span> {{ order.supplier_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Ubicación:</span> {{ order.location_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Total:</span> C$ {{ parseFloat(order.total_amount || 0).toFixed(2) }}
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button @click="viewOrder(order)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+              <Package class="w-4 h-4" />
+            </button>
+            <button 
+              @click="openModal(order)" 
+              class="p-2 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              :class="order.status === 'draft' ? 'text-slate-400' : 'text-slate-300 cursor-not-allowed'"
+              :disabled="order.status !== 'draft'"
+            >
+              <Pencil class="w-4 h-4" />
+            </button>
+            <button @click="deleteOrder(order.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+              <Trash2 class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -545,6 +654,7 @@ onMounted(async () => {
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Proveedor *</label>
               <select
                 v-model="form.supplier_id"
+                @change="onSupplierChange"
                 class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 :disabled="loadingSuppliers"
               >

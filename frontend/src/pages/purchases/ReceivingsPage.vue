@@ -40,6 +40,7 @@ const currentPage = ref(1)
 const pageLimit = ref(20)
 const totalRecords = ref(0)
 const totalPages = computed(() => Math.ceil(totalRecords.value / pageLimit.value))
+const showFilters = ref(false)
 
 const { debounced: debouncedSearch } = useDebounce(() => {
   currentPage.value = 1
@@ -68,6 +69,7 @@ const itemForm = ref({
   unit_cost: 0,
   variation_id: ''
 })
+
 
 const availableItems = ref([])
 const loadingItems = ref(false)
@@ -180,10 +182,14 @@ async function loadPurchaseOrders() {
   }
 }
 
-async function loadAvailableItems() {
+async function loadAvailableItems(supplierId = null) {
   loadingItems.value = true
   try {
-    const { data } = await itemsService.getItems()
+    const params = {}
+    if (supplierId) {
+      params.supplier_id = supplierId
+    }
+    const { data } = await itemsService.getItems(params)
     availableItems.value = data.data || []
   } catch (error) {
     console.error('Error loading items:', error)
@@ -197,6 +203,7 @@ async function onOrderSelect() {
     form.value.supplier_id = ''
     form.value.location_id = ''
     form.value.items = []
+    await loadAvailableItems()
     return
   }
   
@@ -208,6 +215,10 @@ async function onOrderSelect() {
       form.value.supplier_id = order.supplier_id
       form.value.location_id = order.location_id
       form.value.notes = order.notes ? `Orden: ${order.po_number} - ${order.notes}` : `Orden: ${order.po_number}`
+      if (order.supplier_id) {
+        await loadAvailableItems(order.supplier_id)
+      }
+      
       form.value.items = (order.items || []).map(item => ({
         item_id: item.item_id,
         variation_id: item.variation_id,
@@ -228,7 +239,6 @@ async function openModal(receiving = null) {
   await loadSuppliers()
   await loadLocations()
   await loadPurchaseOrders()
-  await loadAvailableItems()
   
   if (receiving) {
     editingId.value = receiving.id
@@ -241,6 +251,7 @@ async function openModal(receiving = null) {
       notes: receiving.notes,
       items: receiving.items || []
     }
+    await loadAvailableItems(receiving.supplier_id)
   } else {
     editingId.value = null
     selectedReceiving.value = null
@@ -252,6 +263,7 @@ async function openModal(receiving = null) {
       notes: '',
       items: []
     }
+    await loadAvailableItems()
   }
   showModal.value = true
 }
@@ -260,6 +272,15 @@ function closeModal() {
   showModal.value = false
   editingId.value = null
   selectedReceiving.value = null
+}
+
+async function onSupplierChange() {
+  if (form.value.supplier_id) {
+    await loadAvailableItems(form.value.supplier_id)
+  } else {
+    await loadAvailableItems()
+  }
+  itemForm.value.item_id = ''
 }
 
 function addItem() {
@@ -312,8 +333,6 @@ async function saveReceiving() {
         cost_price: item.unit_cost
       }))
     }
-    
-    console.log('Creating receiving:', data)
     
     if (editingId.value) {
       notification.error('No se puede editar una recepción')
@@ -399,86 +418,182 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-2 sm:gap-4">
-      <div class="flex-1 relative">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Buscar..."
-          title="Buscar por número o proveedor"
-          class="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-        />
-        <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+      <!-- Mobile Filter Toggle -->
+      <div class="lg:hidden p-3 border-b border-slate-200 dark:border-slate-800">
+        <button
+          @click="showFilters = !showFilters"
+          class="w-full px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 transition-colors flex items-center justify-center gap-2"
+        >
+          <Search class="w-4 h-4" />
+          {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
+          <span v-if="searchQuery || filterStatus" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ [searchQuery && 'Búsqueda', filterStatus && 'Estado'].filter(Boolean).length }}
+          </span>
+        </button>
       </div>
-      <select
-        v-model="filterStatus"
-        class="w-full sm:w-auto px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
-      >
-        <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+
+      <!-- Desktop Filters (always visible) -->
+      <div class="hidden lg:flex flex-col sm:flex-row gap-2 sm:gap-4 p-4">
+        <div class="flex-1 relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            title="Buscar por número o proveedor"
+            class="w-full pl-10 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+          />
+          <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
+        </div>
+        <select
+          v-model="filterStatus"
+          class="w-full sm:w-auto px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
+        >
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+
+      <!-- Mobile Filters Panel -->
+      <div v-if="showFilters" class="lg:hidden p-4 pt-0 space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
+          />
+        </div>
+        <select
+          v-model="filterStatus"
+          class="w-full px-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white whitespace-nowrap"
+        >
+          <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
     </div>
 
-    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-      <table class="w-full">
-        <thead class="bg-slate-50 dark:bg-slate-800">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Número</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Orden</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Proveedor</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Total</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Estado</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-          <tr v-if="loading">
-            <td colspan="8" class="px-4 py-8 text-center">
-              <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
-            </td>
-          </tr>
-          <tr v-else-if="filteredReceivings.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
-              No hay recepciones
-            </td>
-          </tr>
-          <tr v-for="receiving in filteredReceivings" :key="receiving.id" class="hover:bg-slate-50 dark:hover:bg-slate-800">
-            <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ receiving.receiving_number }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.po_number || '-' }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.supplier_name }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.location_name }}</td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">C$ {{ parseFloat(receiving.total_amount || 0).toFixed(2) }}</td>
-            <td class="px-4 py-3">
-              <span :class="['px-2 py-1 text-xs font-medium rounded-full', statusColors[receiving.status]]">
-                {{ statusLabels[receiving.status] }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.received_at?.split('T')[0] || receiving.created_at?.split('T')[0] }}</td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex justify-end gap-2">
-                <button @click="viewReceiving(receiving)" class="p-1 text-slate-400 hover:text-brand-500" title="Ver recepción">
-                  <Package class="w-4 h-4" />
-                </button>
-                <button
-                  v-if="receiving.status === 'pending'"
-                  @click="completeReceiving(receiving.id)"
-                  class="p-1 text-green-500 hover:text-green-700"
-                  title="Completar recepción"
-                >
-                  <CheckCircle2 class="w-4 h-4" />
-                </button>
-                <button @click="deleteReceiving(receiving.id)" class="p-1 text-slate-400 hover:text-red-500" title="Eliminar recepción">
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <!-- Desktop Table -->
+      <div class="hidden lg:block overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Número</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Orden</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Proveedor</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Ubicación</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Total</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Estado</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Fecha</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr v-if="loading">
+              <td colspan="8" class="px-4 py-8 text-center">
+                <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
+              </td>
+            </tr>
+            <tr v-else-if="filteredReceivings.length === 0">
+              <td colspan="8" class="px-4 py-8 text-center text-slate-500 dark:text-slate-400">
+                No hay recepciones
+              </td>
+            </tr>
+            <tr v-for="receiving in filteredReceivings" :key="receiving.id" class="hover:bg-slate-50 dark:hover:bg-slate-800">
+              <td class="px-4 py-3 font-medium text-slate-900 dark:text-white">{{ receiving.receiving_number }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.po_number || '-' }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.supplier_name }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.location_name }}</td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">C$ {{ parseFloat(receiving.total_amount || 0).toFixed(2) }}</td>
+              <td class="px-4 py-3">
+                <span :class="['px-2 py-1 text-xs font-medium rounded-full', statusColors[receiving.status]]">
+                  {{ statusLabels[receiving.status] }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ receiving.received_at?.split('T')[0] || receiving.created_at?.split('T')[0] }}</td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex justify-end gap-2">
+                  <button @click="viewReceiving(receiving)" class="p-1 text-slate-400 hover:text-brand-500" title="Ver recepción">
+                    <Package class="w-4 h-4" />
+                  </button>
+                  <button
+                    v-if="receiving.status === 'pending'"
+                    @click="completeReceiving(receiving.id)"
+                    class="p-1 text-green-500 hover:text-green-700"
+                    title="Completar recepción"
+                  >
+                    <CheckCircle2 class="w-4 h-4" />
+                  </button>
+                  <button @click="deleteReceiving(receiving.id)" class="p-1 text-slate-400 hover:text-red-500" title="Eliminar recepción">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="lg:hidden divide-y divide-slate-200 dark:divide-slate-800">
+        <div v-if="loading" class="p-8 text-center">
+          <Loader2 class="w-6 h-6 animate-spin mx-auto text-brand-500" />
+        </div>
+        <div v-else-if="filteredReceivings.length === 0" class="p-8 text-center text-slate-500 dark:text-slate-400">
+          No hay recepciones
+        </div>
+        <div
+          v-for="receiving in filteredReceivings"
+          :key="receiving.id"
+          class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+        >
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">{{ receiving.receiving_number }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ receiving.received_at?.split('T')[0] || receiving.created_at?.split('T')[0] }}</p>
+            </div>
+            <span :class="['px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap', statusColors[receiving.status]]">
+              {{ statusLabels[receiving.status] }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-3">
+            <div>
+              <span class="text-slate-400">Orden:</span> {{ receiving.po_number || '-' }}
+            </div>
+            <div>
+              <span class="text-slate-400">Proveedor:</span> {{ receiving.supplier_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Ubicación:</span> {{ receiving.location_name }}
+            </div>
+            <div>
+              <span class="text-slate-400">Total:</span> C$ {{ parseFloat(receiving.total_amount || 0).toFixed(2) }}
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button @click="viewReceiving(receiving)" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Ver">
+              <Package class="w-4 h-4" />
+            </button>
+            <button
+              v-if="receiving.status === 'pending'"
+              @click="completeReceiving(receiving.id)"
+              class="p-2 text-green-500 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+              title="Completar"
+            >
+              <CheckCircle2 class="w-4 h-4" />
+            </button>
+            <button @click="deleteReceiving(receiving.id)" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Eliminar">
+              <Trash2 class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -548,6 +663,7 @@ onMounted(() => {
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Proveedor *</label>
               <select
                 v-model="form.supplier_id"
+                @change="onSupplierChange"
                 class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                 :disabled="loadingSuppliers || form.purchase_order_id"
               >

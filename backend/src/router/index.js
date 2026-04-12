@@ -2,7 +2,6 @@ import authRouter from './auth.router.js'
 import usersRouter from './users.router.js'
 import userLocationsRouter from './user-locations.router.js'
 import { rolesRouter, permissionsRouter } from './roles.router.js'
-import companyConfigRouter from './company-config.router.js'
 import itemsRouter from './items.router.js'
 import inventoryRouter from './inventory.router.js'
 import salesRouter from './sales.router.js'
@@ -29,7 +28,6 @@ export default {
   userLocationsRouter,
   rolesRouter,
   permissionsRouter,
-  companyConfigRouter,
   itemsRouter,
   inventoryRouter,
   salesRouter,

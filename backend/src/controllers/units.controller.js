@@ -35,7 +35,8 @@ export class UnitsController {
 
   async createItemUnit (req, res, next) {
     try {
-      const units = await this.unitsModel.createItemUnit(req.body, req.userId)
+      const companyId = req.user?.company_id
+      const units = await this.unitsModel.createItemUnit(req.body, req.userId, companyId)
       res.status(201).json({ success: true, message: 'Unidad agregada', data: units })
     } catch (error) {
       next(error)

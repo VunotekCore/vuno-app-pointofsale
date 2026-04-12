@@ -6,6 +6,8 @@ export class TransferRepository {
   }
 
   async getAll(filters = {}) {
+    const { user_locations, from_location_id, to_location_id, status, search, company_id } = filters
+    
     let query = `
       SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -31,9 +33,9 @@ export class TransferRepository {
       JOIN locations tl ON t.to_location_id = tl.id
       LEFT JOIN users u ON t.created_by = u.id
       LEFT JOIN users u2 ON t.updated_by = u2.id
-      WHERE t.is_delete = 0
+      WHERE t.company_id = UUID_TO_BIN(?) AND t.is_delete = 0
     `
-    const params = []
+    const params = [company_id]
 
     if (filters.user_locations && filters.user_locations.length > 0) {
       const placeholders = filters.user_locations.map(() => 'UUID_TO_BIN(?)').join(',')
@@ -109,7 +111,7 @@ export class TransferRepository {
     return { data: rows, total }
   }
 
-  async getPendingReceipt(userLocations = [], isAdmin = false) {
+  async getPendingReceipt(userLocations = [], isAdmin = false, companyId = null) {
     let query = `
       SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -139,6 +141,11 @@ export class TransferRepository {
     `
     const params = []
 
+    if (companyId) {
+      query += ' AND t.company_id = UUID_TO_BIN(?)'
+      params.push(companyId)
+    }
+
     if (!isAdmin && userLocations.length > 0) {
       const placeholders = userLocations.map(() => 'UUID_TO_BIN(?)').join(',')
       query += ` AND t.to_location_id IN (${placeholders})`
@@ -151,7 +158,7 @@ export class TransferRepository {
     return rows
   }
 
-  async getById(id) {
+  async getById(id, companyId) {
     const rows = await this.db.query(
       `SELECT 
         BIN_TO_UUID(t.id) as id,
@@ -177,8 +184,8 @@ export class TransferRepository {
        JOIN locations tl ON t.to_location_id = tl.id
        LEFT JOIN users u ON t.created_by = u.id
        LEFT JOIN users u2 ON t.updated_by = u2.id
-       WHERE t.id = UUID_TO_BIN(?) AND t.is_delete = 0`,
-      [id]
+       WHERE t.id = UUID_TO_BIN(?) AND t.company_id = UUID_TO_BIN(?) AND t.is_delete = 0`,
+      [id, companyId]
     )
     return rows[0] || null
   }
@@ -217,10 +224,10 @@ export class TransferRepository {
 
       const transferUUID = crypto.randomUUID()
 
-      const [result] = await conn.query(
+      await conn.query(
         `INSERT INTO inventory_transfers 
-         (id, transfer_number, from_location_id, to_location_id, status, notes, total_items, created_by)
-          VALUES (UUID_TO_BIN('${transferUUID}'), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?))`,
+         (id, transfer_number, from_location_id, to_location_id, status, notes, total_items, created_by, company_id)
+           VALUES (UUID_TO_BIN('${transferUUID}'), ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))`,
         [
           data.transfer_number,
           data.from_location_id,
@@ -228,7 +235,8 @@ export class TransferRepository {
           'pending',
           data.notes || null,
           0,
-          data.created_by
+          data.created_by,
+          data.company_id
         ]
       )
 
@@ -358,18 +366,16 @@ export class TransferRepository {
           throw new Error('Item ID is required')
         }
         
-        let current
+        let currentQuery
+        let currentParams
         if (variationId === null) {
-          [current] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.from_location_id]
-          )
+          currentQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentParams = [itemId, transfer.from_location_id]
         } else {
-          [current] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.from_location_id]
-          )
+          currentQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentParams = [itemId, variationId, transfer.from_location_id]
         }
+        const current = await conn.query(currentQuery, currentParams)
 
         const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
         const quantityInTransitBefore = current.length > 0 ? Number(current[0].quantity_in_transit) : 0
@@ -476,18 +482,16 @@ export class TransferRepository {
         
         const receivedQty = items.find(i => i.item_id === item.item_id && i.variation_id === item.variation_id)?.quantity_received ?? item.quantity
 
-        let currentDest
+        let currentDestQuery
+        let currentDestParams
         if (variationId === null) {
-          [currentDest] = await conn.query(
-            'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.to_location_id]
-          )
+          currentDestQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentDestParams = [itemId, transfer.to_location_id]
         } else {
-          [currentDest] = await conn.query(
-            'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.to_location_id]
-          )
+          currentDestQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentDestParams = [itemId, variationId, transfer.to_location_id]
         }
+        const currentDest = await conn.query(currentDestQuery, currentDestParams)
 
         const quantityBeforeDest = currentDest.length > 0 ? Number(currentDest[0].quantity) : 0
         const quantityAfterDest = Number(quantityBeforeDest) + parseFloat(receivedQty)
@@ -531,18 +535,16 @@ export class TransferRepository {
           ]
         )
 
-        let currentSource
+        let currentSourceQuery
+        let currentSourceParams
         if (variationId === null) {
-          [currentSource] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-            [itemId, transfer.from_location_id]
-          )
+          currentSourceQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+          currentSourceParams = [itemId, transfer.from_location_id]
         } else {
-          [currentSource] = await conn.query(
-            'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-            [itemId, variationId, transfer.from_location_id]
-          )
+          currentSourceQuery = 'SELECT quantity, quantity_in_transit FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+          currentSourceParams = [itemId, variationId, transfer.from_location_id]
         }
+        const currentSource = await conn.query(currentSourceQuery, currentSourceParams)
 
         if (currentSource.length > 0) {
           const quantityInTransitBefore = Number(currentSource[0].quantity_in_transit) || 0
@@ -627,18 +629,16 @@ export class TransferRepository {
           const itemId = item.item_id || null
           const variationId = item.variation_id || null
           
-          let current
+          let currentQuery
+          let currentParams
           if (variationId === null) {
-            [current] = await conn.query(
-              'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)',
-              [itemId, transfer.from_location_id]
-            )
+            currentQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id IS NULL AND location_id = UUID_TO_BIN(?)'
+            currentParams = [itemId, transfer.from_location_id]
           } else {
-            [current] = await conn.query(
-              'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)',
-              [itemId, variationId, transfer.from_location_id]
-            )
+            currentQuery = 'SELECT quantity FROM item_quantities WHERE item_id = UUID_TO_BIN(?) AND variation_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?)'
+            currentParams = [itemId, variationId, transfer.from_location_id]
           }
+          const current = await conn.query(currentQuery, currentParams)
 
           const quantityBefore = current.length > 0 ? Number(current[0].quantity) : 0
           const quantityAfter = quantityBefore + parseFloat(item.quantity)
@@ -711,15 +711,20 @@ export class TransferRepository {
     )
   }
 
-  async getNextNumber() {
+  async getNextNumber(companyId = null) {
     const maxNum = 9999
     
     for (let num = 1; num <= maxNum; num++) {
       const number = `TRF-${num.toString().padStart(4, '0')}`
-      const existing = await this.db.query(
-        "SELECT id FROM inventory_transfers WHERE transfer_number = ?",
-        [number]
-      )
+      let query = 'SELECT id FROM inventory_transfers WHERE transfer_number = ?'
+      const params = [number]
+      
+      if (companyId) {
+        query += ' AND company_id = UUID_TO_BIN(?)'
+        params.push(companyId)
+      }
+      
+      const existing = await this.db.query(query, params)
       
       if (existing.length === 0) {
         return number

@@ -73,6 +73,7 @@ const amountPaid = ref(0)
 const amountPaidDisplay = ref('0')
 const showPaymentModal = ref(false)
 const showDrawerRequiredModal = ref(false)
+const showMobileCart = ref(false)
 const showUnitModal = ref(false)
 const selectedProductForUnit = ref(null)
 const selectedProductUnits = ref([])
@@ -183,6 +184,8 @@ async function loadItems() {
 
     await itemsStore.loadItems(selectedLocation.value?.id)
     await loadCategories()
+    
+    await preloadItemUnits()
   } catch (error) {
     const cachedItems = await cacheService.getItems()
     if (cachedItems.length > 0) {
@@ -195,6 +198,12 @@ async function loadItems() {
       await loadCategories()
     }
   }
+}
+
+async function preloadItemUnits() {
+  const items = itemsStore.items
+  const promises = items.map(item => unitsStore.getItemUnits(item.id))
+  await Promise.all(promises)
 }
 
 async function loadCategories() {
@@ -213,14 +222,77 @@ const categories = computed(() => {
   return itemsStore.activeCategories
 })
 
+const rootCategories = computed(() => {
+  return itemsStore.rootCategories
+})
+
+const currentSubcategories = computed(() => {
+  if (!currentCategory.value) return []
+  return itemsStore.getSubcategoriesWithItems(currentCategory.value.id)
+})
+
+const currentDirectItems = computed(() => {
+  if (!currentCategory.value) return []
+  return itemsStore.getCategoryItems(currentCategory.value.id)
+})
+
+const categoryPath = computed(() => {
+  if (!currentCategory.value) return []
+  const path = []
+  let cat = currentCategory.value
+  
+  while (cat) {
+    path.unshift(cat)
+    if (cat.parent_id) {
+      cat = itemsStore.getCategoryById(cat.parent_id)
+    } else {
+      cat = null
+    }
+  }
+  
+  return path
+})
+
 function enterCategory(cat) {
   currentCategory.value = cat
   viewMode.value = 'products'
 }
 
 function backToCategories() {
+  if (currentCategory.value?.parent_id) {
+    const parent = itemsStore.getCategoryById(currentCategory.value.parent_id)
+    currentCategory.value = parent
+  } else {
+    currentCategory.value = null
+    viewMode.value = 'categories'
+  }
+}
+
+function backToRoot() {
   currentCategory.value = null
   viewMode.value = 'categories'
+}
+
+function navigateToCategory(cat) {
+  currentCategory.value = cat
+}
+
+function handleProductClick(item) {
+  const units = unitsStore.getItemUnitsSync(item.id)
+  
+  if (item.is_variable_sale && units.length > 0) {
+    selectedProductForUnit.value = item
+    selectedProductUnits.value = units
+    const defaultUnit = units.find(u => u.is_default) || units[0]
+    initVariableSale(defaultUnit)
+    showVariableModal.value = true
+  } else if (units.length <= 1) {
+    addToCart(item, units[0] || null)
+  } else {
+    selectedProductForUnit.value = item
+    selectedProductUnits.value = units
+    showUnitModal.value = true
+  }
 }
 
 watch([variableQuantity, variableUnit], () => {
@@ -276,24 +348,6 @@ async function searchItems() {
   }
   searching.value = true
   debouncedSearch(searchQuery.value)
-}
-
-async function handleProductClick(item) {
-  const units = await unitsStore.getItemUnits(item.id)
-  
-  if (item.is_variable_sale && units.length > 0) {
-    selectedProductForUnit.value = item
-    selectedProductUnits.value = units
-    const defaultUnit = units.find(u => u.is_default) || units[0]
-    initVariableSale(defaultUnit)
-    showVariableModal.value = true
-  } else if (units.length <= 1) {
-    addToCart(item, units[0] || null)
-  } else {
-    selectedProductForUnit.value = item
-    selectedProductUnits.value = units
-    showUnitModal.value = true
-  }
 }
 
 function initVariableSale(unit) {
@@ -568,7 +622,14 @@ async function processSale() {
 
   processingSale.value = true
   try {
-    const saleData = {
+    const payments = [
+      {
+        payment_type: paymentMethod.value,
+        amount: amountPaid.value
+      }
+    ]
+
+    const response = await offlineApi.post('/sales', {
       location_id: selectedLocation.value.id,
       customer_id: selectedCustomer.value?.id,
       subtotal: subtotal.value,
@@ -586,36 +647,18 @@ async function processSale() {
         discount_amount: item.discount_amount,
         tax_amount: item.tax_amount
       })),
-      notes: form.value.notes
-    }
-
-    const payments = [
-      {
-        payment_type: paymentMethod.value,
-        amount: amountPaid.value
-      }
-    ]
-
-    const response = await offlineApi.post('/sales', {
-      location_id: saleData.location_id,
-      customer_id: saleData.customer_id,
-      subtotal: saleData.subtotal,
-      tax_amount: saleData.tax_amount,
-      discount_amount: saleData.discount_amount,
-      total: saleData.total,
-      items: saleData.items,
       payments,
-      notes: saleData.notes
+      notes: form.value.notes,
+      auto_complete: true
     })
 
     const sale = response.data.data
 
-    if (sale.offline) {
-      notification.success(`Venta guardada offline (${sale.sale_number})`)
+    if (sale?.offline) {
+      notification.success(`Venta guardada offline (${sale?.sale_number})`)
       offlineStore.refreshStats()
     } else {
-      await salesService.completeSale(sale.id, payments)
-      notification.success('Venta procesada correctamente')
+      notification.success(`Venta ${sale?.sale_number} procesada correctamente`)
     }
 
     showPaymentModal.value = false
@@ -634,6 +677,7 @@ async function suspendSale() {
     return
   }
 
+  processingSale.value = true
   try {
     const saleData = {
       location_id: selectedLocation.value.id,
@@ -652,11 +696,21 @@ async function suspendSale() {
       notes: form.value.notes
     }
 
-    await salesService.createSale(saleData)
+    const response = await salesService.createSale(saleData)
+    const saleId = response.data.data.id
+
+    await salesService.suspendSale(saleId, {
+      notes: form.value.notes
+    })
+
     notification.success('Venta suspendida')
-    resetSale()
+    showPaymentModal.value = false
+    await resetSale()
+    backToCategories()
   } catch (error) {
     notification.error(error.response?.data?.message || 'Error al suspender venta')
+  } finally {
+    processingSale.value = false
   }
 }
 
@@ -665,7 +719,7 @@ async function resetSale() {
   form.value.notes = ''
   amountPaid.value = 0
   amountPaidDisplay.value = '0'
-  loadDefaultCustomer()
+  await loadDefaultCustomer()
   await cacheService.clearItemsCache()
   await loadItems()
   if (customerDisplayOpen.value) {
@@ -728,12 +782,39 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
 </script>
 
 <template>
-  <div class="h-[calc(100vh-8rem)] flex gap-4">
+  <div class="h-[calc(100dvh-8rem)] lg:h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-4">
     <!-- Products Panel -->
     <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <!-- Category Selector -->
-      <div class="p-4 border-b border-slate-200 dark:border-slate-800">
-        <div class="flex gap-4 mb-4">
+      <div class="p-3 lg:p-4 border-b border-slate-200 dark:border-slate-800">
+        <!-- Mobile/Tablet Header: Location + Status -->
+        <div class="flex items-center gap-2 mb-3 lg:hidden">
+          <select
+            v-model="selectedLocation"
+            class="flex-1 px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+          >
+            <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
+              {{ loc.name }}
+            </option>
+          </select>
+          <button
+            @click="router.push('/caja')"
+            class="px-3 py-2 rounded-lg flex items-center gap-1 text-xs"
+            :class="cashDrawerStore.isDrawerOpen 
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' 
+              : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'"
+          >
+            <Wallet class="w-4 h-4" />
+          </button>
+          <div
+            class="px-2 py-2 rounded-lg flex items-center gap-1"
+            :class="getConnectionStatusClass()"
+          >
+            <component :is="getConnectionIcon()" class="w-4 h-4" />
+          </div>
+        </div>
+
+        <div class="hidden lg:flex gap-4 mb-4">
           <select
             v-model="selectedLocation"
             class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
@@ -774,7 +855,7 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
               <Loader2 class="w-3 h-3 animate-spin" />
             </span>
           </div>
-          <div class="flex-1 relative">
+            <div class="flex-1 relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               v-model="searchQuery"
@@ -801,86 +882,223 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
           </div>
         </div>
 
-        <!-- Categories List -->
-        <div v-if="viewMode === 'categories' && !searchQuery" class="flex-1 overflow-y-auto p-4">
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <!-- Mobile Search (always visible on tablet/mobile) -->
+        <div class="relative lg:hidden">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            v-model="searchQuery"
+            @input="searchItems"
+            type="text"
+            placeholder="Buscar..."
+            class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
+          />
+          <!-- Search Results -->
+          <div v-if="searchResults.length > 0" class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
             <button
-              v-for="cat in itemsByCategory"
+              v-for="item in searchResults"
+              :key="item.id"
+              @click="addToCart(item)"
+              class="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0"
+            >
+              <div class="text-left">
+                <p class="font-medium text-slate-900 dark:text-white text-sm">{{ item.name }}</p>
+                <p class="text-xs text-slate-500">{{ item.item_number }}</p>
+              </div>
+              <p class="font-semibold text-brand-600 dark:text-brand-400 text-sm">{{ formatMoney(item.unit_price) }}</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mobile Customer Quick Add -->
+        <div class="flex items-center gap-2 mt-2 lg:hidden">
+          <div v-if="!selectedCustomer" class="flex-1">
+            <button
+              @click="showCustomerSearch = !showCustomerSearch"
+              class="w-full px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors flex items-center justify-center gap-1"
+            >
+              <User class="w-3 h-3" />
+              Agregar cliente
+            </button>
+            <div v-if="showCustomerSearch" class="mt-1">
+              <input
+                v-model="customerSearchQuery"
+                @input="searchCustomers(customerSearchQuery)"
+                type="text"
+                placeholder="Buscar..."
+                class="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400"
+              />
+              <div v-if="customers.length > 0" class="mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg max-h-32 overflow-y-auto shadow-lg">
+                <button
+                  v-for="c in customers"
+                  :key="c.id"
+                  @click="selectCustomer(c)"
+                  class="w-full px-2 py-1.5 text-left text-xs hover:bg-brand-50 dark:hover:bg-brand-900/20 border-b border-slate-100 dark:border-slate-700 last:border-0"
+                >
+                  <p class="font-medium text-slate-900 dark:text-white">{{ c.first_name }} {{ c.last_name }}</p>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="flex-1 flex items-center gap-2 px-2 py-1.5 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-lg">
+            <p class="flex-1 text-xs font-medium text-brand-900 dark:text-white truncate">
+              {{ selectedCustomer.first_name }} {{ selectedCustomer.last_name }}
+            </p>
+            <button @click="clearCustomer" class="text-brand-400 hover:text-red-500">
+              <X class="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        <!-- Categories List (root level) -->
+        <div v-if="viewMode === 'categories' && !searchQuery" class="flex-1 overflow-y-auto p-3 lg:p-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 lg:gap-3">
+            <button
+              v-for="cat in rootCategories"
               :key="cat.id"
               @click="enterCategory(cat)"
-              class="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md transition-all text-left"
+              class="p-3 lg:p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md transition-all text-left"
             >
-              <div class="flex items-center gap-3 mb-2">
-                <div class="w-10 h-10 bg-brand-100 dark:bg-brand-900/30 rounded-lg flex items-center justify-center">
+              <div class="flex items-center gap-2 lg:gap-3 mb-2">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 bg-brand-100 dark:bg-brand-900/30 rounded-lg flex items-center justify-center">
                   <Tag class="w-5 h-5 text-brand-600 dark:text-brand-400" />
                 </div>
               </div>
               <p class="font-semibold text-slate-900 dark:text-white text-sm">{{ cat.name }}</p>
-              <p class="text-xs text-slate-400 mt-1">{{ cat.items.length }} productos</p>
+              <p class="text-xs text-slate-400 mt-1">
+                {{ itemsStore.getAllItemsForCategoryTree(cat.id).length }} productos
+              </p>
             </button>
           </div>
         </div>
 
         <!-- Products List (when category selected) -->
         <div v-else-if="viewMode === 'products'" class="flex-1 flex flex-col overflow-hidden">
-          <!-- Back button and category title -->
-          <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <button
-              @click="backToCategories"
-              class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <ChevronDown class="w-5 h-5 text-slate-500 rotate-90" />
-            </button>
-            <div>
-              <p class="font-semibold text-slate-900 dark:text-white">{{ currentCategory?.name }}</p>
-              <p class="text-xs text-slate-400">{{ currentCategory?.items.length }} productos</p>
+          <!-- Breadcrumb navigation -->
+          <div class="p-3 md:p-4 border-b border-slate-200 dark:border-slate-800">
+            <!-- Breadcrumb -->
+            <div class="flex items-center gap-1 mb-2 lg:mb-3 text-xs lg:text-sm overflow-x-auto">
+              <button
+                @click="backToRoot"
+                class="text-brand-500 hover:text-brand-600 dark:text-brand-400 whitespace-nowrap"
+              >
+                Inicio
+              </button>
+              <template v-for="(cat, idx) in categoryPath" :key="cat.id">
+                <ChevronDown class="w-4 h-4 text-slate-400 rotate-90 flex-shrink-0" />
+                <button
+                  v-if="idx < categoryPath.length - 1"
+                  @click="navigateToCategory(cat)"
+                  class="text-slate-500 hover:text-slate-600 dark:text-slate-400 whitespace-nowrap"
+                >
+                  {{ cat.name }}
+                </button>
+                <span v-else class="text-slate-900 dark:text-white font-medium whitespace-nowrap">
+                  {{ cat.name }}
+                </span>
+              </template>
+            </div>
+            
+            <!-- Back button -->
+            <div class="flex items-center gap-2">
+              <button
+                @click="backToCategories"
+                class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <ChevronDown class="w-5 h-5 text-slate-500 rotate-90" />
+              </button>
+              <span class="text-sm text-slate-500">
+                {{ currentDirectItems.length }} productos directos
+                <span v-if="currentSubcategories.length > 0">
+                  · {{ currentSubcategories.length }} subcategorías
+                </span>
+              </span>
             </div>
           </div>
           
-          <!-- Products grid -->
-          <div class="flex-1 overflow-y-auto p-4">
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              <button
-                v-for="item in currentCategory?.items || []"
-                :key="item.id"
-                @click="handleProductClick(item)"
-                class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
-              >
-                <div class="w-full h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
-                  <Package class="w-8 h-8 text-slate-400" />
-                  <span 
-                    v-if="Number(item.total_quantity) > 0"
-                    class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                    :class="Number(item.total_quantity) <= 5 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'"
+          <!-- Subcategories and products grid -->
+          <div class="flex-1 overflow-y-auto p-3 lg:p-4">
+            <div class="space-y-4">
+              <!-- Subcategories -->
+              <div v-if="currentSubcategories.length > 0">
+                <p class="text-xs font-medium text-slate-400 uppercase mb-2">Subcategorías</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 lg:gap-3 mb-4">
+                  <button
+                    v-for="subcat in currentSubcategories"
+                    :key="subcat.id"
+                    @click="enterCategory(subcat)"
+                    class="p-3 lg:p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:shadow-md transition-all text-left relative"
                   >
-                    {{ Number.isInteger(Number(item.total_quantity)) ? Number(item.total_quantity) : Number(item.total_quantity).toFixed(2) }}
-                  </span>
-                  <span 
-                    v-else
-                    class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                  >
-                    0
-                  </span>
+                    <div class="flex items-center gap-2 lg:gap-3 mb-2">
+                      <div class="w-8 h-8 lg:w-10 lg:h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                        <Tag class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div v-if="itemsStore.hasSubcategories(subcat.id)" class="absolute top-2 right-2">
+                        <ChevronDown class="w-4 h-4 text-slate-400 -rotate-90" />
+                      </div>
+                    </div>
+                    <p class="font-semibold text-slate-900 dark:text-white text-sm">{{ subcat.name }}</p>
+                    <p class="text-xs text-slate-400 mt-1">
+                      {{ itemsStore.getAllItemsForCategoryTree(subcat.id).length }} productos
+                    </p>
+                  </button>
                 </div>
-                <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.name }}</p>
-                <p class="text-xs text-slate-500 mb-1">{{ item.item_number }}</p>
-                <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(item.unit_price) }}</p>
-              </button>
+              </div>
+
+              <!-- Direct products -->
+              <div v-if="currentDirectItems.length > 0">
+                <p class="text-xs font-medium text-slate-400 uppercase mb-2">
+                  {{ currentSubcategories.length > 0 ? 'Productos en esta categoría' : 'Productos' }}
+                </p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 lg:gap-3">
+                  <button
+                    v-for="item in currentDirectItems"
+                    :key="item.id"
+                    @click="handleProductClick(item)"
+                    class="p-2 lg:p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
+                  >
+                    <div class="w-full h-16 lg:h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
+                      <Package class="w-8 h-8 text-slate-400" />
+                      <span 
+                        v-if="Number(item.total_quantity) > 0"
+                        class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                        :class="Number(item.total_quantity) <= 5 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'"
+                      >
+                        {{ Number.isInteger(Number(item.total_quantity)) ? Number(item.total_quantity) : Number(item.total_quantity).toFixed(2) }}
+                      </span>
+                      <span 
+                        v-else
+                        class="absolute top-1 right-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                      >
+                        0
+                      </span>
+                    </div>
+                    <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.name }}</p>
+                    <p class="text-xs text-slate-500 mb-1">{{ item.item_number }}</p>
+                    <p class="font-semibold text-brand-600 dark:text-brand-400">{{ formatMoney(item.unit_price) }}</p>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Empty state -->
+              <div v-if="currentSubcategories.length === 0 && currentDirectItems.length === 0" class="text-center py-8 text-slate-400">
+                <Package class="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No hay productos en esta categoría</p>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Search Results -->
-        <div v-else-if="searchQuery && searchResults.length > 0" class="flex-1 overflow-y-auto p-4">
+        <div v-else-if="searchQuery && searchResults.length > 0" class="flex-1 overflow-y-auto p-3 md:p-4">
           <p class="text-sm text-slate-500 mb-3">Resultados de búsqueda ({{ searchResults.length }})</p>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
             <button
               v-for="item in searchResults"
               :key="item.id"
-              @click="handleProductClick(item)"
-              class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
-            >
-              <div class="w-full h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
+                    @click="handleProductClick(item)"
+                    class="p-2 lg:p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-300 dark:hover:border-brand-600 transition-colors text-left"
+                  >
+              <div class="w-full h-16 md:h-20 bg-slate-100 dark:bg-slate-700 rounded-lg mb-2 flex items-center justify-center relative">
                 <Package class="w-8 h-8 text-slate-400" />
                 <span 
                   v-if="Number(item.total_quantity) > 0"
@@ -905,8 +1123,8 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
       </div>
     </div>
 
-    <!-- Cart Panel -->
-    <div class="w-96 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <!-- Cart Panel (Desktop only) -->
+    <div class="hidden lg:flex w-96 flex-shrink-0 flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <!-- Cart Header -->
       <div class="p-4 border-b border-slate-200 dark:border-slate-800">
         <div class="flex items-center justify-between mb-3">
@@ -1275,5 +1493,115 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Mobile Bottom Sheet Cart -->
+    <Teleport to="body">
+      <!-- Overlay -->
+      <div 
+        v-if="showMobileCart" 
+        class="fixed inset-0 bg-black/50 z-50 lg:hidden transition-opacity"
+        @click="showMobileCart = false"
+      ></div>
+      
+      <!-- Bottom Sheet -->
+      <div 
+        class="fixed bottom-0 left-0 right-0 z-50 lg:hidden transition-transform duration-300"
+        :class="showMobileCart ? 'translate-y-0' : 'translate-y-full'"
+      >
+        <div class="bg-white dark:bg-slate-900 rounded-t-3xl max-h-[85dvh] flex flex-col">
+          <!-- Drag Handle -->
+          <div class="flex justify-center pt-3 pb-2">
+            <div class="w-10 h-1 bg-slate-300 dark:bg-slate-600 rounded-full"></div>
+          </div>
+          
+          <!-- Mobile Cart Header -->
+          <div class="px-4 pb-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <h2 class="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <ShoppingCart class="w-5 h-5" />
+              Carrito
+              <span class="text-sm text-slate-500">({{ cartItems.length }})</span>
+            </h2>
+            <button @click="showMobileCart = false" class="p-2 text-slate-400 hover:text-slate-600">
+              <X class="w-5 h-5" />
+            </button>
+          </div>
+          
+          <!-- Mobile Cart Content -->
+          <div class="flex-1 overflow-y-auto p-4">
+            <div v-if="cartItems.length === 0" class="text-center py-8 text-slate-500 dark:text-slate-400">
+              <ShoppingCart class="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Carrito vacío</p>
+            </div>
+            <div v-else class="space-y-3">
+              <div v-for="(item, index) in cartItems" :key="index" class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.item_name }}</p>
+                    <p class="text-xs text-slate-500">{{ item.item_number }}</p>
+                  </div>
+                  <button @click="removeFromCart(index)" class="text-slate-400 hover:text-red-500">
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <button @click="updateQuantity(index, -1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                      <Minus class="w-3 h-3" />
+                    </button>
+                    <span class="w-14 text-center font-medium text-slate-900 dark:text-white">
+                      {{ item.quantity }} <span class="text-xs text-slate-500">{{ item.unit_abbreviation || 'und' }}</span>
+                    </span>
+                    <button @click="updateQuantity(index, 1)" class="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                      <Plus class="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-semibold text-slate-900 dark:text-white">{{ formatMoney(item.line_total) }}</p>
+                    <p v-if="item.discount_amount > 0" class="text-xs text-green-600">-{{ formatMoney(item.discount_amount) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Mobile Cart Footer -->
+          <div class="p-4 border-t border-slate-200 dark:border-slate-800">
+            <div class="space-y-2 mb-4">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500">Subtotal</span>
+                <span class="text-slate-900 dark:text-white">{{ formatMoney(subtotal) }}</span>
+              </div>
+              <div v-if="totalDiscount > 0" class="flex justify-between text-sm">
+                <span class="text-slate-500">Descuentos</span>
+                <span class="text-green-600">-{{ formatMoney(totalDiscount) }}</span>
+              </div>
+              <div class="flex justify-between text-lg font-bold">
+                <span class="text-slate-900 dark:text-white">Total</span>
+                <span class="text-brand-600 dark:text-brand-400">{{ formatMoney(total) }}</span>
+              </div>
+            </div>
+            
+            <button
+              @click="showMobileCart = false; openPaymentModal()"
+              :disabled="cartItems.length === 0"
+              class="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white rounded-xl font-medium flex items-center justify-center gap-2"
+            >
+              <CreditCard class="w-4 h-4" />
+              Cobrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Floating Cart Button (Mobile only) -->
+    <button
+      v-if="cartItems.length > 0"
+      @click="showMobileCart = true"
+      class="fixed bottom-4 right-4 lg:hidden z-40 bg-brand-500 hover:bg-brand-600 text-white rounded-full p-4 shadow-lg flex flex-col items-center min-w-[72px]"
+    >
+      <ShoppingCart class="w-6 h-6" />
+      <span class="text-xs font-medium mt-1">{{ formatMoney(total) }}</span>
+    </button>
   </div>
 </template>

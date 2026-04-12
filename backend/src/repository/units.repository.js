@@ -114,7 +114,7 @@ export class UnitsRepository {
   }
 
   async createItemUnit (data) {
-    const { item_id, unit_id, is_default } = data
+    const { item_id, unit_id, is_default, company_id } = data
     
     if (is_default) {
       await this.db.query(`
