@@ -433,22 +433,15 @@ export class ReceivingRepository {
   }
 
   async updateAverageCost (conn, itemId, newQuantity, newCost, userId = null, companyId = null) {
-    console.log('[updateAverageCost] INICIO')
-    console.log('[updateAverageCost] itemId:', itemId)
-    console.log('[updateAverageCost] newQuantity (raw):', newQuantity, 'newCost (raw):', newCost)
-    
     // Parsear correctamente los valores
     const qtyNew = parseFloat(String(newQuantity).replace(',', '.')) || 0
     const costNew = parseFloat(String(newCost).replace(',', '.')) || 0
-    
-    console.log('[updateAverageCost] qtyNew parseado:', qtyNew, 'costNew parseado:', costNew)
     
     const currentItem = await conn.query(`
       SELECT cost_price, unit_price FROM items WHERE id = UUID_TO_BIN(?)
     `, [itemId])
 
     if (!currentItem || currentItem.length === 0) {
-      console.log('[updateAverageCost] Item no encontrado')
       return
     }
 
@@ -457,13 +450,9 @@ export class ReceivingRepository {
     const currentStockRaw = await this.getTotalStock(conn, itemId)
     const currentStock = parseFloat(String(currentStockRaw).replace(',', '.')) || 0
     
-    console.log('[updateAverageCost] currentCost:', currentCost, 'currentStock:', currentStock)
-
     const totalValue = (currentCost * currentStock) + (costNew * qtyNew)
     const totalQuantity = currentStock + qtyNew
     
-    console.log('[updateAverageCost] totalValue:', totalValue, 'totalQuantity:', totalQuantity)
-
     let newAverageCost = costNew
     if (totalQuantity > 0 && totalValue > 0) {
       newAverageCost = totalValue / totalQuantity
@@ -471,14 +460,11 @@ export class ReceivingRepository {
     
     // Redondear a 2 decimales
     newAverageCost = Math.round(newAverageCost * 100) / 100
-    
-    console.log('[updateAverageCost] newAverageCost calculado:', newAverageCost)
 
     if (newAverageCost > 0 && newAverageCost !== currentCost) {
       await conn.query(`
         UPDATE items SET cost_price = ? WHERE id = UUID_TO_BIN(?)
       `, [newAverageCost, itemId])
-      console.log('[updateAverageCost] COSTO ACTUALIZADO A:', newAverageCost)
       
       // Guardar historial de precios
       if (companyId) {
@@ -497,10 +483,7 @@ export class ReceivingRepository {
           currentPrice > 0 ? Math.round(((currentPrice - newAverageCost) / currentPrice) * 10000) / 100 : 0,
           userId
         ])
-        console.log('[updateAverageCost] Historial de precios guardado')
       }
-    } else {
-      console.log('[updateAverageCost] ERROR: newAverageCost es 0 o no hay cambio, no se actualiza')
     }
   }
 
@@ -508,8 +491,6 @@ export class ReceivingRepository {
     const result = await conn.query(`
       SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN(?)
     `, [itemId])
-    const total = parseFloat(result[0].total) || 0
-    console.log('[getTotalStock] itemId:', itemId, 'stock total:', total)
-    return total
+    return parseFloat(result[0].total) || 0
   }
 }
