@@ -33,7 +33,11 @@ const props = defineProps({
   },
   size: {
     type: String,
-    default: 'md' // sm, md, lg
+    default: 'md' // sm, md, lg, full
+  },
+  maxHeight: {
+    type: Number,
+    default: null
   }
 })
 
@@ -51,6 +55,7 @@ watch(() => props.previewUrl, (newVal) => {
 }, { immediate: true })
 
 const aspectRatioClass = computed(() => {
+  if (props.maxHeight) return '' // Remove aspect ratio when maxHeight is set
   return props.aspectRatio === '1:1' ? 'pb-[100%]' : 'pb-[56.25%]'
 })
 
@@ -60,9 +65,15 @@ const sizeClass = computed(() => {
     avatar: 'w-[140px]',
     logo: 'w-[200px]',
     md: 'w-[250px]',
-    lg: 'w-[400px]'
+    lg: 'w-[400px]',
+    full: 'w-full'
   }
   return sizes[props.size] || sizes.md
+})
+
+const maxHeightClass = computed(() => {
+  if (!props.maxHeight) return ''
+  return `max-h-[${props.maxHeight}px]`
 })
 
 const handleDragOver = (e) => {
@@ -155,6 +166,7 @@ const clearImage = () => {
             ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20' 
             : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 dark:hover:border-brand-500'
       ]"
+      :style="maxHeight ? { maxHeight: maxHeight + 'px', height: maxHeight + 'px' } : {}"
       @click="handleClick"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
