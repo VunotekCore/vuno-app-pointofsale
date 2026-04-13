@@ -8,21 +8,6 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI
-<<<<<<< HEAD
-
-export default defineConfig({
-  base: isElectron ? './' : '/',
-  plugins: [
-    vue(),
-    tailwindcss()
-    // VitePWA deshabilitado porque causa problemas con Electron (service worker falla en entorno empaquetado)
-    // VitePWA({
-    //   registerType: 'autoUpdate',
-    //   includeAssets: ['favicon.ico', 'icons/*.svg'],
-    //   manifest: false
-    // })
-  ],
-=======
 const isNetlifyBuild = process.env.CONTEXT === 'production'
 
 const plugins = [
@@ -74,7 +59,6 @@ if (!isElectron && isNetlifyBuild) {
 export default defineConfig({
   base: isElectron ? './' : '/',
   plugins,
->>>>>>> platform
   server: {
     port: 5174,
     fs: {
