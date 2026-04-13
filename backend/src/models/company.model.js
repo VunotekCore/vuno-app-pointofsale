@@ -129,7 +129,7 @@ export class CompanyModel {
   async getGlobalAdminRoleId (conn) {
     const globalCompanyId = '00000000-0000-0000-0000-000000000001'
     const rows = await conn.query(
-      'SELECT id FROM roles WHERE company_id = UUID_TO_BIN(?) AND is_admin = 1 LIMIT 1',
+      'SELECT BIN_TO_UUID(id) as id FROM roles WHERE company_id = UUID_TO_BIN(?) AND is_admin = 1 LIMIT 1',
       [globalCompanyId]
     )
     if (rows.length === 0) {
