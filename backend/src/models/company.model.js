@@ -33,7 +33,7 @@ export class CompanyModel {
       const slug = this.companyRepo.generateSlug(data.name)
 
       await conn.query(
-        `INSERT INTO companies (id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, settings, is_active)
+        `INSERT INTO companies (id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, expiration_alert_days, is_active)
          VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         [
           companyId,
@@ -49,7 +49,7 @@ export class CompanyModel {
           data.currency_code || 'NIO',
           data.currency_symbol || 'C$',
           data.decimal_places || 2,
-          JSON.stringify(data.settings || {})
+          data.expiration_alert_days || 10
         ]
       )
 
@@ -184,7 +184,7 @@ export class CompanyModel {
       currency_code: data.currency_code,
       currency_symbol: data.currency_symbol,
       decimal_places: data.decimal_places,
-      settings: data.settings,
+      expiration_alert_days: data.expiration_alert_days,
       is_active: data.is_active,
       imagekit_private_key: data.imagekit_private_key,
       imagekit_url_endpoint: data.imagekit_url_endpoint
