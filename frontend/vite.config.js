@@ -7,8 +7,10 @@ import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+const isElectron = typeof window !== 'undefined' && !!window.electronAPI
+
 export default defineConfig({
-  base: './',
+  base: isElectron ? './' : '/',
   plugins: [
     vue(),
     tailwindcss()
