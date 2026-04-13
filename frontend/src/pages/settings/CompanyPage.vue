@@ -55,7 +55,6 @@ const loadCompanyData = async () => {
     const response = await api.get('/companies')
     if (response.data.data) {
       const company = response.data.data
-      const settings = typeof company.settings === 'string' ? JSON.parse(company.settings) : (company.settings || {})
       formData.value = {
         name: company.name || '',
         address: company.address || '',
@@ -68,7 +67,7 @@ const loadCompanyData = async () => {
         currency_code: company.currency_code || 'NIO',
         currency_symbol: company.currency_symbol || 'C$',
         decimal_places: company.decimal_places || 2,
-        expiration_alert_days: settings.expiration?.alert_days || 10
+        expiration_alert_days: company.expiration_alert_days || 10
       }
       hasCompanyData.value = true
     }
@@ -120,11 +119,7 @@ const saveCompanyData = async () => {
       currency_code: formData.value.currency_code || 'NIO',
       currency_symbol: formData.value.currency_symbol || 'C$',
       decimal_places: formData.value.decimal_places || 2,
-      settings: JSON.stringify({
-        expiration: {
-          alert_days: formData.value.expiration_alert_days || 10
-        }
-      })
+      expiration_alert_days: formData.value.expiration_alert_days || 10
     }
     await api.put('/companies', data)
     formData.value.logo_url = logoUrl
