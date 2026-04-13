@@ -11,13 +11,12 @@ export default defineConfig({
   base: './',
   plugins: [
     vue(),
-    tailwindcss()
-    // VitePWA deshabilitado porque causa problemas con Electron (service worker falla en entorno empaquetado)
-    // VitePWA({
-    //   registerType: 'autoUpdate',
-    //   includeAssets: ['favicon.ico', 'icons/*.svg'],
-    //   manifest: false
-    // })
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'icons/*.svg'],
+      manifest: false
+    })
   ],
   server: {
     port: 5174,
