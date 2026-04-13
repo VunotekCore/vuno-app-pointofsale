@@ -2,12 +2,6 @@
   publish = "frontend/dist"
 
 [[redirects]]
-  from = "/:path"
-  to = "/index.html"
-  status = 200
-  conditions = ["!Path", "!Asset"]
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
