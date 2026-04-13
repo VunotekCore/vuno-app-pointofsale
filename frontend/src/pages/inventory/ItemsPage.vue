@@ -62,6 +62,7 @@ const currentPage = ref(1)
     is_service: false,
     is_kit: false,
     is_variable_sale: false,
+    tracks_expiration: false,
     status: 'active',
     kit_components: []
   })
@@ -298,6 +299,7 @@ const currentPage = ref(1)
         is_service: Boolean(item.is_service),
         is_kit: Boolean(item.is_kit),
         is_variable_sale: Boolean(item.is_variable_sale),
+        tracks_expiration: Boolean(item.tracks_expiration),
         kit_components: components
       }
 
@@ -335,6 +337,7 @@ const currentPage = ref(1)
         is_service: false,
         is_kit: false,
         is_variable_sale: false,
+        tracks_expiration: false,
         status: 'active',
         kit_components: []
       }
@@ -1250,6 +1253,12 @@ const currentPage = ref(1)
                         <input v-model="form.is_variable_sale" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" :disabled="form.is_kit" />
                         <span class="text-sm text-slate-700 dark:text-slate-300">
                           Venta Variada <span class="text-xs text-slate-400 block">por peso/cantidad</span>
+                        </span>
+                      </label>
+                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <input v-model="form.tracks_expiration" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
+                        <span class="text-sm text-slate-700 dark:text-slate-300">
+                          Fecha de Vencimiento <span class="text-xs text-slate-400 block">activar alertas en inventario</span>
                         </span>
                       </label>
                     </div>

@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCurrencyStore } from '../../stores/currency.store.js'
 import { dashboardService } from '../../services/dashboard.service.js'
+import { expirationService } from '../../services/expiration.service.js'
 import {
   Package,
   TrendingUp,
@@ -26,6 +27,9 @@ const dashboard = ref(null)
 const selectedLocation = ref(null)
 const locations = ref([])
 const dateRange = ref('week')
+const expiringItems = ref([])
+const expiredItems = ref([])
+const loadingExpirations = ref(false)
 
 const today = new Date()
 const getDateRange = () => {
@@ -47,6 +51,12 @@ const getDateRange = () => {
 const formatCurrency = (value) => currencyStore.formatMoney(value)
 const formatNumber = (value) => currencyStore.formatNumber(value)
 
+function formatDate (dateStr) {
+  if (!dateStr) return '-'
+  const [year, month, day] = dateStr.split('T')[0].split('-')
+  return `${day}/${month}/${year}`
+}
+
 const fetchDashboard = async () => {
   loading.value = true
   try {
@@ -57,6 +67,23 @@ const fetchDashboard = async () => {
     console.error('Error loading manager dashboard:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const fetchExpirations = async () => {
+  loadingExpirations.value = true
+  try {
+    const params = selectedLocation.value ? { location_id: selectedLocation.value } : {}
+    const [expiring, expired] = await Promise.all([
+      expirationService.getExpiring(params),
+      expirationService.getExpired(params)
+    ])
+    expiringItems.value = expiring.data.data || []
+    expiredItems.value = expired.data.data || []
+  } catch (error) {
+    console.error('Error loading expirations:', error)
+  } finally {
+    loadingExpirations.value = false
   }
 }
 
@@ -71,6 +98,7 @@ const fetchLocations = async () => {
 
 const onLocationChange = () => {
   fetchDashboard()
+  fetchExpirations()
 }
 
 const onDateRangeChange = () => {
@@ -91,6 +119,8 @@ const maxTransactions = computed(() => {
   return Math.max(...dashboard.value.sales_by_hour.hourly_breakdown.map(h => h.transactions))
 })
 
+const totalExpiringCount = computed(() => expiringItems.value.length + expiredItems.value.length)
+
 const navigateTo = (route) => {
   router.push(route)
 }
@@ -99,6 +129,7 @@ onMounted(async () => {
   await currencyStore.loadConfig()
   await fetchLocations()
   await fetchDashboard()
+  await fetchExpirations()
 })
 </script>
 
@@ -311,6 +342,55 @@ onMounted(async () => {
             <div v-if="!dashboard.low_stock_alerts?.length" class="text-center py-8 text-slate-500 text-sm">
               Stock OK
             </div>
+          </div>
+        </div>
+
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Clock class="w-5 h-5 text-red-500" />
+              Productos por Vencer
+            </h3>
+            <span v-if="totalExpiringCount > 0" class="text-xs px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full font-medium">
+              {{ totalExpiringCount }}
+            </span>
+          </div>
+          
+          <div v-if="loadingExpirations" class="flex justify-center py-8">
+            <div class="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          
+          <div v-else-if="totalExpiringCount === 0" class="text-center py-8 text-slate-500 text-sm">
+            No hay productos por vencer
+          </div>
+          
+          <div v-else class="space-y-2 max-h-[300px] overflow-y-auto">
+            <div
+              v-for="item in [...expiredItems, ...expiringItems].slice(0, 10)"
+              :key="item.id"
+              class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
+              @click="router.push({ path: '/reportes', query: { tab: 'expirations' } })"
+            >
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="(item.days_remaining ?? 0) <= 0 ? 'bg-red-100 dark:bg-red-900/30' : (item.days_remaining ?? 0) <= 7 ? 'bg-orange-100 dark:bg-orange-900/30' : 'bg-yellow-100 dark:bg-yellow-900/30'">
+                <Clock class="w-4 h-4" :class="(item.days_remaining ?? 0) <= 0 ? 'text-red-600' : (item.days_remaining ?? 0) <= 7 ? 'text-orange-600' : 'text-yellow-600'" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-slate-900 dark:text-white text-sm truncate">{{ item.item_name }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.location_name }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-sm font-bold" :class="(item.days_remaining ?? 0) <= 0 ? 'text-red-600' : (item.days_remaining ?? 0) <= 7 ? 'text-orange-600' : 'text-yellow-600'">
+                  {{ (item.days_remaining ?? 0) <= 0 ? 'VENCIDO' : `${item.days_remaining}d` }}
+                </p>
+                <p class="text-xs text-slate-500">{{ formatDate(item.expiration_date) }}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="totalExpiringCount > 10" class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+            <router-link to="/reports" class="text-xs text-brand-600 hover:text-brand-700 font-medium">
+              Ver todos ({{ totalExpiringCount }}) →
+            </router-link>
           </div>
         </div>
 

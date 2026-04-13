@@ -5,7 +5,7 @@ import { useNotificationStore } from '../../stores/notification.store.js'
 import { usePhoneFormatter } from '../../utils/phone.utils.js'
 import { useAuthStore } from '../../stores/auth.store.js'
 import ImageUpload from '../../components/ImageUpload.vue'
-import { Save, Building2, Phone, Mail, FileText, Image, Loader2, Pencil, X } from 'lucide-vue-next'
+import { Save, Building2, Phone, Mail, FileText, Image, Loader2, Pencil, X, AlertTriangle } from 'lucide-vue-next'
 
 const notify = useNotificationStore()
 const authStore = useAuthStore()
@@ -26,7 +26,8 @@ const formData = ref({
   invoice_sequence: 1,
   currency_code: 'NIO',
   currency_symbol: 'C$',
-  decimal_places: 2
+  decimal_places: 2,
+  expiration_alert_days: 10
 })
 
 const formErrors = ref({})
@@ -54,6 +55,7 @@ const loadCompanyData = async () => {
     const response = await api.get('/companies')
     if (response.data.data) {
       const company = response.data.data
+      const settings = typeof company.settings === 'string' ? JSON.parse(company.settings) : (company.settings || {})
       formData.value = {
         name: company.name || '',
         address: company.address || '',
@@ -65,7 +67,8 @@ const loadCompanyData = async () => {
         invoice_sequence: company.invoice_sequence || 1,
         currency_code: company.currency_code || 'NIO',
         currency_symbol: company.currency_symbol || 'C$',
-        decimal_places: company.decimal_places || 2
+        decimal_places: company.decimal_places || 2,
+        expiration_alert_days: settings.expiration?.alert_days || 10
       }
       hasCompanyData.value = true
     }
@@ -116,7 +119,12 @@ const saveCompanyData = async () => {
       invoice_sequence: formData.value.invoice_sequence ? parseInt(formData.value.invoice_sequence) : 1,
       currency_code: formData.value.currency_code || 'NIO',
       currency_symbol: formData.value.currency_symbol || 'C$',
-      decimal_places: formData.value.decimal_places || 2
+      decimal_places: formData.value.decimal_places || 2,
+      settings: JSON.stringify({
+        expiration: {
+          alert_days: formData.value.expiration_alert_days || 10
+        }
+      })
     }
     await api.put('/companies', data)
     formData.value.logo_url = logoUrl
@@ -256,6 +264,39 @@ onMounted(loadCompanyData)
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Número de Secuencia</label>
               <input v-model="formData.invoice_sequence" type="number" class="input-field" placeholder="1" :disabled="!isEditing" />
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-200 dark:border-slate-700 pt-6">
+          <h3 class="font-semibold text-slate-900 dark:text-white mb-4">
+            <AlertTriangle class="w-4 h-4 inline mr-1" />
+            Configuración de Inventario
+          </h3>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            Configura las alertas de productos próximos a vencer.
+          </p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Días de anticipación para alertas
+              </label>
+              <div class="flex items-center gap-2">
+                <input 
+                  v-model.number="formData.expiration_alert_days" 
+                  type="number" 
+                  min="1" 
+                  max="365" 
+                  class="input-field w-24" 
+                  placeholder="10" 
+                  :disabled="!isEditing" 
+                />
+                <span class="text-sm text-slate-500">días</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">
+                Los productos que venzan dentro de este período aparecerán en las alertas.
+              </p>
             </div>
           </div>
         </div>
