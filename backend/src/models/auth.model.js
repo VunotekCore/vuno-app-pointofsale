@@ -53,7 +53,11 @@ export class AuthModel {
 
     // Fetch company data for ImageKit config
     const company = await this.companyRepo.findById(companyId)
-    
+
+    if (!company || !company.is_active) {
+      throw new UnauthorizedError('Empresa desactivada. Contacte al administrador.')
+    }
+
     const imagekitConfig = company ? {
       imagekit_private_key: company.imagekit_private_key || null,
       imagekit_url_endpoint: company.imagekit_url_endpoint || null

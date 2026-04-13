@@ -21,6 +21,7 @@ import platformUserRouter from './platform-user.router.js'
 import platformUserProtectedRouter from './platform-user-protected.router.js'
 import unitsRouter from './units.router.js'
 import reportsRouter from './reports.router.js'
+import { expirationRouter } from './expiration.router.js'
 
 export default {
   authRouter,
@@ -46,5 +47,6 @@ export default {
   platformUserRouter,
   platformUserProtectedRouter,
   unitsRouter,
-  reportsRouter
+  reportsRouter,
+  expirationRouter
 }

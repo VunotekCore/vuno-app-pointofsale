@@ -11,7 +11,7 @@ export class CompanyRepository {
     const slug = this.generateSlug(data.name)
 
     const result = await this.db.query(
-      `INSERT INTO companies (id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, settings, is_active)
+      `INSERT INTO companies (id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, expiration_alert_days, is_active)
        VALUES (UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
         id,
@@ -27,7 +27,7 @@ export class CompanyRepository {
         data.currency_code || 'NIO',
         data.currency_symbol || 'C$',
         data.decimal_places || 2,
-        JSON.stringify(data.settings || {})
+        data.expiration_alert_days || 10
       ]
     )
 
@@ -36,7 +36,7 @@ export class CompanyRepository {
 
   async findById(id) {
     const rows = await this.db.query(
-      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
+      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, expiration_alert_days, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
        FROM companies WHERE id = UUID_TO_BIN(?)`,
       [id]
     )
@@ -45,7 +45,7 @@ export class CompanyRepository {
 
 async findBySlug(slug) {
     const rows = await this.db.query(
-      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
+      `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, expiration_alert_days, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at
        FROM companies WHERE slug = ?`,
       [slug]
     )
@@ -53,7 +53,7 @@ async findBySlug(slug) {
   }
 
   async findAll(filters = {}) {
-    let sql = `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, return_sequence, currency_code, currency_symbol, decimal_places, settings, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at FROM companies WHERE 1=1`
+    let sql = `SELECT BIN_TO_UUID(id) as id, name, slug, logo_url, address, phone, business_email, nit, invoice_prefix, invoice_sequence, currency_code, currency_symbol, decimal_places, expiration_alert_days, is_active, is_default, imagekit_private_key, imagekit_url_endpoint, created_at, updated_at FROM companies WHERE 1=1`
     const params = []
 
     if (filters.is_active !== undefined) {
@@ -131,13 +131,13 @@ async findBySlug(slug) {
       updates.push('decimal_places = ?')
       params.push(data.decimal_places)
     }
-    if (data.settings) {
-      updates.push('settings = ?')
-      params.push(JSON.stringify(data.settings))
-    }
     if (data.is_active !== undefined) {
       updates.push('is_active = ?')
       params.push(data.is_active)
+    }
+    if (data.expiration_alert_days !== undefined) {
+      updates.push('expiration_alert_days = ?')
+      params.push(data.expiration_alert_days)
     }
     if (data.imagekit_private_key !== undefined) {
       updates.push('imagekit_private_key = ?')
@@ -223,5 +223,22 @@ async findBySlug(slug) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 100)
+  }
+
+  async getExpirationAlertDays (companyId) {
+    const rows = await this.db.query(
+      'SELECT expiration_alert_days FROM companies WHERE id = UUID_TO_BIN(?)',
+      [companyId]
+    )
+    if (rows.length === 0) return 10
+    return rows[0].expiration_alert_days || 10
+  }
+
+  async updateExpirationAlertDays (companyId, alertDays) {
+    await this.db.query(
+      'UPDATE companies SET expiration_alert_days = ? WHERE id = UUID_TO_BIN(?)',
+      [alertDays, companyId]
+    )
+    return alertDays
   }
 }
