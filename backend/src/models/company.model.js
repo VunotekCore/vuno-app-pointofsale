@@ -59,13 +59,17 @@ export class CompanyModel {
         is_admin: 1
       })
 
-      const [allPermissions] = await conn.query(
-        'SELECT id FROM permissions'
+      const globalAdminRoleId = await this.getGlobalAdminRoleId(conn)
+      const allPermissions = await conn.query(
+        `SELECT rp.permission_id 
+         FROM role_permissions rp 
+         WHERE rp.role_id = UUID_TO_BIN(?)`,
+        [globalAdminRoleId]
       )
       for (const perm of allPermissions) {
         await conn.query(
           'INSERT INTO role_permissions (role_id, permission_id, company_id) VALUES (UUID_TO_BIN(?), ?, UUID_TO_BIN(?))',
-          [adminRoleId, perm.id, companyId]
+          [adminRoleId, perm.permission_id, companyId]
         )
       }
 
@@ -120,6 +124,18 @@ export class CompanyModel {
       [roleId, roleData.name, roleData.description || null, roleData.is_admin || 0, companyId]
     )
     return roleId
+  }
+
+  async getGlobalAdminRoleId (conn) {
+    const globalCompanyId = '00000000-0000-0000-0000-000000000001'
+    const rows = await conn.query(
+      'SELECT id FROM roles WHERE company_id = UUID_TO_BIN(?) AND is_admin = 1 LIMIT 1',
+      [globalCompanyId]
+    )
+    if (rows.length === 0) {
+      throw new NotFoundError('No se encontró el rol Admin global')
+    }
+    return rows[0].id
   }
 
   async getCompanyById (id) {
