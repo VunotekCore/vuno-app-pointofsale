@@ -25,6 +25,7 @@ const showPassword = ref(false)
 const showPasswordFields = ref(false)
 const companyAdmin = ref(null)
 const enteringCompany = ref(null)
+const defaultLogo = 'https://ik.imagekit.io/vijys5g3r/logos/logovuno_sMoyvkfEfv.webp?updatedAt=1774315093026'
 
 const form = ref({
   name: '',
@@ -115,7 +116,7 @@ async function openEditModal(company) {
   logoFile.value = null
   form.value = {
     name: company.name,
-    logo_url: company.logo_url || '',
+    logo_url: company.logo_url || defaultLogo,
     address: company.address || '',
     phone: company.phone || '',
     business_email: company.business_email || '',
@@ -369,7 +370,7 @@ function handlePhoneBlur(event) {
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-center gap-3">
             <div class="w-12 h-12 bg-brand-100 dark:bg-brand-900/30 rounded-xl flex items-center justify-center overflow-hidden">
-              <img v-if="company.logo_url" :src="company.logo_url" class="w-full h-full object-cover" />
+              <img v-if="company.logo_url" :src="company.logo_url" class="w-full h-full object-contain" />
               <Building2 v-else class="w-6 h-6 text-brand-600 dark:text-brand-400" />
             </div>
             <div>
@@ -465,7 +466,7 @@ function handlePhoneBlur(event) {
                 v-model="logoFile"
                 :preview-url="form.logo_url"
                 label=""
-                size="logo"
+                size="logo"                
               />
             </div>
           </div>
