@@ -67,7 +67,9 @@ const itemForm = ref({
   item_id: '',
   quantity: 1,
   unit_cost: 0,
-  variation_id: ''
+  variation_id: '',
+  expiration_date: '',
+  batch_number: ''
 })
 
 
@@ -203,7 +205,7 @@ async function onOrderSelect() {
     form.value.supplier_id = ''
     form.value.location_id = ''
     form.value.items = []
-    await loadAvailableItems()
+    form.value.notes = ''
     return
   }
   
@@ -215,9 +217,6 @@ async function onOrderSelect() {
       form.value.supplier_id = order.supplier_id
       form.value.location_id = order.location_id
       form.value.notes = order.notes ? `Orden: ${order.po_number} - ${order.notes}` : `Orden: ${order.po_number}`
-      if (order.supplier_id) {
-        await loadAvailableItems(order.supplier_id)
-      }
       
       form.value.items = (order.items || []).map(item => ({
         item_id: item.item_id,
@@ -225,8 +224,8 @@ async function onOrderSelect() {
         item_name: item.item_name,
         item_number: item.item_number,
         quantity: item.quantity_ordered - (item.quantity_received || 0),
-        unit_cost: item.cost_price,
-        total_cost: (item.quantity_ordered - (item.quantity_received || 0)) * item.cost_price
+        cost_price: item.cost_price,
+        expiration_date: ''
       }))
     }
   } catch (error) {
@@ -305,7 +304,9 @@ function addItem() {
     item_id: '',
     quantity: 1,
     unit_cost: 0,
-    variation_id: ''
+    variation_id: '',
+    expiration_date: '',
+    batch_number: ''
   }
 }
 
@@ -314,6 +315,11 @@ function removeItem(index) {
 }
 
 async function saveReceiving() {
+  if (!form.value.purchase_order_id) {
+    notification.warning('Selecciona una orden de compra')
+    return
+  }
+  
   if (!form.value.supplier_id || !form.value.location_id || form.value.items.length === 0) {
     notification.warning('Complete todos los campos requeridos')
     return
@@ -321,7 +327,7 @@ async function saveReceiving() {
   
   try {
     const data = {
-      purchase_order_id: form.value.purchase_order_id || null,
+      purchase_order_id: form.value.purchase_order_id,
       supplier_id: form.value.supplier_id,
       location_id: typeof form.value.location_id === 'object' ? form.value.location_id.id : form.value.location_id,
       receiving_type: form.value.receiving_type,
@@ -330,7 +336,9 @@ async function saveReceiving() {
         item_id: item.item_id,
         variation_id: item.variation_id || null,
         quantity: item.quantity,
-        cost_price: item.unit_cost
+        cost_price: item.cost_price,
+        expire_date: item.expiration_date || null,
+        batch_number: item.batch_number || null
       }))
     }
     
@@ -400,6 +408,12 @@ async function deleteReceiving(id) {
 onMounted(() => {
   loadReceivings()
 })
+
+function formatDate (dateStr) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('es-NI', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
 </script>
 
 <template>
@@ -644,14 +658,14 @@ onMounted(() => {
         
         <div class="p-4 space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Orden de Compra (opcional)</label>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Orden de Compra *</label>
             <select
               v-model="form.purchase_order_id"
               @change="onOrderSelect"
               class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
               :disabled="loadingOrders"
             >
-              <option value="">Recepción directa (sin orden)</option>
+              <option value="">Seleccionar orden de compra...</option>
               <option v-for="o in purchaseOrders" :key="o.id" :value="o.id">
                 {{ o.po_number }} - {{ o.supplier_name }}
               </option>
@@ -693,69 +707,43 @@ onMounted(() => {
             ></textarea>
           </div>
           
-          <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Productos</label>
-            
-            <div class="flex gap-2 mb-2">
-              <select
-                v-model="itemForm.item_id"
-                class="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-              >
-                <option value="">Seleccionar producto</option>
-                <option v-for="i in availableItems" :key="i.id" :value="i.id">{{ i.name }} ({{ i.item_number }})</option>
-              </select>
-              <input
-                v-model.number="itemForm.quantity"
-                type="number"
-                min="1"
-                placeholder="Cantidad"
-                class="w-24 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
-              <input
-                v-model.number="itemForm.unit_cost"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Costo"
-                class="w-28 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
-              <button
-                @click="addItem"
-                class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg"
-              >
-                <Plus class="w-4 h-4" />
-              </button>
-            </div>
+          <div v-if="form.purchase_order_id && form.items.length > 0">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Productos de la Orden de Compra</label>
+            <p class="text-xs text-slate-500 mb-3">Ingresa la fecha de vencimiento para cada producto recibido.</p>
             
             <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
               <table class="w-full text-sm">
                 <thead class="bg-slate-100 dark:bg-slate-700">
                   <tr>
                     <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Producto</th>
-                    <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cantidad</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Por Recibir</th>
                     <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Costo</th>
-                    <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Total</th>
-                    <th class="px-3 py-2"></th>
+                    <th class="px-3 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Fecha Vencimiento</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                   <tr v-for="(item, index) in form.items" :key="index" class="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">{{ item.item_name }}</td>
-                    <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity }}</td>
-                    <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.unit_cost || 0).toFixed(2) }}</td>
-                    <td class="px-3 py-2 text-right text-slate-900 dark:text-white font-medium">C$ {{ parseFloat(item.total_cost || 0).toFixed(2) }}</td>
-                    <td class="px-3 py-2 text-right">
-                      <button @click="removeItem(index)" class="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20">
-                        <X class="w-4 h-4" />
-                      </button>
+                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">
+                      {{ item.item_name }}
+                      <span class="text-xs text-slate-400 block">{{ item.item_number }}</span>
                     </td>
-                  </tr>
-                  <tr v-if="form.items.length === 0">
-                    <td colspan="5" class="px-3 py-4 text-center text-slate-400">No hay productos agregados</td>
+                    <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity }}</td>
+                    <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.cost_price || item.unit_cost || 0).toFixed(2) }}</td>
+                    <td class="px-3 py-2 text-center">
+                      <input
+                        v-model="item.expiration_date"
+                        type="date"
+                        class="w-36 px-2 py-1 text-sm border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
+          </div>
+          
+          <div v-else-if="!form.purchase_order_id" class="text-center py-8 text-slate-500">
+            Selecciona una orden de compra para ver los productos
           </div>
         </div>
         
@@ -818,6 +806,7 @@ onMounted(() => {
                     <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Cantidad</th>
                     <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Costo</th>
                     <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Total</th>
+                    <th class="px-3 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-300 uppercase">Vence</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
@@ -826,6 +815,12 @@ onMounted(() => {
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.cost_price || 0).toFixed(2) }}</td>
                     <td class="px-3 py-2 text-right text-slate-900 dark:text-white font-medium">C$ {{ parseFloat(item.total_cost || 0).toFixed(2) }}</td>
+                    <td class="px-3 py-2 text-center">
+                      <span v-if="item.expire_date" class="text-xs px-2 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded">
+                        {{ formatDate(item.expire_date) }}
+                      </span>
+                      <span v-else class="text-xs text-slate-400">-</span>
+                    </td>
                   </tr>
                 </tbody>
               </table>

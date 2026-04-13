@@ -246,20 +246,25 @@ export class ReceivingRepository {
       await conn.beginTransaction()
 
       for (const item of receiving.items) {
-        const { item_id, variation_id, quantity, cost_price, serial_numbers } = item
+        const { item_id, variation_id, quantity, cost_price, serial_numbers, expire_date, batch_number } = item
 
         const existingStock = await conn.query(`
           SELECT id, quantity FROM item_quantities 
           WHERE item_id = UUID_TO_BIN(?) AND location_id = UUID_TO_BIN(?) AND (variation_id = UUID_TO_BIN(?) OR (variation_id IS NULL AND ? IS NULL))
         `, [item_id, receiving.location_id, variation_id, variation_id])
 
+        const quantityBefore = existingStock.length > 0 ? parseFloat(existingStock[0].quantity) : 0
+        let newQuantity
+
         if (existingStock.length > 0) {
+          newQuantity = quantityBefore + parseFloat(quantity)
           await conn.query(`
             UPDATE item_quantities 
-            SET quantity = quantity + ? 
+            SET quantity = ? 
             WHERE id = ?
-          `, [quantity, existingStock[0].id])
+          `, [newQuantity, existingStock[0].id])
         } else {
+          newQuantity = parseFloat(quantity)
           await conn.query(`
             INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity)
             VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?)
@@ -267,9 +272,9 @@ export class ReceivingRepository {
         }
 
         await conn.query(`
-          INSERT INTO inventory_movements (id, item_id, variation_id, location_id, movement_type, quantity_change, unit_cost, reference_id, reference_type, created_by)
-          VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), 'receiving', ?, ?, UUID_TO_BIN(?), 'receiving', UUID_TO_BIN(?))
-        `, [item_id, variation_id || null, receiving.location_id, quantity, cost_price, id, userId])
+          INSERT INTO inventory_movements (id, item_id, variation_id, location_id, movement_type, quantity_change, quantity_before, quantity_after, unit_cost, reference_id, reference_type, created_by)
+          VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), 'receiving', ?, ?, ?, ?, UUID_TO_BIN(?), 'receiving', UUID_TO_BIN(?))
+        `, [item_id, variation_id || null, receiving.location_id, quantity, quantityBefore, newQuantity, cost_price, id, userId])
 
         if (receiving.purchase_order_id) {
           const poItems = await conn.query(`
@@ -288,6 +293,19 @@ export class ReceivingRepository {
         }
 
         await this.updateAverageCost(conn, item_id, quantity, cost_price, userId, companyId)
+
+        if (expire_date) {
+          const itemCheck = await conn.query(`
+            SELECT tracks_expiration FROM items WHERE id = UUID_TO_BIN(?)
+          `, [item_id])
+          
+          if (itemCheck.length > 0 && itemCheck[0].tracks_expiration === 1) {
+            await conn.query(`
+              INSERT INTO item_expirations (id, item_id, location_id, receiving_item_id, quantity, expiration_date, lot_number)
+              VALUES (UUID_TO_BIN(UUID()), UUID_TO_BIN(?), UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?)
+            `, [item_id, receiving.location_id, item.id || null, quantity, expire_date, batch_number || null])
+          }
+        }
       }
 
       await conn.query('UPDATE receivings SET status = ?, received_at = NOW() WHERE id = UUID_TO_BIN(?)', ['completed', id])

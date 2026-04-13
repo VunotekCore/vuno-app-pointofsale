@@ -44,6 +44,7 @@ app.use('/companies', routers.companyMeRouter)
 app.use('/platform/users', routers.platformUserProtectedRouter)
 app.use('/units', routers.unitsRouter)
 app.use('/reports', routers.reportsRouter)
+app.use('/api', routers.expirationRouter)
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' })

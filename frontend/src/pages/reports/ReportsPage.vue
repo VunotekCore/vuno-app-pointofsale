@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useNotificationStore } from '../../stores/notification.store.js'
 import { useCurrencyStore } from '../../stores/currency.store.js'
 import { useLocationStore } from '../../stores/location.store.js'
 import { useAuthStore } from '../../stores/auth.store.js'
 import api from '../../services/api.service.js'
+import { expirationService } from '../../services/expiration.service.js'
 import flatpickr from 'flatpickr'
 import 'flatpickr/dist/flatpickr.css'
 import {
@@ -17,20 +19,24 @@ import {
   Download,
   Loader2,
   Filter,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Clock
 } from 'lucide-vue-next'
 
 const notification = useNotificationStore()
 const currencyStore = useCurrencyStore()
 const locationStore = useLocationStore()
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 
 const activeTab = ref('sales')
 const tabs = [
   { key: 'sales', name: 'Ventas', icon: ShoppingCart },
   { key: 'inventory', name: 'Inventario', icon: Package },
   { key: 'purchases', name: 'Compras', icon: Truck },
-  { key: 'cash', name: 'Caja', icon: Wallet }
+  { key: 'cash', name: 'Caja', icon: Wallet },
+  { key: 'expirations', name: 'Vencimientos', icon: Clock }
 ]
 
 const loading = ref(false)
@@ -96,6 +102,12 @@ const statusOptions = computed(() => {
         { value: 'out', label: 'Salida' },
         { value: 'adjustment', label: 'Ajuste' }
       ]
+    case 'expirations':
+      return [
+        { value: '', label: 'Todos' },
+        { value: 'expiring', label: 'Por Vencer' },
+        { value: 'expired', label: 'Vencidos' }
+      ]
     default:
       return []
   }
@@ -141,6 +153,15 @@ const tableColumns = computed(() => {
         { key: 'location_name', label: 'Ubicación' },
         { key: 'user_name', label: 'Usuario' }
       ]
+    case 'expirations':
+      return [
+        { key: 'item_name', label: 'Producto' },
+        { key: 'location_name', label: 'Ubicación' },
+        { key: 'quantity', label: 'Cantidad' },
+        { key: 'expiration_date', label: 'Fecha Vence' },
+        { key: 'days_remaining', label: 'Días' },
+        { key: 'status', label: 'Estado' }
+      ]
     default:
       return []
   }
@@ -150,6 +171,10 @@ onMounted(async () => {
   const { from, to } = getCurrentMonthDates()
   dateFrom.value = from
   dateTo.value = to
+  
+  if (route.query.tab && ['sales', 'inventory', 'purchases', 'cash', 'expirations'].includes(route.query.tab)) {
+    activeTab.value = route.query.tab
+  }
   
   await nextTick()
   
@@ -308,6 +333,24 @@ async function loadData() {
       cash: '/reports/cash'
     }
 
+    if (activeTab.value === 'expirations') {
+      const expParams = {}
+      if (selectedLocation.value) {
+        expParams.location_id = selectedLocation.value.id || selectedLocation.value
+      }
+      if (statusFilter.value === 'expired') {
+        const { data: response } = await expirationService.getExpired(expParams)
+        data.value = response.data || []
+        totalRecords.value = response.total || 0
+      } else {
+        const { data: response } = await expirationService.getExpiring(expParams)
+        data.value = response.data || []
+        totalRecords.value = response.total || 0
+      }
+      loading.value = false
+      return
+    }
+
     const { data: response } = await api.get(endpoints[activeTab.value], { params })
     data.value = response.data || []
     totalRecords.value = response.total || 0
@@ -370,12 +413,31 @@ function getCellValue(row, column) {
       return txTypes[row[column.key]] || row[column.key]
     case 'type':
       return row.type || row.adjustment_type || '-'
+    case 'expiration_date':
+      return formatDate(row[column.key])
+    case 'days_remaining':
+      const days = row.days_remaining || 0
+      return days <= 0 ? 'Vencido' : `${days} días`
+    case 'status':
+      if (activeTab.value === 'expirations') {
+        const days = row.days_remaining ?? 0
+        if (days <= 0) return 'Vencido'
+        if (days <= 7) return 'Por Vencer'
+        return 'En Tiempo'
+      }
+      return row[column.key]
     default:
       return row[column.key] || '-'
   }
 }
 
 function getStatusClass(status) {
+  if (activeTab.value === 'expirations') {
+    const days = status?.days_remaining || 0
+    if (days <= 0) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    if (days <= 7) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+  }
   const colors = {
     pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
     completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',

@@ -224,4 +224,33 @@ async findBySlug(slug) {
       .replace(/^-|-$/g, '')
       .substring(0, 100)
   }
+
+  async getExpirationAlertDays (companyId) {
+    const rows = await this.db.query(
+      'SELECT settings FROM companies WHERE id = UUID_TO_BIN(?)',
+      [companyId]
+    )
+    if (rows.length === 0) return 10
+    
+    const settings = rows[0].settings ? JSON.parse(rows[0].settings) : {}
+    return settings.expiration?.alert_days || 10
+  }
+
+  async updateExpirationAlertDays (companyId, alertDays) {
+    const rows = await this.db.query(
+      'SELECT settings FROM companies WHERE id = UUID_TO_BIN(?)',
+      [companyId]
+    )
+    
+    const currentSettings = rows[0]?.settings ? JSON.parse(rows[0].settings) : {}
+    currentSettings.expiration = currentSettings.expiration || {}
+    currentSettings.expiration.alert_days = alertDays
+    
+    await this.db.query(
+      'UPDATE companies SET settings = ? WHERE id = UUID_TO_BIN(?)',
+      [JSON.stringify(currentSettings), companyId]
+    )
+    
+    return alertDays
+  }
 }

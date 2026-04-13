@@ -61,6 +61,7 @@ export class ItemsRepository {
         i.is_service,
         i.is_kit,
         i.is_variable_sale,
+        i.tracks_expiration,
         i.image_url,
         i.custom_fields,
         i.status,
@@ -195,6 +196,8 @@ export class ItemsRepository {
         i.is_service,
         i.is_kit,
         i.is_part_of_kit,
+        i.is_variable_sale,
+        i.tracks_expiration,
         i.image_url,
         i.custom_fields,
         i.status,
@@ -292,7 +295,7 @@ export class ItemsRepository {
   }
 
   async create (data, userId = null) {
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, kit_components, company_id } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components, company_id } = data
 
     if (!name || !name.trim()) {
       throw new BadRequestError('El nombre del producto es requerido')
@@ -332,9 +335,9 @@ export class ItemsRepository {
     }
 
     const result = await this.db.query(`
-      INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, status, created_by, company_id)
+      INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, status, created_by, company_id)
       VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
-    `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, image_url || null, status || 'active', userId, company_id])
+    `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
     
     const newItem = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE item_number = ? OR name = ?', [item_number || null, name.trim()])
     return newItem[0]?.id
@@ -343,7 +346,7 @@ export class ItemsRepository {
   async update (id, data, userId = null, companyId = null) {
     const existing = await this.getById(id, null, companyId)
     
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, image_url, custom_fields, status, kit_components } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components } = data
 
     let finalCostPrice = cost_price
     let finalUnitPrice = unit_price
@@ -382,7 +385,7 @@ export class ItemsRepository {
 
     const fields = []
     const values = []
-    const allowedFields = ['item_number', 'name', 'description', 'category_id', 'supplier_id', 'cost_price', 'unit_price', 'reorder_level', 'reorder_quantity', 'is_serialized', 'is_service', 'is_kit', 'is_variable_sale', 'image_url', 'custom_fields', 'status']
+    const allowedFields = ['item_number', 'name', 'description', 'category_id', 'supplier_id', 'cost_price', 'unit_price', 'reorder_level', 'reorder_quantity', 'is_serialized', 'is_service', 'is_kit', 'is_variable_sale', 'tracks_expiration', 'image_url', 'custom_fields', 'status']
 
     for (const field of allowedFields) {
       let value = data[field]
