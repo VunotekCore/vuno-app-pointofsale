@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, computed, watch, onUnmounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { BookOpen, ChevronRight, Loader2, FileText, List, X } from 'lucide-vue-next'
 
 const loading = ref(true)
@@ -9,6 +9,7 @@ const error = ref('')
 const showMobileToc = ref(false)
 
 const route = useRoute()
+const router = useRouter()
 const docPath = computed(() => route.query.path || 'USER.md')
 
 const tocItems = ref([])
@@ -114,13 +115,11 @@ function formatContent(text) {
   })
   
   html = html.replace(/^(\s*)- (.+)$/gm, (match, space, text) => {
-    const margin = space.length > 0 ? 'ml-8' : 'ml-4';
-    return `<li class="${margin} mb-2 text-slate-700 dark:text-slate-300 list-disc">${text}</li>`
+    return `<li class="ml-4 mb-2 text-slate-700 dark:text-slate-300 list-disc">${text}</li>`
   })
   
   html = html.replace(/^(\s*)(\d+)\. (.+)$/gm, (match, space, num, text) => {
-    const margin = space.length > 0 ? 'ml-8' : 'ml-4';
-    return `<li class="${margin} mb-2 text-slate-700 dark:text-slate-300"><span class="inline-block w-6 text-slate-400 dark:text-slate-500 select-none">${num}.</span>${text}</li>`
+    return `<li class="ml-4 mb-2 text-slate-700 dark:text-slate-300 list-decimal">${text}</li>`
   })
   
   html = html.replace(/\|(.+)\|/g, (match) => {
@@ -205,9 +204,25 @@ function setupObserver() {
   }, 100)
 }
 
-watch(content, () => {
+function setupLinkHandlers() {
+  const links = document.querySelectorAll('#wiki-content a')
+  links.forEach(link => {
+    const href = link.getAttribute('href')
+    if (href && href.endsWith('.md')) {
+      link.addEventListener('click', (e) => {
+        e.preventDefault()
+        const fileName = href.split('/').pop() || href
+        router.push({ path: '/docs', query: { path: fileName } })
+      })
+    }
+  })
+}
+
+watch(content, async () => {
   if (!loading.value) {
     setupObserver()
+    await nextTick()
+    setupLinkHandlers()
   }
 })
 
@@ -372,5 +387,16 @@ function getTocItemClass(item) {
 .prose pre code {
   background: transparent;
   padding: 0;
+}
+.prose ul {
+  list-style: disc;
+  padding-left: 1rem;
+}
+.prose ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.prose li {
+  margin-bottom: 0.25rem;
 }
 </style>
