@@ -348,7 +348,7 @@ const backToPlatform = () => {
       <div class="h-16 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 flex-shrink-0 px-2">
         <div class="flex items-center gap-3 transition-all duration-300" :class="{ 'px-2': !isSidebarOpen }">
           <template v-if="companyData.logo_url">
-            <img :src="companyData.logo_url" alt="Logo" class="w-9 h-9 rounded-xl object-cover" />
+            <img :src="companyData.logo_url" alt="Logo" class="w-9 h-9 rounded-xl object-contain" />
           </template>
           <template v-else>
             <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-brand-500/30">
