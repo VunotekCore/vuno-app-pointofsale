@@ -336,7 +336,7 @@ export class ItemsRepository {
 
     const result = await this.db.query(`
       INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, status, created_by, company_id)
-      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
     `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
     
     const newItem = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE item_number = ? OR name = ?', [item_number || null, name.trim()])
