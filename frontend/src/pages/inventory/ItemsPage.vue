@@ -1246,7 +1246,7 @@ const currentPage = ref(1)
                       <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                         <input v-model="form.is_kit" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
                         <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Kit/Paquete <span class="text-xs text-slate-400 block">conjunto de productos</span>
+                          Producto Compuesto <span class="text-xs text-slate-400 block">conjunto de productos</span>
                         </span>
                       </label>
                       <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" :class="{ 'opacity-50': form.is_kit }">
@@ -1267,7 +1267,7 @@ const currentPage = ref(1)
                   <!-- Kit Components -->
                   <div v-if="form.is_kit" class="space-y-3">
                     <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Componentes del Kit</h3>
+                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Elementos incluidos</h3>
                       <span class="h-px w-4 bg-brand-500/30"></span>
                     </div>
                     <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
