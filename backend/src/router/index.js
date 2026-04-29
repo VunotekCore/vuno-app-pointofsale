@@ -3,6 +3,7 @@ import usersRouter from './users.router.js'
 import userLocationsRouter from './user-locations.router.js'
 import { rolesRouter, permissionsRouter } from './roles.router.js'
 import itemsRouter from './items.router.js'
+import locationsRouter from './locations.router.js'
 import inventoryRouter from './inventory.router.js'
 import salesRouter from './sales.router.js'
 import customersRouter from './customers.router.js'
@@ -30,6 +31,7 @@ export default {
   rolesRouter,
   permissionsRouter,
   itemsRouter,
+  locationsRouter,
   inventoryRouter,
   salesRouter,
   customersRouter,

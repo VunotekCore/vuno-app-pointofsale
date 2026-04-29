@@ -6,10 +6,6 @@ import { GenericController } from '../controllers/generic.controller.js'
 import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
 
 const tableConfig = {
-  locations: {
-    columns: ['name', 'code', 'address', 'phone', 'email', 'manager_user_id', 'is_warehouse', 'is_active', 'timezone', 'default_tax_rate', 'custom_fields'],
-    required: ['name', 'code']
-  },
   categories: {
     columns: ['name', 'parent_id', 'description', 'image_url', 'is_active'],
     required: ['name']
@@ -44,7 +40,6 @@ function createCrudRouter (tableName, config) {
 
 const router = Router()
 
-router.use('/locations', createCrudRouter('locations', tableConfig.locations))
 router.use('/categories', createCrudRouter('categories', tableConfig.categories))
 router.use('/suppliers', createCrudRouter('suppliers', tableConfig.suppliers))
 router.use('/item-variations', createCrudRouter('item_variations', tableConfig.item_variations))
