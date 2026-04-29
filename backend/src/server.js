@@ -1,11 +1,11 @@
 import app from './app.js'
-// import dotenv from 'dotenv'
+import dotenv from 'dotenv'
 import { permissionsService } from './utils/permissions.utils.js'
 import { initSocketServer } from './socket/index.js'
 import { createServer } from 'http'
 import { dbKeepAlive } from './utils/db-keepalive.js'
 
-// dotenv.config()
+dotenv.config()
 
 const PORT = process.env.PORT || 3000
 const DB_KEEPALIVE_INTERVAL = 13 * 60 * 1000
