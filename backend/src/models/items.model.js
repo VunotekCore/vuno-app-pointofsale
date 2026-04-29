@@ -1,8 +1,10 @@
 import { NotFoundError } from '../errors/NotFoundError.js'
+import { SequenceRepository } from '../repository/sequence.repository.js'
 
 export class ItemsModel {
-  constructor (itemsRepository) {
+  constructor (itemsRepository, sequenceRepo = null) {
     this.itemsRepo = itemsRepository
+    this.sequenceRepo = sequenceRepo || new SequenceRepository()
   }
 
   async getAll (locationId = null, filters = {}) {
@@ -22,10 +24,6 @@ export class ItemsModel {
     const itemData = { ...data, company_id: companyId }
     const kitComponents = itemData.kit_components
     delete itemData.kit_components
-
-    if (!itemData.item_number) {
-      itemData.item_number = await this.itemsRepo.generateItemNumber(companyId)
-    }
 
     const itemId = await this.itemsRepo.create(itemData, userId)
     
