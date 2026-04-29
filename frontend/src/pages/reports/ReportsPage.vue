@@ -271,7 +271,7 @@ async function loadLocations() {
     }))
     
     if (activeLocations.length === 0) {
-      const { data: allLocations } = await api.get('/core/locations')
+      const { data: allLocations } = await api.get('/locations')
       activeLocations = (allLocations.data || []).filter(l => l.is_active)
     }
     
