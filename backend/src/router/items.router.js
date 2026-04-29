@@ -3,10 +3,12 @@ import database from '../config/database.js'
 import { ItemsRepository } from '../repository/items.repository.js'
 import { ItemsModel } from '../models/items.model.js'
 import { ItemsController } from '../controllers/items.controller.js'
+import { SequenceRepository } from '../repository/sequence.repository.js'
 import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
 
-const itemsRepo = new ItemsRepository(database)
-const itemsModel = new ItemsModel(itemsRepo)
+const sequenceRepo = new SequenceRepository(database)
+const itemsRepo = new ItemsRepository(database, sequenceRepo)
+const itemsModel = new ItemsModel(itemsRepo, sequenceRepo)
 const itemsController = new ItemsController(itemsModel)
 
 const router = Router()

@@ -8,7 +8,8 @@ const ENTITY_SEQUENCE_MAP = {
   purchase_order: 'purchase_order_sequence',
   receiving: 'receiving_sequence',
   transfer: 'transfer_sequence',
-  adjustment: 'adjustment_sequence'
+  adjustment: 'adjustment_sequence',
+  item: 'item_sequence'
 }
 
 const ENTITY_PREFIX_MAP = {
@@ -17,7 +18,8 @@ const ENTITY_PREFIX_MAP = {
   purchase_order: 'OC',
   receiving: 'REC',
   transfer: 'TRF',
-  adjustment: 'ADJ'
+  adjustment: 'ADJ',
+  item: 'ITEM'
 }
 
 export class SequenceRepository {
@@ -50,9 +52,13 @@ export class SequenceRepository {
     let currentSeq = await this.getCurrent(companyId, normalizedType)
 
     if (currentSeq === null) {
-      const initialField = ENTITY_SEQUENCE_MAP[normalizedType]
-      const initialValue = company[initialField] || 1
-      currentSeq = initialValue - 1
+      if (normalizedType === 'item') {
+        currentSeq = await this.getMaxItemNumber(companyId)
+      } else {
+        const initialField = ENTITY_SEQUENCE_MAP[normalizedType]
+        const initialValue = company[initialField] || 1
+        currentSeq = initialValue - 1
+      }
     }
 
     const nextSeq = currentSeq + 1
@@ -61,6 +67,16 @@ export class SequenceRepository {
     await this.save(companyId, normalizedType, nextSeq)
 
     return { docNumber, sequence: nextSeq, entityType: normalizedType }
+  }
+
+  async getMaxItemNumber(companyId) {
+    const rows = await this.db.query(
+      `SELECT MAX(CAST(SUBSTRING(item_number, 6) AS UNSIGNED)) as max_num
+       FROM items
+       WHERE company_id = UUID_TO_BIN(?) AND item_number LIKE 'ITEM-%'`,
+      [companyId]
+    )
+    return rows[0]?.max_num || 0
   }
 
   async getCurrent(companyId, entityType) {
