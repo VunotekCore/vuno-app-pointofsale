@@ -143,7 +143,7 @@ const loadRoles = async () => {
 
 const loadLocations = async () => {
   try {
-    const response = await api.get('/core/locations')
+    const response = await api.get('/locations')
     locations.value = response.data.data || []
   } catch (error) {
     console.error('Error loading locations:', error)
