@@ -2,11 +2,11 @@ import api from './api.service.js'
 
 export const coreService = {
   // Locations
-  getLocations: (params) => api.get('/core/locations', { params }),
-  getLocation: (id) => api.get(`/core/locations/${id}`),
-  createLocation: (data) => api.post('/core/locations', data),
-  updateLocation: (id, data) => api.put(`/core/locations/${id}`, data),
-  deleteLocation: (id) => api.delete(`/core/locations/${id}`),
+  getLocations: (params) => api.get('/locations', { params }),
+  getLocation: (id) => api.get(`/locations/${id}`),
+  createLocation: (data) => api.post('/locations', data),
+  updateLocation: (id, data) => api.put(`/locations/${id}`, data),
+  deleteLocation: (id) => api.delete(`/locations/${id}`),
   getUserLocations: () => api.get('/users-locations/me/locations'),
 
   // Categories
