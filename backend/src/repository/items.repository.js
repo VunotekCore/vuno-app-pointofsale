@@ -1,10 +1,13 @@
 import pool from '../config/database.js'
 import { NotFoundError } from '../errors/NotFoundError.js'
 import { BadRequestError } from '../errors/BadRequestError.js'
+import { SequenceRepository } from './sequence.repository.js'
+import crypto from 'crypto'
 
 export class ItemsRepository {
-  constructor (db = pool) {
+  constructor (db = pool, sequenceRepo = null) {
     this.db = db
+    this.sequenceRepo = sequenceRepo || new SequenceRepository(db)
   }
 
   async getAll (locationId = null, filters = {}) {
@@ -295,10 +298,17 @@ export class ItemsRepository {
   }
 
   async create (data, userId = null) {
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components, company_id } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components, company_id, initial_quantity } = data
 
     if (!name || !name.trim()) {
       throw new BadRequestError('El nombre del producto es requerido')
+    }
+
+    let finalItemNumber = item_number
+
+    if (!finalItemNumber || !finalItemNumber.trim()) {
+      const seqResult = await this.sequenceRepo.getNext(company_id, 'item')
+      finalItemNumber = seqResult.docNumber
     }
 
     let finalCostPrice = cost_price || 0
@@ -334,13 +344,66 @@ export class ItemsRepository {
       }
     }
 
-    const result = await this.db.query(`
-      INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, status, created_by, company_id)
-      VALUES (UUID_TO_BIN(UUID()), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
-    `, [item_number || null, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
-    
-    const newItem = await this.db.query('SELECT BIN_TO_UUID(id) as id FROM items WHERE item_number = ? OR name = ?', [item_number || null, name.trim()])
-    return newItem[0]?.id
+    // Use transaction for atomicity
+    const conn = await this.db.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      const itemId = crypto.randomUUID()
+      
+      await conn.query(`
+        INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, status, created_by, company_id)
+        VALUES (UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+      `, [itemId, finalItemNumber, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
+
+      // Create initial stock if quantity > 0 and not a service or kit
+      if (!is_service && !is_kit && initial_quantity && parseFloat(initial_quantity) > 0) {
+        await this.createInitialStockInTransaction(conn, itemId, company_id, finalCostPrice, parseFloat(initial_quantity), userId)
+      }
+
+      await conn.commit()
+      return itemId
+    } catch (error) {
+      await conn.rollback()
+      throw error
+    } finally {
+      conn.release()
+    }
+  }
+
+  async createInitialStockInTransaction (conn, itemId, companyId, unitCost, quantity, userId = null) {
+    // Get default location or first available location for the company
+    let locationRows = await conn.query(
+      'SELECT id FROM locations WHERE company_id = UUID_TO_BIN(?) AND is_default = 1 AND is_active = 1 LIMIT 1',
+      [companyId]
+    )
+
+    if (!locationRows || locationRows.length === 0) {
+      // If no default location, get the first active location
+      locationRows = await conn.query(
+        'SELECT id FROM locations WHERE company_id = UUID_TO_BIN(?) AND is_active = 1 LIMIT 1',
+        [companyId]
+      )
+    }
+
+    if (!locationRows || locationRows.length === 0) {
+      throw new BadRequestError('No active location found for this company')
+    }
+
+    const locationId = locationRows[0].id
+
+    // Insert or update item_quantities
+    await conn.query(`
+      INSERT INTO item_quantities (id, item_id, location_id, quantity)
+      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)
+      ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+    `, [crypto.randomUUID(), itemId, locationId, quantity])
+
+    // Create inventory_movement record for audit trail
+    await conn.query(`
+      INSERT INTO inventory_movements (id, item_id, location_id, movement_type, quantity_change, quantity_after, unit_cost, total_cost, reference_type, user_id, notes)
+      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, 'initial_stock', ?, ?, ?, ?, 'item', UUID_TO_BIN(?), ?)
+    `, [crypto.randomUUID(), itemId, locationId, quantity, quantity, unitCost, unitCost * quantity, userId || null, 'Initial stock'])
   }
 
   async update (id, data, userId = null, companyId = null) {

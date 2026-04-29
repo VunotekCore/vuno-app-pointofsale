@@ -64,6 +64,7 @@ const currentPage = ref(1)
     is_variable_sale: false,
     tracks_expiration: false,
     status: 'active',
+    initial_quantity: 0,
     kit_components: []
   })
 
@@ -1219,6 +1220,18 @@ const currentPage = ref(1)
                           v-model.number="form.reorder_quantity"
                           type="number"
                           min="0"
+                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                        />
+                      </div>
+                      <div v-if="!editingId && !form.is_service && !form.is_kit">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Stock Inicial <span class="text-xs font-normal text-slate-500">(al crear)</span>
+                        </label>
+                        <input
+                          v-model.number="form.initial_quantity"
+                          type="number"
+                          min="0"
+                          :step="currencyStore.priceStep"
                           class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
                         />
                       </div>

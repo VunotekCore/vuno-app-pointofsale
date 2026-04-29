@@ -43,6 +43,7 @@ const form = ref({
   email: '',
   is_warehouse: false,
   is_active: true,
+  is_default: false,
   timezone: 'America/Santiago',
   default_tax_rate: 0
 })
@@ -93,10 +94,12 @@ function openModal(location = null) {
     editingId.value = location.id
     form.value = { 
       ...location,
-      is_active: Boolean(location.is_active)
+      is_active: Boolean(location.is_active),
+      is_default: Boolean(location.is_default)
     }
   } else {
     editingId.value = null
+    const isFirstLocation = totalRecords.value === 0
     form.value = {
       name: '',
       code: '',
@@ -106,7 +109,8 @@ function openModal(location = null) {
       is_warehouse: false,
       is_active: true,
       timezone: 'America/Santiago',
-      default_tax_rate: 0
+      default_tax_rate: 0,
+      is_default: isFirstLocation
     }
   }
   showModal.value = true
@@ -262,6 +266,9 @@ onMounted(() => {
                 <div class="flex items-center gap-2">
                   <Building2 class="w-4 h-4 text-slate-400" />
                   <span class="font-medium text-slate-900 dark:text-white">{{ location.name }}</span>
+                  <span v-if="location.is_default" class="px-2 py-0.5 bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 rounded-md text-xs font-medium">
+                    Principal
+                  </span>
                 </div>
               </td>
               <td class="px-4 py-3">
@@ -270,9 +277,11 @@ onMounted(() => {
                 </span>
               </td>
               <td class="px-4 py-3">
-                <span :class="location.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'" class="px-2 py-0.5 rounded-md text-xs font-medium">
-                  {{ location.is_active ? 'Activo' : 'Inactivo' }}
-                </span>
+                <div class="flex items-center gap-1">
+                  <span :class="location.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'" class="px-2 py-0.5 rounded-md text-xs font-medium">
+                    {{ location.is_active ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </div>
               </td>
               <td class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
@@ -302,20 +311,28 @@ onMounted(() => {
           No hay ubicaciones
         </div>
         <div v-for="location in filteredLocations" :key="location.id" class="p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-          <div class="flex items-start justify-between gap-2 mb-2">
-            <div class="flex items-center gap-2">
-              <Building2 class="w-5 h-5 text-slate-400" />
-              <div>
-                <p class="font-medium text-slate-900 dark:text-white">{{ location.name }}</p>
-                <p class="text-xs text-slate-500 font-mono">{{ location.code }}</p>
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2">
+                <Building2 class="w-5 h-5 text-slate-400" />
+                <div>
+                  <div class="flex items-center gap-1">
+                    <p class="font-medium text-slate-900 dark:text-white">{{ location.name }}</p>
+                    <span v-if="location.is_default" class="px-2 py-0.5 bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 rounded-md text-xs font-medium">
+                      Principal
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-500 font-mono">{{ location.code }}</p>
+                </div>
               </div>
-            </div>
             <div class="flex items-center gap-1">
               <span :class="location.is_warehouse ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'" class="px-2 py-0.5 rounded-md text-xs font-medium">
                 {{ location.is_warehouse ? 'Almacén' : 'Sucursal' }}
               </span>
               <span :class="location.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'" class="px-2 py-0.5 rounded-md text-xs font-medium">
                 {{ location.is_active ? 'Activo' : 'Inactivo' }}
+              </span>
+              <span v-if="location.is_default" class="px-2 py-0.5 bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 rounded-md text-xs font-medium">
+                Principal
               </span>
             </div>
           </div>
@@ -458,6 +475,14 @@ onMounted(() => {
                   class="w-4 h-4 text-brand-500 rounded border-slate-300 focus:ring-brand-500"
                 />
                 <span class="text-sm text-slate-700 dark:text-slate-300">Activo</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  v-model="form.is_default"
+                  type="checkbox"
+                  class="w-4 h-4 text-brand-500 rounded border-slate-300 focus:ring-brand-500"
+                />
+                <span class="text-sm text-slate-700 dark:text-slate-300">Principal</span>
               </label>
             </div>
             <div class="flex justify-end gap-3 pt-4">
