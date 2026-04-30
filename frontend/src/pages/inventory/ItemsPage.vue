@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, onMounted, computed, watch } from 'vue'
+  import { ref, onMounted, computed, watch, nextTick } from 'vue'
   import { useNotificationStore } from '../../stores/notification.store.js'
   import { useCurrencyStore } from '../../stores/currency.store.js'
   import { useDebounce } from '../../composables/useDebounce.js'
@@ -33,6 +33,21 @@
   const showDetailModal = ref(false)
   const editingId = ref(null)
   const selectedItem = ref(null)
+  const identityRef = ref(null)
+  const imageCardRef = ref(null)
+
+  watch(
+    () => showModal.value,
+    async (val) => {
+      if (val) {
+        await nextTick()
+        if (identityRef.value && imageCardRef.value) {
+          const h = identityRef.value.offsetHeight
+          if (h > 0) imageCardRef.value.style.height = `${h}px`
+        }
+      }
+    }
+  )
   const searchQuery = ref('')
 const statusFilter = ref('')
 const showFilters = ref(false)
@@ -79,7 +94,8 @@ const currentPage = ref(1)
   const priceHistory = ref([])
   const loadingHistory = ref(false)
   const showHistoryModal = ref(false)
-
+  const showUnitModal = ref(false)
+  
   // Image upload
   const formImageFile = ref(null)
   const formImagePreview = ref('')
@@ -344,6 +360,20 @@ const currentPage = ref(1)
       }
       itemUnits.value = []
       pendingItemUnits.value = []
+
+      // Auto-add "unidad (und)" by default for new items
+      const defaultUnit = allUnits.value.find(u => u.abbreviation === 'und' || u.name.toLowerCase().includes('unidad'))
+      if (defaultUnit && pendingItemUnits.value.length === 0) {
+        pendingItemUnits.value.push({
+          unit_id: defaultUnit.id,
+          unit_name: defaultUnit.name,
+          unit_abbreviation: defaultUnit.abbreviation,
+          conversion_factor: 1,
+          unit_type: defaultUnit.type || 'unit',
+          is_default: true
+        })
+      }
+
       isLoadingKit.value = false
       // Reset image fields for new item
       formImageFile.value = null
@@ -405,13 +435,14 @@ const currentPage = ref(1)
   }
 
   function addItemUnit() {
-    if (!form.value.is_variable_sale) {
-      notification.error('Activa "Venta Variada" para agregar unidades')
+    if (!newItemUnit.value.unit_id) {
+      notification.error('Selecciona una unidad')
       return
     }
 
-    if (!newItemUnit.value.unit_id) {
-      notification.error('Selecciona una unidad')
+    // Check if simple product already has a unit (max 1)
+    if (!form.value.is_variable_sale && displayUnits.value.length >= 1) {
+      notification.error('Los productos simples solo pueden tener 1 unidad. Activa "Venta Variada" para múltiples.')
       return
     }
 
@@ -448,6 +479,18 @@ const currentPage = ref(1)
     } else {
       // For existing items, call API
       createItemUnitAPI(newItemUnit.value.unit_id)
+    }
+  }
+
+  function addUnitAndClose() {
+    const unitIdToAdd = newItemUnit.value.unit_id
+    if (!unitIdToAdd) return
+
+    addItemUnit()
+
+    // Close modal only if unit was successfully added (unit_id reset to null = success)
+    if (newItemUnit.value.unit_id === null) {
+      showUnitModal.value = false
     }
   }
 
@@ -519,6 +562,34 @@ const currentPage = ref(1)
   const userModifiedPrice = ref(false)
   const profitMargin = ref(0)
   const isLoadingKit = ref(false)
+
+  // Clean up extra units when switching from variable sale to simple
+  watch(
+    () => form.value.is_variable_sale,
+    (newVal, oldVal) => {
+      // Switching from Variable Sale (true) to Simple (false)
+      if (!newVal && oldVal) {
+        if (editingId.value) {
+          // Existing item: keep only default unit, delete others via API
+          const unitsToDelete = itemUnits.value.filter(u => !u.is_default)
+          unitsToDelete.forEach(async (unit) => {
+            try {
+              await unitsService.deleteItemUnit(unit.id)
+            } catch (error) {
+              console.error('Error deleting unit:', error)
+            }
+          })
+          itemUnits.value = itemUnits.value.filter(u => u.is_default)
+        } else {
+          // New item: keep only 1 unit (default or first)
+          if (pendingItemUnits.value.length > 1) {
+            const defaultUnit = pendingItemUnits.value.find(u => u.is_default) || pendingItemUnits.value[0]
+            pendingItemUnits.value = defaultUnit ? [defaultUnit] : []
+          }
+        }
+      }
+    }
+  )
 
   watch(
     () => form.value.kit_components,
@@ -760,7 +831,6 @@ const currentPage = ref(1)
 </script>
 
 <template>
-  <div>
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
@@ -1015,7 +1085,7 @@ const currentPage = ref(1)
           &rarr;
         </button>
       </div>
-    </div>
+      </div>
 
     <!-- Modal Create/Edit -->
     <Teleport to="body">
@@ -1039,328 +1109,350 @@ const currentPage = ref(1)
 
           <!-- Form Content -->
           <form @submit.prevent="saveItem" class="flex-1 overflow-y-auto">
-            <div class="p-4 sm:p-6">
-              <!-- Two Column Layout -->
-              <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <!-- Left Column - 5 columns -->
-                <div class="lg:col-span-5 space-y-4">
-                  <!-- Imagen -->
-                  <div class="space-y-2">
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Imagen</label>
-                    <ImageUpload
-                      v-model="formImageFile"
-                      :preview-url="formImagePreview"
-                      @update:preview-url="formImagePreview = $event"
-                      label=""
-                      size="full"
-                      :max-height="320"
-                    />
-                  </div>
-
-                  <!-- SKU -->
-                  <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">SKU / Código</label>
-                    <input
-                      v-model="form.item_number"
-                      type="text"
-                      placeholder="Auto-generado"
-                      class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                    />
-                  </div>
-
-                  <!-- Nombre -->
-                  <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre *</label>
-                    <input
-                      v-model="form.name"
-                      type="text"
-                      required
-                      class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                    />
-                  </div>
-
-                  <!-- Descripción -->
-                  <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
-                    <textarea
-                      v-model="form.description"
-                      rows="4"
-                      class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm resize-none"
-                    ></textarea>
-                  </div>
-
-                  <!-- Estado -->
-                  <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
-                    <select v-model="form.status" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm">
-                      <option value="active">Activo</option>
-                      <option value="inactive">Inactivo</option>
-                      <option value="discontinued">Descontinuado</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Right Column - 7 columns -->
-                <div class="lg:col-span-7 space-y-5">
-                  <!-- Categorización -->
-                  <div class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categorización</h3>
-                      <span class="h-px w-4 bg-brand-500/30"></span>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Categoría</label>
-                        <select
-                          v-model="form.category_id"
-                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                        >
-                          <option :value="null">Sin categoría</option>
-                          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                        </select>
+             <div class="p-4 sm:p-6">
+               <!-- Grid Layout: 12 columns -->
+               <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
+                 <!-- Row 1: Left = Imagen (col 1-5) | Right = Identidad (col 6-12) -->
+                 <div class="xl:col-span-5">
+                   <!-- Imagen (Vertical) -->
+                   <div ref="imageCardRef" class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                     <ImageUpload
+                       v-model="formImageFile"
+                       :preview-url="formImagePreview"
+                       @update:preview-url="formImagePreview = $event"
+                       label=""
+                       size="large"
+                       :max-height="285"
+                     />
+                   </div>
+                 </div>
+                 <div class="xl:col-span-7">
+                   <!-- Identidad (SKU, Nombre, Desc, Estado) -->
+                   <div ref="identityRef" class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                     <div class="flex items-center gap-2">
+                       <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Identidad</h3>
+                       <span class="h-px flex-1 bg-brand-500/30"></span>
+                     </div>
+                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       <!-- SKU -->
+                       <div>
+                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">SKU / Código</label>
+                         <input
+                           v-model="form.item_number"
+                           type="text"
+                           placeholder="Auto-generado"
+                           class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                         />
+                       </div>
+                       <!-- Estado -->
+                       <div>
+                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Estado</label>
+                         <select v-model="form.status" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm">
+                           <option value="active">Activo</option>
+                           <option value="inactive">Inactivo</option>
+                           <option value="discontinued">Descontinuado</option>
+                         </select>
+                       </div>
+                     </div>
+                     <!-- Nombre -->
+                     <div>
+                       <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre *</label>
+                       <input
+                         v-model="form.name"
+                         type="text"
+                         required
+                         class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                       />
+                     </div>
+                     <!-- Descripción -->
+                     <div>
+                       <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
+                       <textarea
+                         v-model="form.description"
+                         rows="3"
+                         class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm resize-none"
+                       ></textarea>
                       </div>
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Proveedor</label>
-                        <select
-                          v-model="form.supplier_id"
-                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                        >
-                          <option :value="null">Sin proveedor</option>
-                          <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
-                        </select>
+                     </div>
+                   </div>
+  
+                   <!-- Row 2: Left = Categorización (col 1-5) | Right = Precios y Costos (col 6-12) -->
+                   <div class="xl:col-span-5">
+                    <!-- Categorización -->
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categorización</h3>
+                        <span class="h-px flex-1 bg-brand-500/30"></span>
                       </div>
-                    </div>
-                  </div>
-
-                  <!-- Precios y Costos -->
-                  <div class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Precios y Costos</h3>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Costo
-                          <span v-if="form.is_kit && form.kit_components?.length > 0" class="text-xs font-normal text-green-600">(auto)</span>
-                        </label>
-                        <div class="relative">
-                          <span class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 text-sm font-medium">{{ currencyStore.currency_symbol }}</span>
-                          <input
-                            :value="currencyStore.roundMoney(form.cost_price)"
-                            @input="handleCostInput"
-                            @focus="selectAllInput"
-                            @blur="handleCostBlur"
-                            type="number"
-                            :step="priceStep"
-                            min="0"
-                            :disabled="form.is_kit && form.kit_components?.length > 0"
-                            :class="form.is_kit && form.kit_components?.length > 0 ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : ''"
-                            class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                          />
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Categoría</label>
+                          <select
+                            v-model="form.category_id"
+                            class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                          >
+                            <option :value="null">Sin categoría</option>
+                            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                          </select>
                         </div>
-                      </div>
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ganancia %</label>
-                        <div class="relative">
-                          <Percent class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                          <input
-                            v-model.number="profitMargin"
-                            @input="calculatePriceFromMargin"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Precio
-                          <span v-if="form.is_kit && form.kit_components?.length > 0 && !userModifiedPrice" class="text-xs font-normal text-green-600">(auto)</span>
-                        </label>
-                        <div class="relative">
-                          <span class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 text-sm font-medium">{{ currencyStore.currency_symbol }}</span>
-                          <input
-                            :value="currencyStore.roundMoney(form.unit_price)"
-                            @input="handlePriceInput"
-                            @focus="selectAllInput"
-                            @blur="handlePriceBlur"
-                            type="number"
-                            :step="priceStep"
-                            min="0"
-                            class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                          />
+                        <div>
+                          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Proveedor</label>
+                          <select
+                            v-model="form.supplier_id"
+                            class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                          >
+                            <option :value="null">Sin proveedor</option>
+                            <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
+                          </select>
                         </div>
                       </div>
                     </div>
                   </div>
-
-                  <!-- Inventario -->
-                  <div class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Inventario</h3>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Stock Mínimo <span class="text-xs font-normal text-slate-500">(alerta)</span>
-                        </label>
-                        <input
-                          v-model.number="form.reorder_level"
-                          type="number"
-                          min="0"
-                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Cant. Sugerida <span class="text-xs font-normal text-slate-500">(al pedir)</span>
-                        </label>
-                        <input
-                          v-model.number="form.reorder_quantity"
-                          type="number"
-                          min="0"
-                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                        />
-                      </div>
-                      <div v-if="!editingId && !form.is_service && !form.is_kit">
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                          Stock Inicial <span class="text-xs font-normal text-slate-500">(al crear)</span>
-                        </label>
-                        <input
-                          v-model.number="form.initial_quantity"
-                          type="number"
-                          min="0"
-                          :step="currencyStore.priceStep"
-                          class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Configuraciones -->
-                  <div class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Configuraciones</h3>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <input v-model="form.is_serialized" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Serializado <span class="text-xs text-slate-400 block">requiere número serie</span>
-                        </span>
-                      </label>
-                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <input v-model="form.is_service" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Servicio <span class="text-xs text-slate-400 block">sin stock físico</span>
-                        </span>
-                      </label>
-                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <input v-model="form.is_kit" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Producto Compuesto <span class="text-xs text-slate-400 block">conjunto de productos</span>
-                        </span>
-                      </label>
-                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" :class="{ 'opacity-50': form.is_kit }">
-                        <input v-model="form.is_variable_sale" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" :disabled="form.is_kit" />
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Venta Variada <span class="text-xs text-slate-400 block">por peso/cantidad</span>
-                        </span>
-                      </label>
-                      <label class="flex items-start gap-2 cursor-pointer p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <input v-model="form.tracks_expiration" type="checkbox" class="w-4 h-4 text-brand-500 rounded mt-0.5" />
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                          Fecha de Vencimiento <span class="text-xs text-slate-400 block">activar alertas en inventario</span>
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- Kit Components -->
-                  <div v-if="form.is_kit" class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Elementos incluidos</h3>
-                      <span class="h-px w-4 bg-brand-500/30"></span>
-                    </div>
-                    <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
-                      <p class="text-xs text-slate-500">Selecciona los productos que forman parte de este kit</p>
-                      <div class="flex flex-col sm:flex-row gap-2">
-                        <select v-model="newKitComponent.item_id" class="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm">
-                          <option :value="null">Seleccionar producto...</option>
-                          <option v-for="item in kitItems" :key="item.id" :value="item.id" :disabled="form.kit_components.some((c) => c.item_id === item.id)">{{ item.name }} ({{ item.item_number }})</option>
-                        </select>
-                        <input v-model.number="newKitComponent.quantity" type="number" min="1" class="w-full sm:w-20 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm" />
-                        <button type="button" @click="addKitComponent" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors">
-                          <Plus class="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div v-if="form.kit_components.length > 0" class="space-y-2 mt-3">
-                        <div v-for="(comp, index) in form.kit_components" :key="comp.item_id" class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
-                          <div class="flex items-center gap-2 min-w-0">
-                            <Box class="w-4 h-4 text-slate-400 flex-shrink-0" />
-                            <span class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ comp.item_name }}</span>
-                            <span class="text-xs text-slate-400 flex-shrink-0">x{{ comp.quantity }}</span>
-                            <span class="text-xs text-green-600 flex-shrink-0">({{ currencyStore.formatMoney(comp.cost_price * comp.quantity) }})</span>
+                  <div class="xl:col-span-7">
+                     <!-- Precios y Costos -->
+                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                       <div class="flex items-center gap-2">
+                         <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Precios y Costos</h3>
+                         <span class="h-px flex-1 bg-brand-500/30"></span>
+                       </div>
+                       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                         <div>
+                           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                             Costo
+                             <span v-if="form.is_kit && form.kit_components?.length > 0" class="text-xs font-normal text-green-600">(auto)</span>
+                           </label>
+                           <div class="relative">
+                             <span class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 text-sm font-medium">{{ currencyStore.currency_symbol }}</span>
+                             <input
+                               :value="currencyStore.roundMoney(form.cost_price)"
+                               @input="handleCostInput"
+                               @focus="selectAllInput"
+                               @blur="handleCostBlur"
+                               type="number"
+                               :step="priceStep"
+                               min="0"
+                               :disabled="form.is_kit && form.kit_components?.length > 0"
+                               :class="form.is_kit && form.kit_components?.length > 0 ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed' : ''"
+                               class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                             />
+                           </div>
+                         </div>
+                         <div>
+                           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ganancia %</label>
+                           <div class="relative">
+                             <Percent class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                             <input
+                               v-model.number="profitMargin"
+                               @input="calculatePriceFromMargin"
+                               type="number"
+                               step="0.01"
+                               min="0"
+                               class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                             />
+                           </div>
+                         </div>
+                         <div>
+                           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                             Precio
+                             <span v-if="form.is_kit && form.kit_components?.length > 0 && !userModifiedPrice" class="text-xs font-normal text-green-600">(auto)</span>
+                           </label>
+                           <div class="relative">
+                             <span class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 text-sm font-medium">{{ currencyStore.currency_symbol }}</span>
+                             <input
+                               :value="currencyStore.roundMoney(form.unit_price)"
+                               @input="handlePriceInput"
+                               @focus="selectAllInput"
+                               @blur="handlePriceBlur"
+                               type="number"
+                               :step="priceStep"
+                               min="0"
+                               class="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                             />
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+  
+                   <!-- Row 3: Full Width = Inventario (col 1-12) -->
+                   <div class="md:col-span-2 xl:col-span-12">
+                      <!-- Inventario -->
+                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                       <div class="flex items-center gap-2">
+                         <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Inventario</h3>
+                         <span class="h-px flex-1 bg-brand-500/30"></span>
+                       </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div>
+                            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Stock Mínimo <span class="text-[10px] font-normal text-slate-500">(alerta)</span>
+                            </label>
+                            <input
+                              v-model.number="form.reorder_level"
+                              type="number"
+                              min="0"
+                              class="w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                            />
                           </div>
-                          <button type="button" @click="removeKitComponent(index)" class="text-red-500 hover:text-red-600 flex-shrink-0 p-1">
-                            <Trash2 class="w-4 h-4" />
+                          <div>
+                            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Cant. Sugerida <span class="text-[10px] font-normal text-slate-500">(al pedir)</span>
+                            </label>
+                            <input
+                              v-model.number="form.reorder_quantity"
+                              type="number"
+                              min="0"
+                              class="w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                            />
+                          </div>
+                          <div v-if="!editingId && !form.is_service && !form.is_kit">
+                            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                              Stock Inicial <span class="text-[10px] font-normal text-slate-500">(al crear)</span>
+                            </label>
+                            <input
+                              v-model.number="form.initial_quantity"
+                              type="number"
+                              min="0"
+                              :step="currencyStore.priceStep"
+                              class="w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 text-sm"
+                            />
+                          </div>
+                          <!-- Fecha de Vencimiento -->
+                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="activar alertas en inventario">
+                            <span class="text-xs text-slate-700 dark:text-slate-300 font-medium">Fecha de Vencimiento</span>
+                            <button type="button" @click="form.tracks_expiration = !form.tracks_expiration" :class="form.tracks_expiration ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                              <span :class="form.tracks_expiration ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                            </button>
+                          </div>
+                       </div>
+                     </div>
+                   </div>
+  
+                   <!-- Row 4: Left = Atributos (col 1-5) | Right = Tipo de Producto (col 6-12) -->
+                   <!-- Row 4: Left = Atributos (col 1-5) | Right = Tipo de Producto (col 6-12) -->
+                   <div class="xl:col-span-5">
+                    <!-- Atributos del Producto -->
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Atributos del Producto</h3>
+                        <span class="h-px flex-1 bg-brand-500/30"></span>
+                      </div>
+                      <div class="space-y-4">
+                        <!-- Serializado -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="requiere número serie">
+                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Serializado</span>
+                          <button type="button" @click="form.is_serialized = !form.is_serialized" :class="form.is_serialized ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                            <span :class="form.is_serialized ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
                           </button>
                         </div>
-                        <div class="text-xs text-slate-500 text-right pt-2">
-                          Costo: <span class="font-medium">{{ currencyStore.formatMoney(form.cost_price) }}</span> | Precio: <span class="font-medium text-green-600">{{ currencyStore.formatMoney(form.unit_price) }}</span>
+                        <!-- Servicio -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="sin stock físico">
+                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Servicio</span>
+                          <button type="button" @click="form.is_service = !form.is_service" :class="form.is_service ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                            <span :class="form.is_service ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                          </button>
                         </div>
                       </div>
-                      <p v-else class="text-xs text-slate-400 text-center py-2">No hay componentes agregados</p>
                     </div>
                   </div>
-
-                  <!-- Unidades de Medida Section -->
-                  <div class="space-y-3">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unidades de Medida</h3>
-                      <span class="h-px w-4 bg-brand-500/30"></span>
-                    </div>
-                    <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 space-y-3">
-                      <div class="flex flex-col sm:flex-row gap-2">
-                        <select v-model="newItemUnit.unit_id" class="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm">
-                          <option :value="null">Seleccionar unidad...</option>
-                          <option v-for="unit in availableUnits" :key="unit.id" :value="unit.id">{{ unit.name }} ({{ unit.abbreviation }})</option>
-                        </select>
-                        <button 
-                          type="button" 
-                          @click="addItemUnit" 
-                          :disabled="!form.is_variable_sale"
-                          :class="[
-                            'px-4 py-2 rounded-lg transition-colors flex items-center gap-2',
-                            form.is_variable_sale 
-                              ? 'bg-brand-500 hover:bg-brand-600 text-white' 
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
-                          ]"
-                        >
-                          <Plus class="w-4 h-4" />
-                          <span class="hidden sm:inline">Agregar</span>
-                        </button>
+                  <div class="xl:col-span-7">
+                    <!-- Tipo de Producto -->
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo de Producto</h3>
+                        <span class="h-px flex-1 bg-brand-500/30"></span>
                       </div>
-                      <div v-if="displayUnits.length > 0" class="space-y-2">
-                        <div v-for="itemUnit in displayUnits" :key="itemUnit.id || itemUnit.unit_id" class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
-                          <div class="flex items-center gap-2 min-w-0">
-                            <span v-if="itemUnit.is_default" class="text-[10px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-1.5 py-0.5 rounded flex-shrink-0">Default</span>
-                            <span class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ itemUnit.unit_name || itemUnit.unit_abbreviation }} ({{ itemUnit.unit_abbreviation }})</span>
-                            <span class="text-xs text-slate-400 flex-shrink-0">{{ itemUnit.conversion_factor }} {{ itemUnit.unit_type }}</span>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- Producto Compuesto -->
+                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="conjunto de productos">
+                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Producto Compuesto</span>
+                          <button type="button" @click="form.is_kit = !form.is_kit" :class="form.is_kit ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                            <span :class="form.is_kit ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                          </button>
+                        </div>
+                      <!-- Venta Variada -->
+                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="por peso/cantidad">
+                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Venta Variada</span>
+                           <button type="button" @click="form.is_variable_sale = !form.is_variable_sale" :disabled="form.is_kit" :class="form.is_variable_sale ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                             <span :class="form.is_variable_sale ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                           </button>
+                         </div>
+                        </div>
+                        
+                        <!-- Unidades de Medida (compact display) -->
+                        <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                          <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unidades</span>
+                            <button 
+                              type="button" 
+                              @click="showUnitModal = true"
+                              class="text-xs text-brand-500 hover:text-brand-600 font-medium"
+                            >
+                              Gestionar ({{ displayUnits.length }})
+                            </button>
                           </div>
-                          <div class="flex items-center gap-2 flex-shrink-0">
-                            <button v-if="!itemUnit.is_default" type="button" @click="setDefaultUnit(itemUnit.id || itemUnit.unit_id)" class="text-xs text-brand-500 hover:text-brand-600">Default</button>
-                            <button type="button" @click="deleteItemUnit(itemUnit.id || itemUnit.unit_id)" class="text-red-500 hover:text-red-600 p-1"><Trash2 class="w-4 h-4" /></button>
+                          <div class="flex flex-wrap gap-1">
+                            <span 
+                              v-for="(itemUnit, idx) in displayUnits.slice(0, 3)" 
+                              :key="itemUnit.id || itemUnit.unit_id"
+                              class="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-800 rounded ring-1 ring-slate-200/50 dark:ring-slate-700/50 text-xs"
+                            >
+                              <span v-if="itemUnit.is_default" class="text-[8px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 px-0.5 rounded">D</span>
+                              <span class="text-slate-700 dark:text-slate-300">{{ itemUnit.unit_abbreviation }}</span>
+                            </span>
+                            <span 
+                              v-if="displayUnits.length > 3" 
+                              class="inline-flex items-center px-2 py-0.5 text-xs text-slate-400"
+                            >
+                              +{{ displayUnits.length - 3 }} más
+                            </span>
+                            <span v-if="displayUnits.length === 0" class="text-xs text-slate-400">Ninguna</span>
                           </div>
                         </div>
                       </div>
-                      <p v-else class="text-xs text-slate-400 text-center py-2">No hay unidades agregadas</p>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+   
+                   <!-- Row 5: Full Width = Kit Components (col 1-12) -->
+                  <div v-if="form.is_kit" class="md:col-span-2 xl:col-span-12">
+                   <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                     <div class="flex items-center gap-2">
+                       <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Elementos incluidos</h3>
+                       <span class="h-px flex-1 bg-brand-500/30"></span>
+                     </div>
+                     <div class="space-y-3">
+                       <p class="text-xs text-slate-500">Selecciona los productos que forman parte de este kit</p>
+                       <div class="flex flex-col sm:flex-row gap-2">
+                         <select v-model="newKitComponent.item_id" class="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm">
+                           <option :value="null">Seleccionar producto...</option>
+                           <option v-for="item in kitItems" :key="item.id" :value="item.id" :disabled="form.kit_components.some((c) => c.item_id === item.id)">{{ item.name }} ({{ item.item_number }})</option>
+                         </select>
+                         <input v-model.number="newKitComponent.quantity" type="number" min="1" class="w-full sm:w-20 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm" />
+                         <button type="button" @click="addKitComponent" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors">
+                           <Plus class="w-4 h-4" />
+                         </button>
+                       </div>
+                       <div v-if="form.kit_components.length > 0" class="space-y-2 mt-3">
+                         <div v-for="(comp, index) in form.kit_components" :key="comp.item_id" class="flex items-center justify-between bg-white dark:bg-slate-800/70 rounded-lg px-3 py-2 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                           <div class="flex items-center gap-2 min-w-0">
+                             <Box class="w-4 h-4 text-slate-400 flex-shrink-0" />
+                             <span class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ comp.item_name }}</span>
+                             <span class="text-xs text-slate-400 flex-shrink-0">x{{ comp.quantity }}</span>
+                             <span class="text-xs text-green-600 flex-shrink-0">({{ currencyStore.formatMoney(comp.cost_price * comp.quantity) }})</span>
+                           </div>
+                           <button type="button" @click="removeKitComponent(index)" class="text-red-500 hover:text-red-600 flex-shrink-0 p-1">
+                             <Trash2 class="w-4 h-4" />
+                           </button>
+                         </div>
+                         <div class="text-xs text-slate-500 text-right pt-2">
+                           Costo: <span class="font-medium">{{ currencyStore.formatMoney(form.cost_price) }}</span> | Precio: <span class="font-medium text-green-600">{{ currencyStore.formatMoney(form.unit_price) }}</span>
+                         </div>
+                       </div>
+                       <p v-else class="text-xs text-slate-400 text-center py-2">No hay componentes agregados</p>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             </div>
 
             <!-- Footer -->
             <div class="flex items-center justify-end gap-3 px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
@@ -1373,193 +1465,108 @@ const currentPage = ref(1)
             </div>
           </form>
         </div>
-      </div>
-    </Teleport>
+    </div>
+  </Teleport>
 
-    <!-- Modal Detail -->
-    <Teleport to="body">
-      <div
-        v-if="showDetailModal && selectedItem"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeDetailModal"></div>
-        <div
-          class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        >
-          <div
-            class="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-brand-500 to-brand-600"
-          >
-            <div>
-              <h2 class="text-xl font-bold text-white">
-                {{ selectedItem.name }}
-              </h2>
-              <p class="text-sm text-brand-100">SKU: {{ selectedItem.item_number || 'N/A' }}</p>
-            </div>
-            <button
-              @click="closeDetailModal"
-              class="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
-            >
-              <X class="w-5 h-5" />
-            </button>
+  <!-- Modal Unidades de Medida -->
+  <Teleport to="body">
+    <div v-if="showUnitModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showUnitModal = false"></div>
+      <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Unidades de Medida</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ form.is_variable_sale ? 'Producto con venta variada - múltiples unidades' : 'Producto simple - una unidad' }}
+            </p>
           </div>
-          <div class="p-6 space-y-6">
-            <!-- Info Row -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Categoría</p>
-                <p class="font-medium text-slate-900 dark:text-white">{{ selectedItem.category_name || '-' }}</p>
+          <button @click="showUnitModal = false" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+          <!-- Lista de unidades existentes -->
+          <div v-if="displayUnits.length > 0" class="space-y-2">
+            <div 
+              v-for="itemUnit in displayUnits" 
+              :key="itemUnit.id || itemUnit.unit_id"
+              class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800/70 rounded-lg ring-1 ring-slate-200/50 dark:ring-slate-700/50"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <span v-if="itemUnit.is_default" class="text-[10px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 px-1.5 py-0.5 rounded flex-shrink-0">Default</span>
+                <span class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ itemUnit.unit_name || itemUnit.unit_abbreviation }}</span>
+                <span class="text-xs text-slate-400 flex-shrink-0">({{ itemUnit.conversion_factor }} {{ itemUnit.unit_type }})</span>
               </div>
-              <div class="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Proveedor</p>
-                <p class="font-medium text-slate-900 dark:text-white">{{ selectedItem.supplier_name || '-' }}</p>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <button 
+                  v-if="!itemUnit.is_default" 
+                  type="button" 
+                  @click="setDefaultUnit(itemUnit.id || itemUnit.unit_id)" 
+                  class="text-xs text-brand-500 hover:text-brand-600 px-1.5 py-0.5"
+                >D</button>
+                <button 
+                  type="button" 
+                  @click="deleteItemUnit(itemUnit.id || itemUnit.unit_id)" 
+                  class="text-red-500 hover:text-red-600 p-1"
+                ><Trash2 class="w-3.5 h-3.5" /></button>
               </div>
             </div>
+          </div>
+          <p v-else class="text-xs text-slate-400 text-center py-3">No hay unidades agregadas</p>
 
-            <!-- Prices -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800">
-                <p class="text-xs text-blue-600 dark:text-blue-400 mb-1">Costo</p>
-                <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ formatPrice(selectedItem.cost_price) }}</p>
-              </div>
-              <div class="p-4 bg-green-50 dark:bg-green-900/30 rounded-xl border border-green-100 dark:border-green-800">
-                <p class="text-xs text-green-600 dark:text-green-400 mb-1">Precio Venta</p>
-                <p class="text-xl font-bold text-green-700 dark:text-green-300">{{ formatPrice(selectedItem.unit_price) }}</p>
-              </div>
-            </div>
-
-            <!-- Profit Margin -->
-            <div class="p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-100 dark:border-purple-800">
-              <p class="text-xs text-purple-600 dark:text-purple-400 mb-1">Ganancia</p>
-              <p class="text-xl font-bold text-purple-700 dark:text-purple-300">{{ getProfitMargin(selectedItem) }}</p>
-            </div>
-
-            <!-- Price History Button -->
-            <div class="text-center">
-              <button
-                @click="openHistoryModal(selectedItem.id)"
-                class="px-4 py-2 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-lg transition-colors"
+          <!-- Formulario para agregar (solo si Venta Variada o no hay unidad) -->
+          <div 
+            v-if="form.is_variable_sale || displayUnits.length === 0" 
+            class="pt-3 border-t border-slate-200 dark:border-slate-700"
+          >
+            <p class="text-xs text-slate-500 mb-2">
+              {{ form.is_variable_sale ? 'Agregar unidad de venta' : 'Seleccionar unidad para este producto' }}
+            </p>
+            <div class="flex gap-2">
+              <select 
+                v-model="newItemUnit.unit_id" 
+                class="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-sm"
               >
-                Ver historial de precios
+                <option :value="null">{{ form.is_variable_sale ? 'Agregar unidad...' : 'Seleccionar unidad...' }}</option>
+                <option v-for="unit in availableUnits" :key="unit.id" :value="unit.id">{{ unit.name }} ({{ unit.abbreviation }})</option>
+              </select>
+              <button 
+                type="button" 
+                @click="addUnitAndClose" 
+                :disabled="!newItemUnit.unit_id"
+                :class="[
+                  'px-4 py-2 rounded-lg transition-colors',
+                  newItemUnit.unit_id 
+                    ? 'bg-brand-500 hover:bg-brand-600 text-white' 
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+                ]"
+              >
+                <Plus class="w-4 h-4" />
               </button>
             </div>
-
-            <!-- Status -->
-            <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-              <span class="text-sm text-slate-600 dark:text-slate-300">Estado</span>
-              <span
-                :class="getStatusClass(selectedItem.status)"
-                class="px-3 py-1 rounded-full text-sm font-medium capitalize"
-              >
-                {{ selectedItem.status }}
-              </span>
-            </div>
-
-            <!-- Stock -->
-            <div>
-              <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Stock</p>
-              <!-- Kit Stock -->
-              <div v-if="selectedItem.is_kit" class="p-4 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-center">
-                <p class="text-xs text-amber-600 dark:text-amber-400 mb-1">Stock disponible para Kits</p>
-                <p class="text-2xl font-bold text-amber-700 dark:text-amber-300">{{ currencyStore.formatNumber(selectedItem.total_quantity || 0) }}</p>
-                <p v-if="selectedItem.kit_components?.length" class="text-xs text-amber-500 dark:text-amber-500 mt-2">
-                  ({{ selectedItem.kit_components.length }} componentes)
-                </p>
-              </div>
-              <!-- Regular Stock -->
-              <div v-else-if="selectedItem.stock?.length" class="space-y-2">
-                <div
-                  v-for="s in selectedItem.stock"
-                  :key="s.id"
-                  class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg"
-                >
-                  <div class="flex items-center gap-2">
-                    <MapPin class="w-4 h-4 text-slate-400" />
-                    <span class="text-sm text-slate-600 dark:text-slate-300"
-                      >{{ s.location_name }} ({{ s.location_code }})</span
-                    >
-                  </div>
-                  <span class="font-bold text-slate-900 dark:text-white">{{ currencyStore.formatNumber(parseFloat(s.quantity) || 0) }}</span>
-                </div>
-                <div class="mt-3 p-3 bg-brand-50 dark:bg-brand-900/30 rounded-lg flex justify-between">
-                  <span class="font-medium text-brand-700 dark:text-brand-300">Total Stock</span>
-                  <span class="font-bold text-brand-700 dark:text-brand-300">{{ currencyStore.formatNumber(selectedItem.stock.reduce((sum, s) => sum + (parseFloat(s.quantity) || 0), 0)) }}</span>
-                </div>
-              </div>
-              <div v-else class="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg text-center">
-                <p class="text-slate-500 dark:text-slate-400">Sin stock disponible</p>
-              </div>
-            </div>
-
-            <!-- Variations -->
-            <div v-if="selectedItem.variations?.length">
-              <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Variaciones</p>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div
-                  v-for="variation in selectedItem.variations"
-                  :key="variation.id"
-                  class="p-3 bg-purple-50 dark:bg-purple-900/30 border border-purple-100 dark:border-purple-800 rounded-lg"
-                >
-                  <div class="flex justify-between items-start">
-                    <div>
-                      <p class="font-medium text-purple-700 dark:text-purple-300">{{ variation.sku }}</p>
-                      <p class="text-sm text-purple-600 dark:text-purple-400">{{ formatPrice(variation.unit_price) }}</p>
-                    </div>
-                    <div class="text-right">
-                      <p class="text-xs text-purple-500 dark:text-purple-400">Stock</p>
-                      <p class="font-bold text-purple-700 dark:text-purple-300">{{ getVariationStock(variation.id) }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
+          <p 
+            v-if="!form.is_variable_sale && displayUnits.length >= 1" 
+            class="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded"
+          >
+            Los productos simples solo pueden tener 1 unidad. Activar "Venta Variada" para múltiples.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-end gap-3 px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <button 
+            type="button" 
+            @click="showUnitModal = false" 
+            class="px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm font-medium"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
-    </Teleport>
-
-    <!-- Modal Price History -->
-    <Teleport to="body">
-      <div v-if="showHistoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeHistoryModal"></div>
-        <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-          <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Historial de Precios</h3>
-            <button @click="closeHistoryModal" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-              <X class="w-5 h-5" />
-            </button>
-          </div>
-          <div class="p-4 overflow-y-auto max-h-[60vh]">
-            <div v-if="loadingHistory" class="flex justify-center py-8">
-              <Loader2 class="w-6 h-6 animate-spin text-brand-500" />
-            </div>
-            <div v-else-if="priceHistory.length === 0" class="text-center py-8 text-slate-500">
-              No hay cambios de precio registrados
-            </div>
-            <table v-else class="w-full text-sm">
-              <thead class="bg-slate-50 dark:bg-slate-800">
-                <tr>
-                  <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Fecha</th>
-                  <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">Costo Antes</th>
-                  <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">Costo Después</th>
-                  <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">Precio Antes</th>
-                  <th class="px-3 py-2 text-right text-xs font-medium text-slate-500 uppercase">Precio Después</th>
-                  <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 uppercase">Usuario</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-                <tr v-for="h in priceHistory" :key="h.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                  <td class="px-3 py-2 text-slate-600 dark:text-slate-400">{{ formatDateTime(h.created_at) }}</td>
-                  <td class="px-3 py-2 text-right text-blue-600">{{ formatPrice(h.cost_price_before) }}</td>
-                  <td class="px-3 py-2 text-right text-blue-700 font-medium">{{ formatPrice(h.cost_price_after) }}</td>
-                  <td class="px-3 py-2 text-right text-green-600">{{ formatPrice(h.unit_price_before) }}</td>
-                  <td class="px-3 py-2 text-right text-green-700 font-medium">{{ formatPrice(h.unit_price_after) }}</td>
-                  <td class="px-3 py-2 text-slate-600 dark:text-slate-400">{{ h.created_by_name || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-  </div>
+    </div>
+  </Teleport>
 </template>
