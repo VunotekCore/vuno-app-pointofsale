@@ -50,6 +50,7 @@
   )
   const searchQuery = ref('')
 const statusFilter = ref('')
+const categoryFilter = ref('')
 const showFilters = ref(false)
 const currentPage = ref(1)
   const pageLimit = ref(20)
@@ -77,6 +78,7 @@ const currentPage = ref(1)
     is_service: false,
     is_kit: false,
     is_variable_sale: false,
+    has_variations: false,
     tracks_expiration: false,
     status: 'active',
     initial_quantity: 0,
@@ -95,6 +97,13 @@ const currentPage = ref(1)
   const loadingHistory = ref(false)
   const showHistoryModal = ref(false)
   const showUnitModal = ref(false)
+
+  // Variation management
+  const showVariationManager = ref(false)
+  const attributeGroups = ref([])
+  const localVariations = ref([])
+  const newGroupName = ref('')
+  const newGroupValues = ref('')
   
   // Image upload
   const formImageFile = ref(null)
@@ -119,6 +128,93 @@ const currentPage = ref(1)
     const addedUnitIds = displayUnits.value.map(u => u.unit_id || u.id)
     return allUnits.value.filter(u => !addedUnitIds.includes(u.id))
   })
+
+  // Variation management
+  const totalCombinations = computed(() => localVariations.value.length)
+
+  watch(() => form.value.has_variations, (newVal) => {
+    if (!newVal) {
+      attributeGroups.value = []
+      localVariations.value = []
+    }
+  })
+
+  function addAttributeGroup() {
+    const name = newGroupName.value.trim()
+    const values = newGroupValues.value.split(',').map(v => v.trim()).filter(v => v)
+    if (!name || values.length === 0) {
+      notification.warning('Escribe un nombre y al menos un valor para el atributo')
+      return
+    }
+    if (attributeGroups.value.some(g => g.name.toLowerCase() === name.toLowerCase())) {
+      notification.warning(`El grupo "${name}" ya existe`)
+      return
+    }
+    attributeGroups.value.push({ name, values })
+    newGroupName.value = ''
+    newGroupValues.value = ''
+    generateCombinations()
+  }
+
+  function removeAttributeGroup(index) {
+    attributeGroups.value.splice(index, 1)
+    generateCombinations()
+  }
+
+  function updateGroupValues(index, input) {
+    attributeGroups.value[index].values = input.split(',').map(v => v.trim()).filter(v => v)
+    generateCombinations()
+  }
+
+  function generateCombinations() {
+    if (attributeGroups.value.length === 0) {
+      localVariations.value = []
+      return
+    }
+    const groups = attributeGroups.value.map(g => g.values.filter(v => v.trim()))
+    if (groups.some(g => g.length === 0)) {
+      localVariations.value = []
+      return
+    }
+    const cartesian = groups.reduce((acc, values) =>
+      acc.flatMap(combo => values.map(v => [...combo, v])), [[]]
+    )
+    localVariations.value = cartesian.map((combo) => {
+      const attrs = {}
+      attributeGroups.value.forEach((g, j) => { attrs[g.name] = combo[j] })
+      const suffix = combo.join('-').replace(/\s+/g, '')
+      return {
+        sku: form.value.item_number ? `${form.value.item_number}-${suffix}` : suffix,
+        unit_price: form.value.unit_price || 0,
+        cost_price: form.value.cost_price || 0,
+        attributes: attrs,
+        initial_quantity: 0
+      }
+    })
+  }
+
+  function autoGenerateSku() {
+    const prefix = form.value.item_number || ''
+    localVariations.value.forEach((v) => {
+      const parts = Object.entries(v.attributes).map(([k, val]) => `${k}-${val}`)
+      const suffix = parts.join('-').replace(/\s+/g, '').toUpperCase()
+      v.sku = prefix ? `${prefix}-${suffix}` : suffix
+    })
+  }
+
+  function removeVariation(index) {
+    localVariations.value.splice(index, 1)
+  }
+
+  function setAllPrices(price) {
+    localVariations.value.forEach(v => { v.unit_price = price })
+  }
+
+  function setAllCosts(cost) {
+    localVariations.value.forEach(v => { v.cost_price = cost })
+  }
+
+
 
   function formatPriceInput(value) {
     if (value === null || value === undefined || value === '') return ''
@@ -231,7 +327,8 @@ const currentPage = ref(1)
         limit: pageLimit.value,
         offset: (currentPage.value - 1) * pageLimit.value,
         search: searchQuery.value,
-        status: statusFilter.value
+        status: statusFilter.value,
+        category_id: categoryFilter.value || undefined
       }
       const { data } = await itemsService.getItems(params)
       items.value = data.data || []
@@ -287,6 +384,11 @@ const currentPage = ref(1)
     loadItems()
   })
 
+  watch(categoryFilter, () => {
+    currentPage.value = 1
+    loadItems()
+  })
+
   async function openModal(item = null) {
     isLoadingKit.value = true
     
@@ -316,6 +418,7 @@ const currentPage = ref(1)
         is_service: Boolean(item.is_service),
         is_kit: Boolean(item.is_kit),
         is_variable_sale: Boolean(item.is_variable_sale),
+        has_variations: Boolean(item.has_variations),
         tracks_expiration: Boolean(item.tracks_expiration),
         kit_components: components
       }
@@ -333,6 +436,36 @@ const currentPage = ref(1)
         profitMargin.value = parseFloat(((price - cost) / price * 100).toFixed(2))
       } else if (cost > 0 && price > 0) {
         profitMargin.value = 0
+      }
+
+      if (item.has_variations) {
+        try {
+          const { data } = await itemsService.getItem(item.id)
+          const variations = data.data.variations || []
+          localVariations.value = variations.map(v => ({
+            attributes: v.attributes,
+            sku: v.sku,
+            unit_price: currencyStore.roundMoney(v.unit_price),
+            cost_price: currencyStore.roundMoney(v.cost_price),
+            initial_quantity: 0
+          }))
+          const attrMap = {}
+          variations.forEach(v => {
+            if (v.attributes && typeof v.attributes === 'object') {
+              Object.entries(v.attributes).forEach(([key, value]) => {
+                if (!attrMap[key]) attrMap[key] = new Set()
+                attrMap[key].add(value)
+              })
+            }
+          })
+          attributeGroups.value = Object.entries(attrMap).map(([name, valuesSet]) => ({
+            name,
+            values: Array.from(valuesSet)
+          }))
+        } catch {
+          localVariations.value = []
+          attributeGroups.value = []
+        }
       }
 
       await loadItemUnits(item.id)
@@ -354,12 +487,15 @@ const currentPage = ref(1)
         is_service: false,
         is_kit: false,
         is_variable_sale: false,
+        has_variations: false,
         tracks_expiration: false,
         status: 'active',
         kit_components: []
       }
       itemUnits.value = []
       pendingItemUnits.value = []
+      attributeGroups.value = []
+      localVariations.value = []
 
       // Auto-add "unidad (und)" by default for new items
       const defaultUnit = allUnits.value.find(u => u.abbreviation === 'und' || u.name.toLowerCase().includes('unidad'))
@@ -692,6 +828,19 @@ const currentPage = ref(1)
       payload.image_url = formImagePreview.value
     }
 
+    // Include variations in payload for backend to process
+    if (form.value.has_variations) {
+      payload.variations = localVariations.value.map(v => ({
+        sku: v.sku,
+        unit_price: v.unit_price,
+        cost_price: v.cost_price,
+        attributes: JSON.stringify(v.attributes),
+        initial_quantity: v.initial_quantity || 0
+      }))
+    } else if (editingId.value) {
+      payload.variations = []
+    }
+
     try {
       let itemId = editingId.value
 
@@ -808,6 +957,35 @@ const currentPage = ref(1)
     return currencyStore.formatNumber(parseFloat(stockItem?.quantity) || 0)
   }
 
+  const groupedStock = computed(() => {
+    const stock = selectedItem.value?.stock || []
+    const variations = selectedItem.value?.variations || []
+    const varMap = {}
+    variations.forEach(v => { varMap[v.id] = v })
+
+    const map = {}
+    for (const s of stock) {
+      const key = s.location_id
+      if (!map[key]) {
+        map[key] = {
+          location_name: s.location_name,
+          location_code: s.location_code,
+          entries: [],
+          total: 0
+        }
+      }
+      const variation = s.variation_id ? varMap[s.variation_id] : null
+      map[key].entries.push({
+        quantity: s.quantity,
+        variation_id: s.variation_id,
+        variation_sku: variation?.sku || null,
+        variation_attributes: variation?.attributes || null
+      })
+      map[key].total += parseFloat(s.quantity) || 0
+    }
+    return Object.values(map)
+  })
+
   onMounted(async () => {
     await currencyStore.loadConfig()
     await loadUnits()
@@ -856,15 +1034,15 @@ const currentPage = ref(1)
         >
           <Search class="w-4 h-4" />
           {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
-          <span v-if="statusFilter" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
-            1
+          <span v-if="statusFilter || categoryFilter" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+            {{ (statusFilter ? 1 : 0) + (categoryFilter ? 1 : 0) }}
           </span>
         </button>
       </div>
 
-      <!-- Desktop Search Bar (always visible) -->
-      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
-        <div class="relative">
+      <!-- Desktop Search + Filters -->
+      <div class="hidden lg:flex items-center gap-3 p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="relative flex-1 max-w-xs">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             v-model="searchQuery"
@@ -874,13 +1052,16 @@ const currentPage = ref(1)
           />
           <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
         </div>
-      </div>
-
-      <!-- Desktop Filters -->
-      <div class="hidden lg:flex flex-wrap gap-3 p-4">
+        <select
+          v-model="categoryFilter"
+          class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+        >
+          <option value="">Todas las categorías</option>
+          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+        </select>
         <select
           v-model="statusFilter"
-          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option value="">Todos los estados</option>
           <option value="active">Activo</option>
@@ -900,6 +1081,13 @@ const currentPage = ref(1)
             class="w-full pl-10 pr-10 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder-slate-400"
           />
         </div>
+        <select
+          v-model="categoryFilter"
+          class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+        >
+          <option value="">Todas las categorías</option>
+          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+        </select>
         <select
           v-model="statusFilter"
           class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
@@ -1376,10 +1564,17 @@ const currentPage = ref(1)
                            <button type="button" @click="form.is_variable_sale = !form.is_variable_sale" :disabled="form.is_kit" :class="form.is_variable_sale ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
                              <span :class="form.is_variable_sale ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
                            </button>
+                          </div>
+                       <!-- Variaciones por Atributos -->
+                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="Activar para productos con múltiples variantes: talla S/M/L, colores, sabores, etc. Cada combinación genera un SKU único con precio y stock propio.">
+                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Variaciones por Atributos</span>
+                            <button type="button" @click="form.has_variations = !form.has_variations" :disabled="form.is_kit" :class="form.has_variations ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                              <span :class="form.has_variations ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                            </button>
+                          </div>
                          </div>
-                        </div>
-                        
-                        <!-- Unidades de Medida (compact display) -->
+                         
+                         <!-- Unidades de Medida (compact display) -->
                         <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
                           <div class="flex items-center justify-between mb-2">
                             <span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unidades</span>
@@ -1412,11 +1607,156 @@ const currentPage = ref(1)
                       </div>
                     </div>
    
-                   <!-- Row 5: Full Width = Kit Components (col 1-12) -->
-                  <div v-if="form.is_kit" class="md:col-span-2 xl:col-span-12">
-                   <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
-                     <div class="flex items-center gap-2">
-                       <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Elementos incluidos</h3>
+                    <!-- Row 5: Full Width = Variation Manager -->
+                    <div v-if="form.has_variations" class="md:col-span-2 xl:col-span-12">
+                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                       <div class="flex items-center gap-2">
+                         <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Variaciones por Atributos</h3>
+                         <span class="h-px flex-1 bg-brand-500/30"></span>
+                       </div>
+
+                       <!-- Step-by-step: Group editor -->
+                       <div class="bg-white dark:bg-slate-800/40 rounded-lg p-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                         <div class="flex items-center gap-2 mb-2">
+                           <span class="text-[10px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 font-bold px-1.5 py-0.5 rounded">PASO 1</span>
+                           <span class="text-xs text-slate-600 dark:text-slate-300">Define los atributos de tus variaciones</span>
+                         </div>
+                         <p class="text-[10px] text-slate-400 mb-2" title="Cada atributo es una característica como Talla, Color, Sabor. Los valores son las opciones disponibles para cada atributo.">
+                           Ejemplo: atributo <strong>Talla</strong> con valores <strong>S, M, L, XL</strong> y atributo <strong>Color</strong> con valores <strong>Rojo, Azul</strong>
+                         </p>
+
+                          <!-- Existing groups -->
+                          <div v-if="attributeGroups.length > 0" class="space-y-1.5 mb-2">
+                            <div v-for="(group, gi) in attributeGroups" :key="gi"
+                                 class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/70 rounded-lg px-3 py-2 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                              <span class="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-[70px] uppercase tracking-wider">{{ group.name }}</span>
+                              <input
+                                :value="group.values.join(', ')"
+                                @blur="updateGroupValues(gi, $event.target.value)"
+                                placeholder="valores separados por coma"
+                                class="flex-1 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 transition-colors"
+                              />
+                              <button type="button" @click="removeAttributeGroup(gi)" :title="`Eliminar grupo ${group.name}`" class="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0">
+                                <X class="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                         <!-- Add new group form -->
+                         <div class="flex flex-col sm:flex-row gap-2">
+                           <input v-model="newGroupName" placeholder="ej: Talla"
+                                  title="Nombre del atributo (ej: Talla, Color, Sabor, Material)"
+                                  class="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 outline-none transition-colors" />
+                           <input v-model="newGroupValues" placeholder="ej: S, M, L, XL"
+                                  title="Valores separados por coma (ej: S, M, L, XL)"
+                                  class="flex-[2] px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 outline-none transition-colors" />
+                           <button type="button" @click="addAttributeGroup"
+                                   title="Agrega este grupo de atributos para generar combinaciones"
+                                   class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors text-sm whitespace-nowrap font-medium flex items-center gap-1.5">
+                             <Plus class="w-4 h-4" />Agregar
+                           </button>
+                         </div>
+                       </div>
+
+                       <!-- Step-by-step: Combinations preview -->
+                       <div v-if="localVariations.length > 0" class="bg-white dark:bg-slate-800/40 rounded-lg ring-1 ring-slate-200/50 dark:ring-slate-700/50 overflow-hidden">
+                         <div class="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+                           <div class="flex items-center gap-2">
+                             <span class="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-bold px-1.5 py-0.5 rounded">PASO 2</span>
+                             <span class="text-xs text-slate-600 dark:text-slate-300">{{ totalCombinations }} combinaciones — puedes editar SKU, precio y costo de cada una</span>
+                           </div>
+                           <div class="flex gap-2">
+                             <button type="button" @click="autoGenerateSku" title="Regenerar SKU automáticamente desde el código del producto + valores de atributos" class="text-xs text-brand-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 px-2 py-1 rounded transition-colors">Auto SKU</button>
+                             <button type="button" @click="setAllPrices(form.unit_price)" title="Establecer el mismo precio de venta para todas las variaciones" class="text-xs text-brand-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 px-2 py-1 rounded transition-colors">Precio único</button>
+                             <button type="button" @click="setAllCosts(form.cost_price)" title="Establecer el mismo costo para todas las variaciones" class="text-xs text-brand-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-900/20 px-2 py-1 rounded transition-colors">Costo único</button>
+                           </div>
+                         </div>
+                         <div class="overflow-x-auto">
+                           <table class="w-full text-xs">
+                              <thead>
+                                <tr class="text-slate-500 bg-slate-50 dark:bg-slate-800/50">
+                                  <th class="text-left py-2 px-3 font-medium">SKU</th>
+                                  <th v-for="group in attributeGroups" :key="group.name" class="text-left py-2 px-3 font-medium">{{ group.name }}</th>
+                                  <th class="text-left py-2 px-3 font-medium">Precio</th>
+                                  <th class="text-left py-2 px-3 font-medium">Costo</th>
+                                  <th class="text-left py-2 px-3 font-medium">Cant. Inicial</th>
+                                  <th class="w-8"></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr v-for="(v, vi) in localVariations" :key="vi"
+                                    class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
+                                  <td class="py-1.5 px-3">
+                                    <input v-model="v.sku"
+                                           title="Código SKU único para esta variación"
+                                           class="w-full min-w-[100px] px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 rounded text-xs font-mono text-slate-900 dark:text-white outline-none transition-colors" />
+                                  </td>
+                                  <td v-for="group in attributeGroups" :key="group.name" class="py-1.5 px-3 text-slate-700 dark:text-slate-300 font-medium">
+                                    {{ v.attributes[group.name] }}
+                                  </td>
+                                  <td class="py-1.5 px-3">
+                                    <input v-model.number="v.unit_price" type="number" step="0.01" min="0"
+                                           title="Precio de venta para esta variación"
+                                           class="w-24 px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 rounded text-xs text-right text-slate-900 dark:text-white outline-none transition-colors" />
+                                  </td>
+                                  <td class="py-1.5 px-3">
+                                    <input v-model.number="v.cost_price" type="number" step="0.01" min="0"
+                                           title="Costo para esta variación"
+                                           class="w-24 px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 rounded text-xs text-right text-slate-900 dark:text-white outline-none transition-colors" />
+                                  </td>
+                                  <td class="py-1.5 px-3">
+                                    <input v-model.number="v.initial_quantity" type="number" min="0"
+                                           title="Cantidad inicial de stock para esta variación"
+                                           class="w-20 px-1.5 py-1 bg-transparent border border-transparent hover:border-slate-200 dark:hover:border-slate-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 rounded text-xs text-right text-slate-900 dark:text-white outline-none transition-colors" />
+                                  </td>
+                                  <td class="py-1.5 px-2 text-center">
+                                    <button type="button" @click="removeVariation(vi)"
+                                            title="Eliminar esta variación de la lista"
+                                            class="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100">
+                                      <X class="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                                <tr v-if="localVariations.length > 0" class="bg-slate-50 dark:bg-slate-800/50 font-medium">
+                                  <td colspan="4" class="py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-right">Total stock inicial</td>
+                                  <td class="py-2 px-3 text-xs text-slate-900 dark:text-white text-right">
+                                    {{ localVariations.reduce((s, v) => s + (parseFloat(v.initial_quantity) || 0), 0) }}
+                                  </td>
+                                  <td></td>
+                                </tr>
+                              </tbody>
+                           </table>
+                         </div>
+                          <!-- Info: stock & delete -->
+                          <div class="flex flex-wrap gap-3 px-3 py-2 text-[10px] text-slate-400 border-t border-slate-200 dark:border-slate-700">
+                            <span title="Pasa el mouse sobre una fila y haz clic en la X para eliminar combinaciones que no necesites">🅧 Pasa el cursor sobre una fila y haz clic en ✕ para eliminar combinaciones no deseadas</span>
+                            <span title="La cantidad inicial se asigna al crear el producto. Luego el stock se gestiona por separado al recibir productos, hacer ajustes o transferencias">📦 La cantidad inicial se asigna al crear el producto. El stock se gestiona desde Inventario → Stock</span>
+                          </div>
+                        </div>
+
+                       <!-- Empty states -->
+                       <div v-else-if="attributeGroups.length > 0" class="flex flex-col items-center gap-2 py-6 text-slate-400">
+                         <Package class="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                         <p class="text-sm text-slate-500">Completa los valores de los atributos para generar combinaciones</p>
+                         <p class="text-[10px] text-slate-400">Ej: si agregaste "Talla", escribe "S, M, L, XL" en el campo de valores y presiona "Agregar"</p>
+                       </div>
+                       <div v-else class="flex flex-col items-center gap-2 py-6 text-slate-400">
+                         <Package class="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                         <p class="text-sm text-slate-500">Agrega atributos para generar variaciones</p>
+                         <ol class="text-[11px] text-slate-400 space-y-1 list-decimal list-inside">
+                           <li>Escribe el nombre del atributo <strong class="text-slate-500">(ej: Talla)</strong></li>
+                           <li>Escribe sus valores separados por coma <strong class="text-slate-500">(ej: S, M, L, XL)</strong></li>
+                           <li>Presiona <strong class="text-brand-500">"Agregar"</strong></li>
+                         </ol>
+                       </div>
+                     </div>
+                    </div>
+
+                    <!-- Row 6: Full Width = Kit Components (col 1-12) -->
+                   <div v-if="form.is_kit" class="md:col-span-2 xl:col-span-12">
+                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                      <div class="flex items-center gap-2">
+                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Elementos incluidos</h3>
                        <span class="h-px flex-1 bg-brand-500/30"></span>
                      </div>
                      <div class="space-y-3">
@@ -1565,6 +1905,173 @@ const currentPage = ref(1)
           >
             Cerrar
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Detail Modal -->
+  <Teleport to="body">
+    <div v-if="showDetailModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeDetailModal"></div>
+      <div class="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-xl">
+        <div class="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between z-10">
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ selectedItem?.name }}</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ selectedItem?.item_number }}</p>
+          </div>
+          <button @click="closeDetailModal" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-6 space-y-5">
+          <!-- Info Row -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/70 rounded-xl">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Categoría</p>
+              <p class="font-medium text-slate-900 dark:text-white">{{ selectedItem?.category_name || '-' }}</p>
+            </div>
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/70 rounded-xl">
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Proveedor</p>
+              <p class="font-medium text-slate-900 dark:text-white">{{ selectedItem?.supplier_name || '-' }}</p>
+            </div>
+          </div>
+
+          <!-- Prices -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800">
+              <p class="text-xs text-blue-600 dark:text-blue-400 mb-1">Costo</p>
+              <p class="text-xl font-bold text-blue-700 dark:text-blue-300">{{ formatPrice(selectedItem?.cost_price) }}</p>
+            </div>
+            <div class="p-4 bg-green-50 dark:bg-green-900/30 rounded-xl border border-green-100 dark:border-green-800">
+              <p class="text-xs text-green-600 dark:text-green-400 mb-1">Precio Venta</p>
+              <p class="text-xl font-bold text-green-700 dark:text-green-300">{{ formatPrice(selectedItem?.unit_price) }}</p>
+            </div>
+          </div>
+
+          <!-- Profit Margin -->
+          <div class="p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl border border-purple-100 dark:border-purple-800">
+            <p class="text-xs text-purple-600 dark:text-purple-400 mb-1">Ganancia</p>
+            <p class="text-xl font-bold text-purple-700 dark:text-purple-300">{{ getProfitMargin(selectedItem) }}</p>
+          </div>
+
+          <!-- Price History Button -->
+          <div class="text-center">
+            <button @click="openHistoryModal(selectedItem.id)" class="px-4 py-2 text-sm text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-lg transition-colors">
+              Ver historial de precios
+            </button>
+          </div>
+
+          <!-- Status -->
+          <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/70 rounded-xl">
+            <span class="text-sm text-slate-600 dark:text-slate-300">Estado</span>
+            <span :class="getStatusClass(selectedItem?.status)" class="px-3 py-1 rounded-full text-sm font-medium capitalize">{{ selectedItem?.status }}</span>
+          </div>
+
+          <!-- Stock -->
+          <div>
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Stock</p>
+            <div v-if="selectedItem?.is_kit" class="p-4 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-center">
+              <p class="text-xs text-amber-600 dark:text-amber-400 mb-1">Stock disponible para Kits</p>
+              <p class="text-2xl font-bold text-amber-700 dark:text-amber-300">{{ currencyStore.formatNumber(selectedItem?.total_quantity || 0) }}</p>
+              <p v-if="selectedItem?.kit_components?.length" class="text-xs text-amber-500 dark:text-amber-500 mt-2">({{ selectedItem.kit_components.length }} componentes)</p>
+            </div>
+            <div v-else-if="groupedStock.length" class="space-y-3">
+              <div v-for="loc in groupedStock" :key="loc.location_id" class="bg-slate-50 dark:bg-slate-800/70 rounded-xl p-3 space-y-2">
+                <div class="flex items-center justify-between text-sm">
+                  <div class="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300">
+                    <MapPin class="w-4 h-4 text-slate-400" />
+                    {{ loc.location_name }} ({{ loc.location_code }})
+                  </div>
+                  <span class="font-bold text-slate-900 dark:text-white">{{ currencyStore.formatNumber(loc.total) }}</span>
+                </div>
+                <div v-if="selectedItem?.has_variations" class="space-y-1 pl-6 border-l-2 border-slate-200 dark:border-slate-700">
+                  <div v-for="entry in loc.entries" :key="entry.variation_id || 'main'" class="flex items-center justify-between text-xs">
+                    <span class="text-slate-500 dark:text-slate-400 truncate">
+                      {{ entry.variation_sku || 'Principal' }}
+                      <span v-if="entry.variation_attributes" class="text-slate-400">
+                        — {{ Object.values(entry.variation_attributes).join(' / ') }}
+                      </span>
+                    </span>
+                    <span class="font-semibold text-slate-700 dark:text-slate-300 ml-2">{{ currencyStore.formatNumber(parseFloat(entry.quantity) || 0) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="p-3 bg-brand-50 dark:bg-brand-900/30 rounded-lg flex justify-between">
+                <span class="font-medium text-brand-700 dark:text-brand-300">Total Stock</span>
+                <span class="font-bold text-brand-700 dark:text-brand-300">{{ currencyStore.formatNumber(selectedItem.stock.reduce((sum, s) => sum + (parseFloat(s.quantity) || 0), 0)) }}</span>
+              </div>
+            </div>
+            <div v-else class="p-4 bg-slate-50 dark:bg-slate-800/70 rounded-lg text-center">
+              <p class="text-slate-500 dark:text-slate-400">Sin stock disponible</p>
+            </div>
+          </div>
+
+          <!-- Variations -->
+          <div v-if="selectedItem?.variations?.length">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Variaciones</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div v-for="variation in selectedItem.variations" :key="variation.id" class="p-3 bg-purple-50 dark:bg-purple-900/30 border border-purple-100 dark:border-purple-800 rounded-lg">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <p class="font-medium text-purple-700 dark:text-purple-300">{{ variation.sku }}</p>
+                    <p class="text-xs text-purple-500 dark:text-purple-400" v-if="variation.attributes">
+                      {{ Object.entries(variation.attributes).map(([k, v]) => `${k}: ${v}`).join(' | ') }}
+                    </p>
+                    <p class="text-sm text-purple-600 dark:text-purple-400">{{ formatPrice(variation.unit_price) }}</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-xs text-purple-500 dark:text-purple-400">Stock</p>
+                    <p class="font-bold text-purple-700 dark:text-purple-300">{{ getVariationStock(variation.id) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Price History Modal -->
+  <Teleport to="body">
+    <div v-if="showHistoryModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeHistoryModal"></div>
+      <div class="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-xl">
+        <div class="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between z-10">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Historial de Precios</h3>
+          <button @click="closeHistoryModal" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-6">
+          <div v-if="loadingHistory" class="text-center py-8 text-slate-400">
+            <div class="animate-spin w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+            <p class="text-sm">Cargando historial...</p>
+          </div>
+          <div v-else-if="priceHistory.length === 0" class="text-center py-8 text-slate-400">
+            <p class="text-sm">Sin cambios de precio registrados</p>
+          </div>
+          <div v-else class="space-y-3">
+            <div v-for="h in priceHistory" :key="h.id" class="p-4 bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-100 dark:border-slate-700/50">
+              <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                <span>{{ formatDateTime(h.created_at) }}</span>
+                <span v-if="h.created_by_name">{{ h.created_by_name }}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="text-center p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <p class="text-[10px] text-red-500 dark:text-red-400 uppercase mb-1">Anterior</p>
+                  <p class="text-sm font-semibold text-red-600 dark:text-red-400 line-through">C: {{ formatPrice(h.cost_price_before) }}</p>
+                  <p class="text-sm font-semibold text-red-600 dark:text-red-400 line-through">V: {{ formatPrice(h.unit_price_before) }}</p>
+                </div>
+                <div class="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <p class="text-[10px] text-green-500 dark:text-green-400 uppercase mb-1">Nuevo</p>
+                  <p class="text-sm font-semibold text-green-600 dark:text-green-400">C: {{ formatPrice(h.cost_price_after) }}</p>
+                  <p class="text-sm font-semibold text-green-600 dark:text-green-400">V: {{ formatPrice(h.unit_price_after) }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

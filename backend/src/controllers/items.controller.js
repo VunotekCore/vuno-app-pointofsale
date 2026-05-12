@@ -7,7 +7,7 @@ export class ItemsController {
 
   async getAll (req, res, next) {
     try {
-      const { location_id, limit, offset, search, status, supplier_id } = req.query
+      const { location_id, limit, offset, search, status, category_id, supplier_id } = req.query
       const companyId = req.user?.company_id
       const filters = {
         limit: parseInt(limit) || 20,
@@ -15,6 +15,7 @@ export class ItemsController {
         search: search || '',
         status: status || '',
         company_id: companyId,
+        category_id: category_id || null,
         supplier_id: supplier_id || null
       }
       const result = await this.itemsModel.getAll(location_id, filters)

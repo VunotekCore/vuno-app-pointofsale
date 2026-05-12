@@ -5,7 +5,7 @@ export class InventoryController {
 
   async getStock (req, res, next) {
     try {
-      const { location_id, search, limit, offset } = req.query
+      const { location_id, search, limit, offset, status } = req.query
       const isAdmin = req.user?.is_admin == 1
       const userLocations = req.userLocations || []
       const companyId = req.user?.company_id
@@ -17,7 +17,8 @@ export class InventoryController {
         search,
         limit: limit ? parseInt(limit) : 50,
         offset: offset ? parseInt(offset) : 0,
-        companyId
+        companyId,
+        status: status || ''
       })
       res.status(200).json({ success: true, data: result.data, total: result.total })
     } catch (error) {

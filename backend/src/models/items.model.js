@@ -43,6 +43,8 @@ export class ItemsModel {
     const itemData = { ...data }
     const kitComponents = itemData.kit_components
     delete itemData.kit_components
+    const variations = itemData.variations
+    delete itemData.variations
 
     const priceBefore = {
       cost_price: existing.cost_price,
@@ -71,6 +73,10 @@ export class ItemsModel {
       }
     } else if (existing.is_kit && kitComponents) {
       await this.itemsRepo.saveKitComponents(id, kitComponents, companyId)
+    }
+
+    if (variations !== undefined) {
+      await this.itemsRepo.syncVariations(id, variations, userId, companyId)
     }
     
     return await this.itemsRepo.getById(id, null, companyId)

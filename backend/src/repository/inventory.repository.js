@@ -7,7 +7,7 @@ export class InventoryRepository {
   }
 
   async getStockByLocation(filters = {}) {
-    const { locationId, userLocations, isAdmin, search, limit, offset, companyId } = filters
+    const { locationId, userLocations, isAdmin, search, limit, offset, companyId, status } = filters
     const params = []
     const countParams = []
 
@@ -58,6 +58,12 @@ export class InventoryRepository {
       const searchTerm = `%${search}%`
       params.push(searchTerm, searchTerm)
       countParams.push(searchTerm, searchTerm)
+    }
+
+    if (status === 'reserved') {
+      query += ' AND iq.quantity_reserved > 0'
+    } else if (status === 'in_transit') {
+      query += ' AND iq.quantity_in_transit > 0'
     }
 
     const countQuery = `SELECT COUNT(*) as total FROM item_quantities iq

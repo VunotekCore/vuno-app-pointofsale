@@ -23,12 +23,6 @@ export const coreService = {
   updateSupplier: (id, data) => api.put(`/core/suppliers/${id}`, data),
   deleteSupplier: (id) => api.delete(`/core/suppliers/${id}`),
 
-  // Item Variations
-  getVariations: () => api.get('/core/item_variations'),
-  getVariation: (id) => api.get(`/core/item_variations/${id}`),
-  createVariation: (data) => api.post('/core/item_variations', data),
-  updateVariation: (id, data) => api.put(`/core/item_variations/${id}`, data),
-  deleteVariation: (id) => api.delete(`/core/item_variations/${id}`)
 }
 
 export const itemsService = {

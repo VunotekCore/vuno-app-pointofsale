@@ -11,7 +11,7 @@ import { useUnitsStore } from '../../stores/units.store.js'
 import { useItemsStore } from '../../stores/items.store.js'
 import { salesService, customersService } from '../../services/sales.service.js'
 import { offlineApi } from '../../services/api.service.js'
-import { coreService, inventoryService } from '../../services/inventory.service.js'
+import { coreService, inventoryService, itemsService } from '../../services/inventory.service.js'
 import { cacheService } from '../../services/cache.service.js'
 import { isNetworkOnline } from '../../composables/useNetworkStatus.js'
 import { useDebounce } from '../../composables/useDebounce.js'
@@ -78,6 +78,12 @@ const showUnitModal = ref(false)
 const selectedProductForUnit = ref(null)
 const selectedProductUnits = ref([])
 const showVariableModal = ref(false)
+const showVariationModal = ref(false)
+const selectedProductForVariation = ref(null)
+const productVariations = ref([])
+const selectedVariation = ref(null)
+const selectedAttributes = ref({})
+const variationQuantity = ref(1)
 const variableQuantity = ref(1)
 const variableUnit = ref(null)
 const variableCustomPrice = ref(0)
@@ -182,7 +188,7 @@ async function loadItems() {
       return
     }
 
-    await itemsStore.loadItems(selectedLocation.value?.id)
+    await itemsStore.loadItems(selectedLocation.value?.id, true)
     await loadCategories()
     
     await preloadItemUnits()
@@ -208,7 +214,7 @@ async function preloadItemUnits() {
 
 async function loadCategories() {
   try {
-    await itemsStore.loadCategories()
+    await itemsStore.loadCategories(true)
   } catch (error) {
     console.error('Error loading categories:', error)
   }
@@ -280,6 +286,11 @@ function navigateToCategory(cat) {
 function handleProductClick(item) {
   const units = unitsStore.getItemUnitsSync(item.id)
   
+  if (item.has_variations) {
+    selectVariation(item)
+    return
+  }
+  
   if (item.is_variable_sale && units.length > 0) {
     selectedProductForUnit.value = item
     selectedProductUnits.value = units
@@ -293,6 +304,116 @@ function handleProductClick(item) {
     selectedProductUnits.value = units
     showUnitModal.value = true
   }
+}
+
+const variationAttributeGroups = computed(() => {
+  const map = {}
+  for (const v of productVariations.value) {
+    for (const [key, val] of Object.entries(v.attributes || {})) {
+      if (!map[key]) map[key] = new Set()
+      map[key].add(val)
+    }
+  }
+  return Object.entries(map).map(([name, values]) => ({ name, values: [...values] }))
+})
+
+const colorMap = {
+  rojo: '#EF4444', azul: '#3B82F6', verde: '#22C55E',
+  amarillo: '#EAB308', negro: '#000000', blanco: '#FFFFFF',
+  gris: '#6B7280', naranja: '#F97316', rosa: '#EC4899',
+  morado: '#A855F7', marron: '#92400E', marrón: '#92400E',
+  cafe: '#92400E', café: '#92400E', beige: '#F5F5DC',
+  crema: '#FFFDD0', celeste: '#87CEEB', turquesa: '#14B8A6',
+  dorado: '#D4AF37', plateado: '#C0C0C0', coral: '#FF7F50',
+  lavanda: '#E6E6FA', salmon: '#FA8072', salmón: '#FA8072',
+  mostaza: '#FFDB58', oliva: '#808000', vino: '#722F37',
+  lila: '#C8A2C8', fucsia: '#FF00FF', teal: '#008080',
+  indigo: '#4B0082', ámbar: '#FFBF00', violeta: '#8B00FF'
+}
+
+function getColorHex (val) {
+  if (!val) return '#CBD5E1'
+  const key = val.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return colorMap[key] || colorMap[key.replace(/[^a-z]/g, '')] || '#CBD5E1'
+}
+
+function isColorGroup (name) {
+  if (!name) return false
+  return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('color')
+}
+
+const matchedVariation = computed(() => {
+  const attrs = selectedAttributes.value
+  const attrCount = Object.keys(attrs).length
+  if (attrCount === 0 || attrCount < variationAttributeGroups.value.length) return null
+  return productVariations.value.find(v =>
+    Object.entries(attrs).every(([k, val]) => v.attributes?.[k] === val)
+  ) || null
+})
+
+async function selectVariation(item) {
+  selectedProductForVariation.value = item
+  selectedAttributes.value = {}
+  selectedVariation.value = null
+  variationQuantity.value = 1
+  
+  if (isNetworkOnline()) {
+    try {
+      const { data } = await itemsService.getItem(item.id)
+      productVariations.value = data.data.variations || []
+    } catch (e) {
+      productVariations.value = []
+    }
+  } else {
+    try {
+      const cached = await cacheService.getItems()
+      const cachedItem = cached.find(i => i.id === item.id)
+      productVariations.value = cachedItem?.variations || []
+    } catch (e) {
+      productVariations.value = []
+    }
+  }
+  
+  if (productVariations.value.length > 0) {
+    showVariationModal.value = true
+  } else {
+    // No variations found, behave as if has_variations is false
+    const units = unitsStore.getItemUnitsSync(item.id)
+    if (item.is_variable_sale && units.length > 0) {
+      selectedProductForUnit.value = item
+      selectedProductUnits.value = units
+      const defaultUnit = units.find(u => u.is_default) || units[0]
+      initVariableSale(defaultUnit)
+      showVariableModal.value = true
+    } else if (units.length <= 1) {
+      addToCart(item, units[0] || null)
+    } else {
+      selectedProductForUnit.value = item
+      selectedProductUnits.value = units
+      showUnitModal.value = true
+    }
+  }
+}
+
+function confirmVariationSale() {
+  if (!matchedVariation.value) return
+  addToCart(
+    selectedProductForVariation.value,
+    null,
+    variationQuantity.value,
+    matchedVariation.value
+  )
+  showVariationModal.value = false
+  selectedProductForVariation.value = null
+  productVariations.value = []
+  selectedAttributes.value = {}
+  selectedVariation.value = null
+}
+
+function getVariationStock(variationId) {
+  if (!selectedProductForVariation.value?.stock) return currencyStore.formatNumber(0)
+  const stockItem = selectedProductForVariation.value.stock.find(s => s.variation_id === variationId)
+  return currencyStore.formatNumber(parseFloat(stockItem?.quantity) || 0)
 }
 
 watch([variableQuantity, variableUnit], () => {
@@ -420,16 +541,17 @@ function selectUnitAndAdd(unit) {
   selectedProductUnits.value = []
 }
 
-function addToCart(item, selectedUnit = null, customQty = null) {
+function addToCart(item, selectedUnit = null, customQty = null, variation = null) {
   const unitId = selectedUnit?.unit_id || item.default_unit_id
-  const unitPrice = selectedUnit?.price || parseFloat(item.unit_price) || 0
+  const unitPrice = variation?.unit_price || selectedUnit?.price || parseFloat(item.unit_price) || 0
   const unitAbbreviation = selectedUnit?.unit_abbreviation || 'und'
   const unitName = selectedUnit?.unit_name || 'unidad'
   const qty = customQty !== null ? customQty : 1
+  const vId = variation?.id || null
   
   const existing = cartItems.value.find(ci => 
     ci.item_id === item.id && 
-    ci.variation_id === null && 
+    ci.variation_id === vId && 
     ci.unit_id === unitId
   )
   
@@ -442,7 +564,9 @@ function addToCart(item, selectedUnit = null, customQty = null) {
       item_id: item.id,
       item_name: item.name,
       item_number: item.item_number,
-      variation_id: null,
+      variation_id: vId,
+      variation_sku: variation?.sku || null,
+      variation_attributes: variation?.attributes || null,
       quantity: qty,
       unit_id: unitId,
       unit_abbreviation: unitAbbreviation,
@@ -1604,4 +1728,85 @@ watch([cartItems, selectedCustomer, subtotal, totalDiscount, total], () => {
       <span class="text-xs font-medium mt-1">{{ formatMoney(total) }}</span>
     </button>
   </div>
+
+  <!-- Variation Selection Modal -->
+  <Teleport to="body">
+    <div v-if="showVariationModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showVariationModal = false"></div>
+      <div class="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl">
+        <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Seleccionar Variación</h2>
+          <button @click="showVariationModal = false" class="p-1 text-slate-400 hover:text-slate-600">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+        <div class="p-4 space-y-4">
+          <p class="font-medium text-slate-900 dark:text-white">{{ selectedProductForVariation?.name }}</p>
+
+          <div v-for="group in variationAttributeGroups" :key="group.name">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ group.name }}</label>
+            <div v-if="isColorGroup(group.name)" class="flex flex-wrap gap-3">
+              <button
+                v-for="val in group.values" :key="val"
+                @click="selectedAttributes[group.name] = val"
+                class="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all"
+                :class="selectedAttributes[group.name] === val
+                  ? 'ring-2 ring-brand-500 bg-brand-50 dark:bg-brand-900/30 shadow-sm'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-800'"
+              >
+                <div class="relative w-10 h-10 rounded-full border-2 border-slate-200 dark:border-slate-600 overflow-hidden" :style="{ backgroundColor: getColorHex(val) }">
+                  <div v-if="selectedAttributes[group.name] === val" class="absolute inset-0 flex items-center justify-center bg-black/10">
+                    <svg class="w-5 h-5 text-white drop-shadow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </div>
+                <span class="text-xs font-medium text-slate-700 dark:text-slate-300 leading-none">{{ val }}</span>
+              </button>
+            </div>
+            <div v-else class="flex flex-wrap gap-2">
+              <button
+                v-for="val in group.values" :key="val"
+                @click="selectedAttributes[group.name] = val"
+                class="px-4 py-2 rounded-xl font-medium text-sm transition-all"
+                :class="selectedAttributes[group.name] === val
+                  ? 'bg-brand-500 text-white shadow-md'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'"
+              >
+                {{ val }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="matchedVariation" class="bg-purple-50 dark:bg-purple-900/30 rounded-lg p-3">
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-sm font-medium text-purple-700 dark:text-purple-300">SKU: {{ matchedVariation.sku }}</p>
+                <p class="text-xs text-purple-500 dark:text-purple-400" v-if="matchedVariation.attributes">
+                  {{ Object.entries(matchedVariation.attributes).map(([k, v]) => `${k}: ${v}`).join(' | ') }}
+                </p>
+                <p class="text-lg font-bold text-purple-600 dark:text-purple-400">{{ formatMoney(matchedVariation.unit_price) }}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-xs text-purple-500 dark:text-purple-400">Stock</p>
+                <p class="font-bold text-purple-700 dark:text-purple-300">{{ getVariationStock(matchedVariation.id) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Cantidad</label>
+            <input v-model.number="variationQuantity" type="number" min="1" class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white" />
+          </div>
+
+          <button
+            @click="confirmVariationSale"
+            :disabled="!matchedVariation"
+            class="w-full py-3 rounded-xl font-medium transition-colors"
+            :class="matchedVariation ? 'bg-brand-500 hover:bg-brand-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'"
+          >
+            Agregar al Carrito
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
