@@ -221,6 +221,8 @@ async function onOrderSelect() {
       form.value.items = (order.items || []).map(item => ({
         item_id: item.item_id,
         variation_id: item.variation_id,
+        variation_sku: item.variation_sku,
+        variation_attributes: item.variation_attributes,
         item_name: item.item_name,
         item_number: item.item_number,
         quantity: item.quantity_ordered - (item.quantity_received || 0),
@@ -726,6 +728,10 @@ function formatDate (dateStr) {
                     <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">
                       {{ item.item_name }}
                       <span class="text-xs text-slate-400 block">{{ item.item_number }}</span>
+                      <span v-if="item.variation_sku" class="block text-xs text-slate-400">
+                        {{ item.variation_sku }}
+                        <span v-if="item.variation_attributes">— {{ Object.values(item.variation_attributes).join(' / ') }}</span>
+                      </span>
                     </td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.cost_price || item.unit_cost || 0).toFixed(2) }}</td>
@@ -811,7 +817,13 @@ function formatDate (dateStr) {
                 </thead>
                 <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                   <tr v-for="item in selectedReceiving?.items" :key="item.id" class="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">{{ item.item_name }}</td>
+                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">
+                      {{ item.item_name }}
+                      <span v-if="item.variation_sku" class="block text-xs text-slate-400">
+                        {{ item.variation_sku }}
+                        <span v-if="item.variation_attributes">— {{ Object.values(item.variation_attributes).join(' / ') }}</span>
+                      </span>
+                    </td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.cost_price || 0).toFixed(2) }}</td>
                     <td class="px-3 py-2 text-right text-slate-900 dark:text-white font-medium">C$ {{ parseFloat(item.total_cost || 0).toFixed(2) }}</td>
