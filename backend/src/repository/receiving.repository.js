@@ -292,7 +292,7 @@ export class ReceivingRepository {
           }
         }
 
-        await this.updateAverageCost(conn, item_id, quantity, cost_price, userId, companyId)
+        await this.updateAverageCost(conn, item_id, quantity, cost_price, userId, companyId, variation_id)
 
         if (expire_date) {
           const itemCheck = await conn.query(`
@@ -450,54 +450,69 @@ export class ReceivingRepository {
     return result.docNumber
   }
 
-  async updateAverageCost (conn, itemId, newQuantity, newCost, userId = null, companyId = null) {
-    // Parsear correctamente los valores
+  async updateAverageCost (conn, itemId, newQuantity, newCost, userId = null, companyId = null, variationId = null) {
     const qtyNew = parseFloat(String(newQuantity).replace(',', '.')) || 0
     const costNew = parseFloat(String(newCost).replace(',', '.')) || 0
-    
+
+    if (variationId) {
+      const currentVar = await conn.query(`
+        SELECT cost_price FROM item_variations WHERE id = UUID_TO_BIN(?)
+      `, [variationId])
+
+      const currentCost = currentVar.length > 0 ? parseFloat(currentVar[0].cost_price) || 0 : 0
+      const currentStockRaw = await this.getTotalStock(conn, itemId, variationId)
+      const currentStock = parseFloat(String(currentStockRaw).replace(',', '.')) || 0
+
+      const totalValue = (currentCost * currentStock) + (costNew * qtyNew)
+      const totalQuantity = currentStock + qtyNew
+      let newAverageCost = costNew
+      if (totalQuantity > 0 && totalValue > 0) {
+        newAverageCost = totalValue / totalQuantity
+      }
+      newAverageCost = Math.round(newAverageCost * 100) / 100
+
+      if (newAverageCost > 0 && newAverageCost !== currentCost) {
+        await conn.query(`
+          UPDATE item_variations SET cost_price = ? WHERE id = UUID_TO_BIN(?)
+        `, [newAverageCost, variationId])
+      }
+      return
+    }
+
     const currentItem = await conn.query(`
       SELECT cost_price, unit_price FROM items WHERE id = UUID_TO_BIN(?)
     `, [itemId])
 
-    if (!currentItem || currentItem.length === 0) {
-      return
-    }
+    if (!currentItem || currentItem.length === 0) return
 
     const currentCost = parseFloat(currentItem[0].cost_price) || 0
     const currentPrice = parseFloat(currentItem[0].unit_price) || 0
     const currentStockRaw = await this.getTotalStock(conn, itemId)
     const currentStock = parseFloat(String(currentStockRaw).replace(',', '.')) || 0
-    
+
     const totalValue = (currentCost * currentStock) + (costNew * qtyNew)
     const totalQuantity = currentStock + qtyNew
-    
     let newAverageCost = costNew
     if (totalQuantity > 0 && totalValue > 0) {
       newAverageCost = totalValue / totalQuantity
     }
-    
-    // Redondear a 2 decimales
     newAverageCost = Math.round(newAverageCost * 100) / 100
 
     if (newAverageCost > 0 && newAverageCost !== currentCost) {
       await conn.query(`
         UPDATE items SET cost_price = ? WHERE id = UUID_TO_BIN(?)
       `, [newAverageCost, itemId])
-      
-      // Guardar historial de precios
+
       if (companyId) {
         await conn.query(`
           INSERT INTO product_price_history 
             (item_id, company_id, cost_price_before, unit_price_before, margin_before, cost_price_after, unit_price_after, margin_after, created_by)
           VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?))
         `, [
-          itemId,
-          companyId,
-          currentCost,
-          currentPrice,
+          itemId, companyId,
+          currentCost, currentPrice,
           currentPrice > 0 ? Math.round(((currentPrice - currentCost) / currentPrice) * 10000) / 100 : 0,
-          newAverageCost,
-          currentPrice,
+          newAverageCost, currentPrice,
           currentPrice > 0 ? Math.round(((currentPrice - newAverageCost) / currentPrice) * 10000) / 100 : 0,
           userId
         ])
@@ -505,10 +520,14 @@ export class ReceivingRepository {
     }
   }
 
-  async getTotalStock (conn, itemId) {
-    const result = await conn.query(`
-      SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN(?)
-    `, [itemId])
+  async getTotalStock (conn, itemId, variationId = null) {
+    let query = `SELECT COALESCE(SUM(quantity), 0) as total FROM item_quantities WHERE item_id = UUID_TO_BIN(?)`
+    const params = [itemId]
+    if (variationId) {
+      query += ` AND variation_id = UUID_TO_BIN(?)`
+      params.push(variationId)
+    }
+    const result = await conn.query(query, params)
     return parseFloat(result[0].total) || 0
   }
 }

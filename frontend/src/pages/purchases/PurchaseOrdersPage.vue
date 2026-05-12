@@ -67,11 +67,33 @@ const form = ref({
 const itemForm = ref({
   item_id: '',
   quantity_ordered: 1,
-  unit_cost: 0
+  unit_cost: 0,
+  variation_id: '',
+  variation_sku: '',
+  variation_attributes: null
 })
 
 const availableItems = ref([])
 const loadingItems = ref(false)
+const itemVariations = ref([])
+const loadingVariations = ref(false)
+
+watch(() => itemForm.value.item_id, async (newId) => {
+  itemVariations.value = []
+  itemForm.value.variation_id = ''
+  itemForm.value.variation_sku = ''
+  itemForm.value.variation_attributes = null
+  if (!newId) return
+  const item = availableItems.value.find(i => i.id === newId)
+  if (item?.has_variations) {
+    loadingVariations.value = true
+    try {
+      const { data } = await itemsService.getItem(newId)
+      itemVariations.value = data.data?.variations || []
+    } catch { /* ignore */ }
+    loadingVariations.value = false
+  }
+})
 
 const filteredOrders = computed(() => {
   return orders.value
@@ -232,6 +254,8 @@ async function openModal(order = null) {
         items: (fullOrder.items || []).map(item => ({
           item_id: item.item_id,
           variation_id: item.variation_id,
+          variation_sku: item.variation_sku,
+          variation_attributes: item.variation_attributes,
           item_name: item.item_name,
           item_number: item.item_number,
           quantity_ordered: item.quantity_ordered,
@@ -274,6 +298,11 @@ function addItem() {
   const item = availableItems.value.find(i => i.id === itemForm.value.item_id)
   if (!item) return
   
+  if (item.has_variations && !itemForm.value.variation_id) {
+    notification.warning('Seleccione una variación para este producto')
+    return
+  }
+  
   const newItem = {
     ...itemForm.value,
     item_name: item.name,
@@ -286,7 +315,20 @@ function addItem() {
   itemForm.value = {
     item_id: '',
     quantity_ordered: 1,
-    unit_cost: 0
+    unit_cost: 0,
+    variation_id: '',
+    variation_sku: '',
+    variation_attributes: null
+  }
+  itemVariations.value = []
+}
+
+function onVariationChange() {
+  const v = itemVariations.value.find(x => x.id === itemForm.value.variation_id)
+  if (v) {
+    itemForm.value.variation_sku = v.sku
+    itemForm.value.variation_attributes = v.attributes
+    itemForm.value.unit_cost = itemForm.value.unit_cost || parseFloat(v.cost_price) || 0
   }
 }
 
@@ -695,46 +737,60 @@ onMounted(async () => {
           
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Productos</label>            
-            <div class="flex items-end gap-2 mb-2">
-              <div class="flex-1">
-                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Producto</label>
-                <select
-                  v-model="itemForm.item_id"
-                  class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  :disabled="loadingItems"
+              <div class="flex items-end gap-2 mb-2">
+                <div class="flex-1">
+                  <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Producto</label>
+                  <select
+                    v-model="itemForm.item_id"
+                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    :disabled="loadingItems"
+                  >
+                    <option value="">{{ loadingItems ? 'Cargando...' : 'Seleccionar producto' }}</option>
+                    <option v-for="i in availableItems" :key="i.id" :value="i.id">{{ i.name }} ({{ i.item_number }})</option>
+                  </select>
+                </div>
+                <div v-if="itemVariations.length > 0">
+                  <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Variación</label>
+                  <select
+                    v-model="itemForm.variation_id"
+                    class="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    :disabled="loadingVariations"
+                    @change="onVariationChange"
+                  >
+                    <option value="">{{ loadingVariations ? 'Cargando...' : 'Seleccionar variación' }}</option>
+                    <option v-for="v in itemVariations" :key="v.id" :value="v.id">
+                      {{ v.sku }} — {{ Object.values(v.attributes || {}).join(' / ') }}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Cant.</label>
+                  <input
+                    v-model.number="itemForm.quantity_ordered"
+                    type="number"
+                    min="1"
+                    placeholder="Cantidad"
+                    class="w-24 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Costo</label>
+                  <input
+                    v-model.number="itemForm.unit_cost"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Costo"
+                    class="w-28 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <button
+                  @click="addItem"
+                  class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg"
                 >
-                  <option value="">{{ loadingItems ? 'Cargando...' : 'Seleccionar producto' }}</option>
-                  <option v-for="i in availableItems" :key="i.id" :value="i.id">{{ i.name }} ({{ i.item_number }})</option>
-                </select>
+                  <Plus class="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Cant.</label>
-                <input
-                  v-model.number="itemForm.quantity_ordered"
-                  type="number"
-                  min="1"
-                  placeholder="Cantidad"
-                  class="w-24 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Costo</label>
-                <input
-                  v-model.number="itemForm.unit_cost"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Costo"
-                  class="w-28 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
-              </div>
-              <button
-                @click="addItem"
-                class="px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg"
-              >
-                <Plus class="w-4 h-4" />
-              </button>
-            </div>
             
             <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
               <table class="w-full text-sm">
@@ -749,7 +805,13 @@ onMounted(async () => {
                 </thead>
                 <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                   <tr v-for="(item, index) in form.items" :key="index" class="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">{{ item.item_name }}</td>
+                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">
+                      {{ item.item_name }}
+                      <span v-if="item.variation_sku" class="block text-xs text-slate-400">
+                        {{ item.variation_sku }}
+                        <span v-if="item.variation_attributes">— {{ Object.values(item.variation_attributes).join(' / ') }}</span>
+                      </span>
+                    </td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity_ordered }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.unit_cost || item.cost_price || 0).toFixed(2) }}</td>
                     <td class="px-3 py-2 text-right text-slate-900 dark:text-white font-medium">C$ {{ parseFloat(item.total_cost).toFixed(2) }}</td>
@@ -832,7 +894,13 @@ onMounted(async () => {
                 </thead>
                 <tbody class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
                   <tr v-for="item in selectedOrder?.items" :key="item.id" class="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">{{ item.item_name }}</td>
+                    <td class="px-3 py-2 text-slate-900 dark:text-white font-medium">
+                      {{ item.item_name }}
+                      <span v-if="item.variation_sku" class="block text-xs text-slate-400">
+                        {{ item.variation_sku }}
+                        <span v-if="item.variation_attributes">— {{ Object.values(item.variation_attributes).join(' / ') }}</span>
+                      </span>
+                    </td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity_ordered }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">{{ item.quantity_received || 0 }}</td>
                     <td class="px-3 py-2 text-right text-slate-600 dark:text-slate-300">C$ {{ parseFloat(item.cost_price || 0).toFixed(2) }}</td>
