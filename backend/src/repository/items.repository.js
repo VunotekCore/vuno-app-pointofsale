@@ -4,6 +4,12 @@ import { BadRequestError } from '../errors/BadRequestError.js'
 import { SequenceRepository } from './sequence.repository.js'
 import crypto from 'crypto'
 
+function attrsKey (attrs) {
+  if (!attrs) return ''
+  const obj = typeof attrs === 'string' ? JSON.parse(attrs) : attrs
+  return Object.keys(obj).sort().map(k => `${k}:${obj[k]}`).join('|')
+}
+
 export class ItemsRepository {
   constructor (db = pool, sequenceRepo = null) {
     this.db = db
@@ -11,7 +17,7 @@ export class ItemsRepository {
   }
 
   async getAll (locationId = null, filters = {}) {
-    const { limit = 20, offset = 0, search = '', status = '', company_id, supplier_id } = filters
+    const { limit = 20, offset = 0, search = '', status = '', company_id, category_id, supplier_id } = filters
     
     const quantitySubquery = locationId 
       ? `(SELECT COALESCE(SUM(quantity), 0) FROM item_quantities WHERE item_id = i.id AND location_id = UUID_TO_BIN(?)) as total_quantity`
@@ -40,6 +46,11 @@ export class ItemsRepository {
       whereClause += ' AND (i.supplier_id = UUID_TO_BIN(?) OR i.preferred_supplier_id = UUID_TO_BIN(?))'
       params.push(supplier_id, supplier_id)
     }
+
+    if (category_id) {
+      whereClause += ' AND i.category_id = UUID_TO_BIN(?)'
+      params.push(category_id)
+    }
     
     const countParams = [...params]
     const countRows = await this.db.query(`
@@ -64,6 +75,7 @@ export class ItemsRepository {
         i.is_service,
         i.is_kit,
         i.is_variable_sale,
+        i.has_variations,
         i.tracks_expiration,
         i.image_url,
         i.custom_fields,
@@ -200,6 +212,7 @@ export class ItemsRepository {
         i.is_kit,
         i.is_part_of_kit,
         i.is_variable_sale,
+        i.has_variations,
         i.tracks_expiration,
         i.image_url,
         i.custom_fields,
@@ -298,7 +311,7 @@ export class ItemsRepository {
   }
 
   async create (data, userId = null) {
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components, company_id, initial_quantity } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, has_variations, tracks_expiration, image_url, custom_fields, status, kit_components, variations, company_id, initial_quantity } = data
 
     if (!name || !name.trim()) {
       throw new BadRequestError('El nombre del producto es requerido')
@@ -352,12 +365,31 @@ export class ItemsRepository {
       const itemId = crypto.randomUUID()
       
       await conn.query(`
-        INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, status, created_by, company_id)
-        VALUES (UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
-      `, [itemId, finalItemNumber, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
+        INSERT INTO items (id, item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, has_variations, tracks_expiration, image_url, status, created_by, company_id)
+        VALUES (UUID_TO_BIN(?), ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+      `, [itemId, finalItemNumber, name.trim(), description || null, category_id || null, supplier_id || null, finalCostPrice, finalUnitPrice, reorder_level || 0, reorder_quantity || 0, is_serialized || 0, is_service || 0, is_kit || 0, is_variable_sale || 0, has_variations || 0, tracks_expiration || 0, image_url || null, status || 'active', userId, company_id])
 
-      // Create initial stock if quantity > 0 and not a service or kit
-      if (!is_service && !is_kit && initial_quantity && parseFloat(initial_quantity) > 0) {
+      // Create variations first (to capture IDs), then stock per variation
+      let hasVariationWithStock = false
+      if (variations && variations.length > 0) {
+        for (const v of variations) {
+          const vid = crypto.randomUUID()
+          const attrStr = typeof v.attributes === 'string' ? v.attributes : JSON.stringify(v.attributes)
+          await conn.query(`
+            INSERT INTO item_variations (id, item_id, sku, unit_price, cost_price, attributes, created_by, updated_by)
+            VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))
+          `, [vid, itemId, v.sku, v.unit_price, v.cost_price, attrStr, userId, userId])
+
+          const vQty = parseFloat(v.initial_quantity) || 0
+          if (vQty > 0) {
+            hasVariationWithStock = true
+            await this.createInitialStockInTransaction(conn, itemId, company_id, parseFloat(v.cost_price) || finalCostPrice, vQty, userId, vid)
+          }
+        }
+      }
+
+      // Create initial stock at item level only if no variations had stock
+      if (!hasVariationWithStock && !is_service && !is_kit && initial_quantity && parseFloat(initial_quantity) > 0) {
         await this.createInitialStockInTransaction(conn, itemId, company_id, finalCostPrice, parseFloat(initial_quantity), userId)
       }
 
@@ -371,15 +403,13 @@ export class ItemsRepository {
     }
   }
 
-  async createInitialStockInTransaction (conn, itemId, companyId, unitCost, quantity, userId = null) {
-    // Get default location or first available location for the company
+  async createInitialStockInTransaction (conn, itemId, companyId, unitCost, quantity, userId = null, variationId = null) {
     let locationRows = await conn.query(
       'SELECT id FROM locations WHERE company_id = UUID_TO_BIN(?) AND is_default = 1 AND is_active = 1 LIMIT 1',
       [companyId]
     )
 
     if (!locationRows || locationRows.length === 0) {
-      // If no default location, get the first active location
       locationRows = await conn.query(
         'SELECT id FROM locations WHERE company_id = UUID_TO_BIN(?) AND is_active = 1 LIMIT 1',
         [companyId]
@@ -391,25 +421,26 @@ export class ItemsRepository {
     }
 
     const locationId = locationRows[0].id
+    const varBin = variationId ? `UUID_TO_BIN('${variationId}')` : 'NULL'
 
-    // Insert or update item_quantities
     await conn.query(`
-      INSERT INTO item_quantities (id, item_id, location_id, quantity)
-      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?)
+      INSERT INTO item_quantities (id, item_id, variation_id, location_id, quantity)
+      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ${varBin}, ?, ?)
       ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
     `, [crypto.randomUUID(), itemId, locationId, quantity])
 
-    // Create inventory_movement record for audit trail
+    const refType = variationId ? 'variation' : 'item'
+    const notes = variationId ? `Initial stock for variation ${variationId}` : 'Initial stock'
     await conn.query(`
-      INSERT INTO inventory_movements (id, item_id, location_id, movement_type, quantity_change, quantity_after, unit_cost, total_cost, reference_type, user_id, notes)
-      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, 'initial_stock', ?, ?, ?, ?, 'item', UUID_TO_BIN(?), ?)
-    `, [crypto.randomUUID(), itemId, locationId, quantity, quantity, unitCost, unitCost * quantity, userId || null, 'Initial stock'])
+      INSERT INTO inventory_movements (id, item_id, variation_id, location_id, movement_type, quantity_change, quantity_after, unit_cost, total_cost, reference_type, user_id, notes)
+      VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ${varBin}, ?, 'initial_stock', ?, ?, ?, ?, ?, UUID_TO_BIN(?), ?)
+    `, [crypto.randomUUID(), itemId, locationId, quantity, quantity, unitCost, unitCost * quantity, refType, userId || null, notes])
   }
 
   async update (id, data, userId = null, companyId = null) {
     const existing = await this.getById(id, null, companyId)
     
-    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, tracks_expiration, image_url, custom_fields, status, kit_components } = data
+    const { item_number, name, description, category_id, supplier_id, cost_price, unit_price, reorder_level, reorder_quantity, is_serialized, is_service, is_kit, is_variable_sale, has_variations, tracks_expiration, image_url, custom_fields, status, kit_components } = data
 
     let finalCostPrice = cost_price
     let finalUnitPrice = unit_price
@@ -448,7 +479,7 @@ export class ItemsRepository {
 
     const fields = []
     const values = []
-    const allowedFields = ['item_number', 'name', 'description', 'category_id', 'supplier_id', 'cost_price', 'unit_price', 'reorder_level', 'reorder_quantity', 'is_serialized', 'is_service', 'is_kit', 'is_variable_sale', 'tracks_expiration', 'image_url', 'custom_fields', 'status']
+    const allowedFields = ['item_number', 'name', 'description', 'category_id', 'supplier_id', 'cost_price', 'unit_price', 'reorder_level', 'reorder_quantity', 'is_serialized', 'is_service', 'is_kit', 'is_variable_sale', 'has_variations', 'tracks_expiration', 'image_url', 'custom_fields', 'status']
 
     for (const field of allowedFields) {
       let value = data[field]
@@ -538,7 +569,7 @@ export class ItemsRepository {
   }
 
   async getVariations (itemId, companyId) {
-    let query = `SELECT iv.id, BIN_TO_UUID(iv.item_id) as item_id, iv.sku, iv.attributes, iv.cost_price, iv.unit_price, iv.image_url 
+    let query = `SELECT BIN_TO_UUID(iv.id) as id, BIN_TO_UUID(iv.item_id) as item_id, iv.sku, iv.attributes, iv.cost_price, iv.unit_price, iv.image_url 
                  FROM item_variations iv
                  JOIN items i ON iv.item_id = i.id
                  WHERE iv.item_id = UUID_TO_BIN(?) AND (iv.is_delete = 0 OR iv.is_delete IS NULL)`
@@ -551,6 +582,62 @@ export class ItemsRepository {
     
     const rows = await this.db.query(query, params)
     return rows
+  }
+
+  async syncVariations (itemId, incomingVariations, userId, companyId) {
+    const existing = await this.getVariations(itemId, companyId)
+    const conn = await this.db.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      const existingByKey = {}
+      existing.forEach(ev => { existingByKey[attrsKey(ev.attributes)] = ev })
+
+      const incomingKeys = new Set()
+      for (const iv of incomingVariations) {
+        const attrObj = typeof iv.attributes === 'string' ? JSON.parse(iv.attributes) : iv.attributes
+        const key = attrsKey(attrObj)
+        incomingKeys.add(key)
+
+        const match = existingByKey[key]
+        if (match) {
+          if (match.sku !== iv.sku || +match.unit_price !== +iv.unit_price || +match.cost_price !== +iv.cost_price) {
+            await conn.query(
+              `UPDATE item_variations SET sku = ?, unit_price = ?, cost_price = ?, updated_by = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)`,
+              [iv.sku, iv.unit_price, iv.cost_price, userId, match.id]
+            )
+          }
+        } else {
+          const vid = crypto.randomUUID()
+          const attrStr = typeof iv.attributes === 'string' ? iv.attributes : JSON.stringify(iv.attributes)
+          await conn.query(
+            `INSERT INTO item_variations (id, item_id, sku, unit_price, cost_price, attributes, created_by, updated_by)
+             VALUES (UUID_TO_BIN(?), UUID_TO_BIN(?), ?, ?, ?, ?, UUID_TO_BIN(?), UUID_TO_BIN(?))`,
+            [vid, itemId, iv.sku, iv.unit_price, iv.cost_price, attrStr, userId, userId]
+          )
+          const vQty = parseFloat(iv.initial_quantity) || 0
+          if (vQty > 0) {
+            await this.createInitialStockInTransaction(conn, itemId, companyId, parseFloat(iv.cost_price) || 0, vQty, userId, vid)
+          }
+        }
+      }
+
+      for (const ev of existing) {
+        if (!incomingKeys.has(attrsKey(ev.attributes))) {
+          await conn.query(
+            `UPDATE item_variations SET is_delete = 1, updated_by = UUID_TO_BIN(?) WHERE id = UUID_TO_BIN(?)`,
+            [userId, ev.id]
+          )
+        }
+      }
+
+      await conn.commit()
+    } catch (error) {
+      await conn.rollback()
+      throw error
+    } finally {
+      conn.release()
+    }
   }
 
   async getStock (itemId, companyId) {

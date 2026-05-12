@@ -28,6 +28,7 @@ const loading = ref(false)
 const showModal = ref(false)
 const searchQuery = ref('')
 const selectedLocation = ref(null)
+const stockStatus = ref('')
 const activeTab = ref('stock')
 const showFilters = ref(false)
 const currentPage = ref(1)
@@ -57,7 +58,8 @@ async function loadStock() {
       limit: pageLimit.value,
       offset: (currentPage.value - 1) * pageLimit.value,
       search: searchQuery.value,
-      location_id: selectedLocation.value || undefined
+      location_id: selectedLocation.value || undefined,
+      status: stockStatus.value || undefined
     }
     const { data } = await inventoryService.getStock(params)
     stock.value = data.data || []
@@ -118,6 +120,11 @@ watch(searchQuery, () => {
 })
 
 watch(selectedLocation, () => {
+  currentPage.value = 1
+  loadStock()
+})
+
+watch(stockStatus, () => {
   currentPage.value = 1
   loadStock()
 })
@@ -303,15 +310,15 @@ onMounted(loadData)
           >
             <Search class="w-4 h-4" />
             {{ showFilters ? 'Ocultar filtros' : 'Mostrar filtros' }}
-            <span v-if="searchQuery || selectedLocation" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
-              {{ [searchQuery && 'Búsqueda', selectedLocation && 'Ubicación'].filter(Boolean).length }}
+            <span v-if="searchQuery || selectedLocation || stockStatus" class="px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-xs rounded-full">
+              {{ [searchQuery && 'Búsqueda', selectedLocation && 'Ubicación', stockStatus && 'Estado'].filter(Boolean).length }}
             </span>
           </button>
         </div>
 
-        <!-- Desktop Search Bar (always visible) -->
-        <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
-          <div class="relative">
+        <!-- Desktop Search + Filters -->
+        <div class="hidden lg:flex items-center gap-3 p-4 border-b border-slate-200 dark:border-slate-800">
+          <div class="relative flex-1 max-w-xs">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               v-model="searchQuery"
@@ -321,17 +328,21 @@ onMounted(loadData)
             />
             <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
           </div>
-        </div>
-
-        <!-- Desktop Filters -->
-        <div class="hidden lg:flex flex-wrap gap-3 p-4">
           <select
             v-model="selectedLocation"
             @change="filterByLocation"
-            class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+            class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
           >
             <option :value="null">Todas las ubicaciones</option>
             <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
+          </select>
+          <select
+            v-model="stockStatus"
+            class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          >
+            <option value="">Todos los estados</option>
+            <option value="reserved">Reservado</option>
+            <option value="in_transit">En Tránsito</option>
           </select>
         </div>
 
@@ -353,6 +364,14 @@ onMounted(loadData)
           >
             <option :value="null">Todas las ubicaciones</option>
             <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.name }} ({{ loc.code }})</option>
+          </select>
+          <select
+            v-model="stockStatus"
+            class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+          >
+            <option value="">Todos los estados</option>
+            <option value="reserved">Reservado</option>
+            <option value="in_transit">En Tránsito</option>
           </select>
         </div>
       </div>

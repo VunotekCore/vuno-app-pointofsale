@@ -28,6 +28,19 @@ export const cacheService = {
         ...(locationId && { location_id: locationId })
       })
       const items = response.data.data || []
+
+      // Pre-load variations for items that have them
+      const variationPromises = items
+        .filter(i => i.has_variations)
+        .map(async (item) => {
+          try {
+            const { data } = await itemsService.getItem(item.id)
+            item.variations = data.data.variations || []
+          } catch (e) {
+            item.variations = []
+          }
+        })
+      await Promise.all(variationPromises)
       
       await db.transaction('rw', db.items, async () => {
         await db.items.clear()
