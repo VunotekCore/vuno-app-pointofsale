@@ -435,9 +435,9 @@ onMounted(loadSales)
         </button>
       </div>
 
-      <!-- Desktop Search Bar (always visible) -->
-      <div class="hidden lg:block p-4 border-b border-slate-200 dark:border-slate-800">
-        <div class="relative">
+      <!-- Desktop Filters (single row) -->
+      <div class="hidden lg:flex items-center gap-3 p-4">
+        <div class="relative flex-1 min-w-0">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             v-model="searchQuery"
@@ -447,15 +447,11 @@ onMounted(loadSales)
           />
           <Loader2 v-if="loading" class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 animate-spin" />
         </div>
-      </div>
-
-      <!-- Desktop Filters -->
-      <div class="hidden lg:flex flex-wrap gap-3 p-4">
         <select
           v-if="isAdmin"
           v-model="selectedLocation"
           @change="loadSales"
-          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="shrink-0 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option :value="null">Todas las ubicaciones</option>
           <option v-for="loc in locationStore.locations" :key="loc.id" :value="loc">
@@ -464,7 +460,7 @@ onMounted(loadSales)
         </select>
         <select
           v-model="statusFilter"
-          class="px-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          class="shrink-0 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50"
         >
           <option value="">Todos los estados</option>
           <option value="pending">Pendiente</option>
@@ -472,7 +468,7 @@ onMounted(loadSales)
           <option value="suspended">Suspendida</option>
           <option value="cancelled">Cancelada</option>
         </select>
-        <div class="relative">
+        <div class="relative shrink-0">
           <input
             ref="dateFromInputRefDesktop"
             v-model="dateFrom"
@@ -480,7 +476,7 @@ onMounted(loadSales)
             class="w-36 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 cursor-pointer"
           />
         </div>
-        <div class="relative">
+        <div class="relative shrink-0">
           <input
             ref="dateToInputRefDesktop"
             v-model="dateTo"
