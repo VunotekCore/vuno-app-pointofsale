@@ -13,6 +13,7 @@
     X,
     Package,
     Search,
+    Settings,
     Loader2,
     Box,
     AlertTriangle,
@@ -1516,96 +1517,75 @@ const currentPage = ref(1)
                      </div>
                    </div>
   
-                   <!-- Row 4: Left = Atributos (col 1-5) | Right = Tipo de Producto (col 6-12) -->
-                   <!-- Row 4: Left = Atributos (col 1-5) | Right = Tipo de Producto (col 6-12) -->
-                   <div class="xl:col-span-5">
-                    <!-- Atributos del Producto -->
-                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
-                      <div class="flex items-center gap-2">
-                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Atributos del Producto</h3>
-                        <span class="h-px flex-1 bg-brand-500/30"></span>
-                      </div>
-                      <div class="space-y-4">
-                        <!-- Serializado -->
-                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="requiere número serie">
-                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Serializado</span>
-                          <button type="button" @click="form.is_serialized = !form.is_serialized" :class="form.is_serialized ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                            <span :class="form.is_serialized ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                          </button>
-                        </div>
-                        <!-- Servicio -->
-                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="sin stock físico">
-                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Servicio</span>
-                          <button type="button" @click="form.is_service = !form.is_service" :class="form.is_service ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                            <span :class="form.is_service ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="xl:col-span-7">
-                    <!-- Tipo de Producto -->
-                    <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
-                      <div class="flex items-center gap-2">
-                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo de Producto</h3>
-                        <span class="h-px flex-1 bg-brand-500/30"></span>
-                      </div>
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Producto Compuesto -->
-                        <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="conjunto de productos">
-                          <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Producto Compuesto</span>
-                          <button type="button" @click="form.is_kit = !form.is_kit" :class="form.is_kit ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                            <span :class="form.is_kit ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                          </button>
-                        </div>
-                      <!-- Venta Variada -->
+                    <!-- Row 4: Left = Atributos + Unidades | Right = Tipo de Producto -->
+                    <div class="xl:col-span-6">
+                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                       <div class="flex items-center gap-2">
+                         <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Atributos del Producto</h3>
+                         <span class="h-px flex-1 bg-brand-500/30"></span>
+                       </div>
+                       <div class="space-y-4">
+                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="requiere número serie">
+                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Serializado</span>
+                           <button type="button" @click="form.is_serialized = !form.is_serialized" :class="form.is_serialized ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                             <span :class="form.is_serialized ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                           </button>
+                         </div>
+                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="sin stock físico">
+                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Servicio</span>
+                           <button type="button" @click="form.is_service = !form.is_service" :class="form.is_service ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                             <span :class="form.is_service ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                           </button>
+                         </div>
+                       </div>
+
+                       <div class="pt-3 border-t border-slate-200 dark:border-slate-700">
+                         <div class="flex items-center justify-between mb-2">
+                           <span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unidades</span>
+                           <button type="button" @click="showUnitModal = true" class="p-1 text-slate-400 hover:text-brand-500 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors" title="Gestionar unidades">
+                             <Settings class="w-4 h-4" />
+                           </button>
+                         </div>
+                         <div class="flex flex-wrap gap-1">
+                           <span v-for="(itemUnit, idx) in displayUnits.slice(0, 3)" :key="itemUnit.id || itemUnit.unit_id"
+                                 class="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-800 rounded ring-1 ring-slate-200/50 dark:ring-slate-700/50 text-xs">
+                             <span v-if="itemUnit.is_default" class="text-[8px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 px-0.5 rounded">D</span>
+                             <span class="text-slate-700 dark:text-slate-300">{{ itemUnit.unit_abbreviation }}</span>
+                           </span>
+                           <span v-if="displayUnits.length > 3" class="inline-flex items-center px-2 py-0.5 text-xs text-slate-400">+{{ displayUnits.length - 3 }} más</span>
+                           <span v-if="displayUnits.length === 0" class="text-xs text-slate-400">Ninguna</span>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                   <div class="xl:col-span-6">
+                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
+                       <div class="flex items-center gap-2">
+                         <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo de Producto</h3>
+                         <span class="h-px flex-1 bg-brand-500/30"></span>
+                       </div>
+                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="conjunto de productos">
+                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Producto Compuesto</span>
+                           <button type="button" @click="form.is_kit = !form.is_kit" :class="form.is_kit ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                             <span :class="form.is_kit ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                           </button>
+                         </div>
                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="por peso/cantidad">
                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Venta Variada</span>
                            <button type="button" @click="form.is_variable_sale = !form.is_variable_sale" :disabled="form.is_kit" :class="form.is_variable_sale ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
                              <span :class="form.is_variable_sale ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
                            </button>
-                          </div>
-                       <!-- Variaciones por Atributos -->
-                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="Activar para productos con múltiples variantes: talla S/M/L, colores, sabores, etc. Cada combinación genera un SKU único con precio y stock propio.">
-                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Variaciones por Atributos</span>
-                            <button type="button" @click="form.has_variations = !form.has_variations" :disabled="form.is_kit" :class="form.has_variations ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                              <span :class="form.has_variations ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                            </button>
-                          </div>
                          </div>
-                         
-                         <!-- Unidades de Medida (compact display) -->
-                        <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                          <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Unidades</span>
-                            <button 
-                              type="button" 
-                              @click="showUnitModal = true"
-                              class="text-xs text-brand-500 hover:text-brand-600 font-medium"
-                            >
-                              Gestionar ({{ displayUnits.length }})
-                            </button>
-                          </div>
-                          <div class="flex flex-wrap gap-1">
-                            <span 
-                              v-for="(itemUnit, idx) in displayUnits.slice(0, 3)" 
-                              :key="itemUnit.id || itemUnit.unit_id"
-                              class="inline-flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-slate-800 rounded ring-1 ring-slate-200/50 dark:ring-slate-700/50 text-xs"
-                            >
-                              <span v-if="itemUnit.is_default" class="text-[8px] bg-brand-100 dark:bg-brand-900/30 text-brand-600 px-0.5 rounded">D</span>
-                              <span class="text-slate-700 dark:text-slate-300">{{ itemUnit.unit_abbreviation }}</span>
-                            </span>
-                            <span 
-                              v-if="displayUnits.length > 3" 
-                              class="inline-flex items-center px-2 py-0.5 text-xs text-slate-400"
-                            >
-                              +{{ displayUnits.length - 3 }} más
-                            </span>
-                            <span v-if="displayUnits.length === 0" class="text-xs text-slate-400">Ninguna</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50 sm:col-span-2" :class="{ 'opacity-50': form.is_kit }" title="Activar para productos con múltiples variantes: talla S/M/L, colores, sabores, etc. Cada combinación genera un SKU único con precio y stock propio.">
+                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Variaciones por Atributos</span>
+                           <button type="button" @click="form.has_variations = !form.has_variations" :disabled="form.is_kit" :class="form.has_variations ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                             <span :class="form.has_variations ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                           </button>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
    
                     <!-- Row 5: Full Width = Variation Manager -->
                     <div v-if="form.has_variations" class="md:col-span-2 xl:col-span-12">
