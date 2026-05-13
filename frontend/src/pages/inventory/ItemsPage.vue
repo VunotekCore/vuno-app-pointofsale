@@ -1564,26 +1564,26 @@ const currentPage = ref(1)
                          <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tipo de Producto</h3>
                          <span class="h-px flex-1 bg-brand-500/30"></span>
                        </div>
-                       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="conjunto de productos">
-                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Producto Compuesto</span>
-                           <button type="button" @click="form.is_kit = !form.is_kit" :class="form.is_kit ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                             <span :class="form.is_kit ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                           </button>
-                         </div>
-                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="por peso/cantidad">
-                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Venta Variada</span>
-                           <button type="button" @click="form.is_variable_sale = !form.is_variable_sale" :disabled="form.is_kit" :class="form.is_variable_sale ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                             <span :class="form.is_variable_sale ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                           </button>
-                         </div>
-                         <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50 sm:col-span-2" :class="{ 'opacity-50': form.is_kit }" title="Activar para productos con múltiples variantes: talla S/M/L, colores, sabores, etc. Cada combinación genera un SKU único con precio y stock propio.">
-                           <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Variaciones por Atributos</span>
-                           <button type="button" @click="form.has_variations = !form.has_variations" :disabled="form.is_kit" :class="form.has_variations ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
-                             <span :class="form.has_variations ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
-                           </button>
-                         </div>
-                       </div>
+                        <div class="space-y-3">
+                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" title="conjunto de productos">
+                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Producto Compuesto</span>
+                            <button type="button" @click="form.is_kit = !form.is_kit" :class="form.is_kit ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                              <span :class="form.is_kit ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                            </button>
+                          </div>
+                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="por peso/cantidad">
+                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Venta Variada</span>
+                            <button type="button" @click="form.is_variable_sale = !form.is_variable_sale" :disabled="form.is_kit" :class="form.is_variable_sale ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                              <span :class="form.is_variable_sale ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                            </button>
+                          </div>
+                          <div class="flex items-center justify-between p-3 rounded-lg hover:bg-white dark:hover:bg-slate-800/70 transition-colors ring-1 ring-slate-200/50 dark:ring-slate-700/50" :class="{ 'opacity-50': form.is_kit }" title="Activar para productos con múltiples variantes: talla S/M/L, colores, sabores, etc. Cada combinación genera un SKU único con precio y stock propio.">
+                            <span class="text-sm text-slate-700 dark:text-slate-300 font-medium">Variaciones por Atributos</span>
+                            <button type="button" @click="form.has_variations = !form.has_variations" :disabled="form.is_kit" :class="form.has_variations ? 'bg-brand-500' : 'bg-slate-300 dark:bg-slate-600'" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200">
+                              <span :class="form.has_variations ? 'translate-x-6' : 'translate-x-1'" class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"></span>
+                            </button>
+                          </div>
+                        </div>
                      </div>
                    </div>
    
