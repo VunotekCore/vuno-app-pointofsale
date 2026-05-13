@@ -1300,9 +1300,9 @@ const currentPage = ref(1)
           <form @submit.prevent="saveItem" class="flex-1 overflow-y-auto">
              <div class="p-4 sm:p-6">
                <!-- Grid Layout: 12 columns -->
-               <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
-                 <!-- Row 1: Left = Imagen (col 1-5) | Right = Identidad (col 6-12) -->
-                 <div class="xl:col-span-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-6 items-start">
+                  <!-- Row 1 -->
+                  <div class="xl:col-span-6">
                    <!-- Imagen (Vertical) -->
                    <div ref="imageCardRef" class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
                      <ImageUpload
@@ -1315,8 +1315,8 @@ const currentPage = ref(1)
                      />
                    </div>
                  </div>
-                 <div class="xl:col-span-7">
-                   <!-- Identidad (SKU, Nombre, Desc, Estado) -->
+                  <div class="xl:col-span-6">
+                    <!-- Identidad (SKU, Nombre, Desc, Estado) -->
                    <div ref="identityRef" class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
                      <div class="flex items-center gap-2">
                        <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Identidad</h3>
@@ -1365,8 +1365,8 @@ const currentPage = ref(1)
                      </div>
                    </div>
   
-                   <!-- Row 2: Left = Categorización (col 1-5) | Right = Precios y Costos (col 6-12) -->
-                   <div class="xl:col-span-5">
+                    <!-- Row 2 -->
+                    <div class="xl:col-span-6">
                     <!-- Categorización -->
                     <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
                       <div class="flex items-center gap-2">
@@ -1397,8 +1397,8 @@ const currentPage = ref(1)
                       </div>
                     </div>
                   </div>
-                  <div class="xl:col-span-7">
-                     <!-- Precios y Costos -->
+                   <div class="xl:col-span-6">
+                      <!-- Precios y Costos -->
                      <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 space-y-3 ring-1 ring-slate-200/50 dark:ring-slate-700/50">
                        <div class="flex items-center gap-2">
                          <h3 class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Precios y Costos</h3>
