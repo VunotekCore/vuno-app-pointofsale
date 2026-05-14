@@ -15,9 +15,17 @@ const api = axios.create({
   }
 })
 
+function getAuthToken () {
+  return sessionStorage.getItem('token') || sessionStorage.getItem('platform_token')
+}
+
+function isPlatformSession () {
+  return !!sessionStorage.getItem('platform_token')
+}
+
 api.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem('token')
+    const token = getAuthToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -29,20 +37,28 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Verifica si la ruta actual (pathname o hash) contiene 'login'
     const isLoginPage = window.location.pathname.includes('/login') || window.location.hash.includes('/login');
-    
+
     if (error.response?.status === 401 && !isLoginPage) {
-      sessionStorage.removeItem('token')
-      sessionStorage.removeItem('user')
-      sessionStorage.removeItem('permissions')
-      
-      // Si estamos en Electron (hash router), no podemos hacer un redirect fuerte a '/login'
-      const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
-      if (isElectron) {
-        window.location.hash = '#/login';
+      if (isPlatformSession()) {
+        sessionStorage.removeItem('platform_token')
+        sessionStorage.removeItem('platform_user')
+        const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+        if (isElectron) {
+          window.location.hash = '#/platform/login';
+        } else {
+          window.location.href = '/platform/login';
+        }
       } else {
-        window.location.href = '/login';
+        sessionStorage.removeItem('token')
+        sessionStorage.removeItem('user')
+        sessionStorage.removeItem('permissions')
+        const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+        if (isElectron) {
+          window.location.hash = '#/login';
+        } else {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error)
