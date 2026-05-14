@@ -8,9 +8,17 @@ const getPermissionType = (code) => {
   return 'table'
 }
 
+const isSuperAdmin = (req) => {
+  return !!req.platformUser?.is_super_admin
+}
+
 export const requirePermission = (permissionCode) => {
   return async (req, res, next) => {
     try {
+      if (isSuperAdmin(req)) {
+        return next()
+      }
+
       const userId = req.user?.user_id || req.user?.id
 
       if (!userId) {
@@ -40,6 +48,10 @@ export const requirePermission = (permissionCode) => {
 export const requireAnyPermission = (...permissionCodes) => {
   return async (req, res, next) => {
     try {
+      if (isSuperAdmin(req)) {
+        return next()
+      }
+
       const userId = req.user?.user_id || req.user?.id
 
       if (!userId) {
