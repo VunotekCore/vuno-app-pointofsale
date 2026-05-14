@@ -156,45 +156,45 @@ const closeUserMenu = () => {
 }
 
 const navigation = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard, permission: 'menu.dashboard' },
-  { name: 'Reportes', path: '/reportes', icon: FileText, permission: 'menu.reports' }
+  { name: 'Dashboard', path: '/', icon: LayoutDashboard, permission: 'view.dashboard' },
+  { name: 'Reportes', path: '/reportes', icon: FileText, permission: 'view.reportes' }
 ]
 
 const inventoryItems = [
-  { name: 'Stock', path: '/stock', icon: Warehouse, permission: 'menu.stock' },
-  { name: 'Productos', path: '/productos', icon: Package, permission: 'menu.products' },
-  { name: 'Transferencias', path: '/transferencias', icon: ArrowRightLeft, permission: 'menu.transfers' },
-  { name: 'Ubicaciones', path: '/ubicaciones', icon: MapPin, permission: 'menu.locations' },
-  { name: 'Categorías', path: '/categorias', icon: Tag, permission: 'menu.categories' }
+  { name: 'Stock', path: '/stock', icon: Warehouse, permission: 'view.stock' },
+  { name: 'Productos', path: '/productos', icon: Package, permission: 'view.productos' },
+  { name: 'Transferencias', path: '/transferencias', icon: ArrowRightLeft, permission: 'view.transferencias' },
+  { name: 'Ubicaciones', path: '/ubicaciones', icon: MapPin, permission: 'view.ubicaciones' },
+  { name: 'Categorías', path: '/categorias', icon: Tag, permission: 'view.categorias' }
 ]
 
 const purchaseItems = [
-  { name: 'Proveedores', path: '/proveedores', icon: Truck, permission: 'menu.suppliers' },
-  { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ClipboardList, permission: 'menu.purchase_orders' },
-  { name: 'Recepciones', path: '/recepciones', icon: Boxes, permission: 'menu.receivings' }
+  { name: 'Proveedores', path: '/proveedores', icon: Truck, permission: 'view.proveedores' },
+  { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ClipboardList, permission: 'view.ordenes_compra' },
+  { name: 'Recepciones', path: '/recepciones', icon: Boxes, permission: 'view.recepciones' }
 ]
 
 const salesItems = [
-  { name: 'Punto de Venta', path: '/pos', icon: ShoppingCart, permission: 'menu.pos' },
-  { name: 'Lista de Ventas', path: '/ventas', icon: Receipt, permission: 'menu.sales' },
-  { name: 'Devoluciones', path: '/devoluciones', icon: RefreshCw, permission: 'menu.returns' },
-  { name: 'Clientes', path: '/clientes', icon: User, permission: 'menu.customers' }
+  { name: 'Punto de Venta', path: '/pos', icon: ShoppingCart, permission: 'view.pos' },
+  { name: 'Lista de Ventas', path: '/ventas', icon: Receipt, permission: 'view.ventas' },
+  { name: 'Devoluciones', path: '/devoluciones', icon: RefreshCw, permission: 'view.devoluciones' },
+  { name: 'Clientes', path: '/clientes', icon: User, permission: 'view.clientes' }
 ]
 
 const cashierItems = [
-  { name: 'Gestión de Caja', path: '/caja', icon: Wallet, permission: 'menu.cash_drawer' },
-  { name: 'Historial de Cierres', path: '/cierres', icon: Clock, permission: 'menu.drawer_closures' },
-  { name: 'Faltantes/Sobrantes', path: '/ajustes', icon: TrendingUp, permission: 'menu.adjustments' },
-  { name: 'Cuentas por Cobrar', path: '/cuentas-cobrar', icon: CreditCard, permission: 'menu.accounts_receivable' }
+  { name: 'Gestión de Caja', path: '/caja', icon: Wallet, permission: 'view.caja' },
+  { name: 'Historial de Cierres', path: '/cierres', icon: Clock, permission: 'view.cierres' },
+  { name: 'Faltantes/Sobrantes', path: '/ajustes', icon: TrendingUp, permission: 'view.ajustes' },
+  { name: 'Cuentas por Cobrar', path: '/cuentas-cobrar', icon: CreditCard, permission: 'view.cuentas_cobrar' }
 ]
 
 const configItems = [
-  { name: 'Datos de Empresa', path: '/empresa', icon: Building2, permission: 'menu.company' },
-  { name: 'Turnos', path: '/turnos', icon: Clock, permission: 'menu.shifts' },
-  { name: 'Usuarios', path: '/usuarios', icon: Users, permission: 'menu.users' },
-  { name: 'Moneda', path: '/moneda', icon: DollarSign, permission: 'menu.currency' },
-  { name: 'Roles', path: '/roles', icon: Shield, permission: 'menu.roles' },
-  { name: 'Permisos', path: '/permisos', icon: Key, permission: 'menu.permissions' }
+  { name: 'Datos de Empresa', path: '/empresa', icon: Building2, permission: 'view.empresa' },
+  { name: 'Turnos', path: '/turnos', icon: Clock, permission: 'view.turnos' },
+  { name: 'Usuarios', path: '/usuarios', icon: Users, permission: 'view.usuarios' },
+  { name: 'Moneda', path: '/moneda', icon: DollarSign, permission: 'view.moneda' },
+  { name: 'Roles', path: '/roles', icon: Shield, permission: 'view.roles' },
+  { name: 'Permisos', path: '/permisos', icon: Key, permission: 'view.permisos' }
 ]
 
 const filteredNavigation = computed(() => {

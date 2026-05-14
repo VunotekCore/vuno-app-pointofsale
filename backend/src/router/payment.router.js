@@ -3,7 +3,8 @@ import database from '../config/database.js'
 import { PaymentRepository } from '../repository/payment.repository.js'
 import { PaymentModel } from '../models/payment.model.js'
 import { PaymentController } from '../controllers/payment.controller.js'
-import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
+import { authenticate, authenticateActive } from '../middleware/auth.middleware.js'
+import { requirePermission } from '../middleware/permission.middleware.js'
 import { CompanyRepository } from '../repository/company.repository.js'
 import { ShiftRepository } from '../repository/shift.repository.js'
 import { generateDrawerClosePDF } from '../utils/drawer-close.utils.js'
@@ -17,26 +18,26 @@ const paymentController = new PaymentController(paymentModel)
 const router = Router()
 const paymentsBasePath = '/payments'
 
-router.get('/methods', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getPaymentMethods(req, res, next))
-router.get('/methods/:id', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getPaymentMethod(req, res, next))
-router.post('/methods', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.createPaymentMethod(req, res, next))
-router.put('/methods/:id', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.updatePaymentMethod(req, res, next))
-router.delete('/methods/:id', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.deletePaymentMethod(req, res, next))
+router.get('/methods', authenticate, requirePermission('payments.read'), (req, res, next) => paymentController.getPaymentMethods(req, res, next))
+router.get('/methods/:id', authenticate, requirePermission('payments.read'), (req, res, next) => paymentController.getPaymentMethod(req, res, next))
+router.post('/methods', authenticateActive, requirePermission('payments.write'), (req, res, next) => paymentController.createPaymentMethod(req, res, next))
+router.put('/methods/:id', authenticateActive, requirePermission('payments.write'), (req, res, next) => paymentController.updatePaymentMethod(req, res, next))
+router.delete('/methods/:id', authenticateActive, requirePermission('payments.delete'), (req, res, next) => paymentController.deletePaymentMethod(req, res, next))
 
-router.get('/drawers', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getCashDrawers(req, res, next))
-router.get('/drawers/open', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getOpenDrawer(req, res, next))
-router.get('/drawers/:id', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getCashDrawer(req, res, next))
-router.post('/drawers', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.openDrawer(req, res, next))
-router.post('/drawers/:id/close', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.closeDrawer(req, res, next))
-router.get('/drawers/:id/transactions', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getDrawerTransactions(req, res, next))
-router.get('/drawers/:id/summary', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getDrawerSummary(req, res, next))
-router.get('/drawers/:id/cash-summary', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getCashDrawerSummary(req, res, next))
-router.post('/drawers/:id/transactions', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.addTransaction(req, res, next))
+router.get('/drawers', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getCashDrawers(req, res, next))
+router.get('/drawers/open', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getOpenDrawer(req, res, next))
+router.get('/drawers/:id', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getCashDrawer(req, res, next))
+router.post('/drawers', authenticateActive, requirePermission('cash_drawers.write'), (req, res, next) => paymentController.openDrawer(req, res, next))
+router.post('/drawers/:id/close', authenticateActive, requirePermission('cash_drawers.write'), (req, res, next) => paymentController.closeDrawer(req, res, next))
+router.get('/drawers/:id/transactions', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getDrawerTransactions(req, res, next))
+router.get('/drawers/:id/summary', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getDrawerSummary(req, res, next))
+router.get('/drawers/:id/cash-summary', authenticate, requirePermission('cash_drawers.read'), (req, res, next) => paymentController.getCashDrawerSummary(req, res, next))
+router.post('/drawers/:id/transactions', authenticateActive, requirePermission('cash_drawers.write'), (req, res, next) => paymentController.addTransaction(req, res, next))
 
-router.get('/summary', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getPaymentSummary(req, res, next))
-router.get('/history', authenticate, requireRoutePermission(paymentsBasePath), (req, res, next) => paymentController.getDrawerHistory(req, res, next))
+router.get('/summary', authenticate, requirePermission('payments.read'), (req, res, next) => paymentController.getPaymentSummary(req, res, next))
+router.get('/history', authenticate, requirePermission('payments.read'), (req, res, next) => paymentController.getDrawerHistory(req, res, next))
 
-router.post('/adjustments', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.post('/adjustments', authenticateActive, requirePermission('payments.write'), async (req, res, next) => {
   try {
     const { drawer_id, adjustment_type, amount, notes } = req.body
     const isAdmin = req.user?.is_admin == 1
@@ -60,7 +61,7 @@ router.post('/adjustments', authenticate, requireRoutePermission(paymentsBasePat
   }
 })
 
-router.get('/drawers/:id/adjustments', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.get('/drawers/:id/adjustments', authenticate, requirePermission('cash_drawers.read'), async (req, res, next) => {
   try {
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
@@ -83,7 +84,7 @@ router.get('/drawers/:id/adjustments', authenticate, requireRoutePermission(paym
   }
 })
 
-router.get('/my-adjustments', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.get('/my-adjustments', authenticate, requirePermission('payments.read'), async (req, res, next) => {
   try {
     const { status, search, limit = 20, offset = 0, start_date, end_date } = req.query
     const userId = req.userId
@@ -95,7 +96,7 @@ router.get('/my-adjustments', authenticate, requireRoutePermission(paymentsBaseP
   }
 })
 
-router.put('/adjustments/:id/status', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.put('/adjustments/:id/status', authenticateActive, requirePermission('payments.write'), async (req, res, next) => {
   try {
     const { id } = req.params
     const { status } = req.body
@@ -122,7 +123,7 @@ router.put('/adjustments/:id/status', authenticate, requireRoutePermission(payme
   }
 })
 
-router.get('/drawers/:id/close-pdf', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.get('/drawers/:id/close-pdf', authenticate, requirePermission('cash_drawers.read'), async (req, res, next) => {
   try {
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
@@ -149,7 +150,7 @@ router.get('/drawers/:id/close-pdf', authenticate, requireRoutePermission(paymen
   }
 })
 
-router.get('/accounts-receivable', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.get('/accounts-receivable', authenticate, requirePermission('payments.read'), async (req, res, next) => {
   try {
     const { user_id, status, search, limit = 20, offset = 0, start_date, end_date } = req.query
     const isAdmin = req.user?.is_admin == 1
@@ -176,7 +177,7 @@ router.get('/accounts-receivable', authenticate, requireRoutePermission(payments
   }
 })
 
-router.get('/cashiers', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.get('/cashiers', authenticate, requirePermission('payments.read'), async (req, res, next) => {
   try {
     const companyId = req.user?.company_id
     const cashiers = await paymentModel.getCashiers(companyId)
@@ -186,7 +187,7 @@ router.get('/cashiers', authenticate, requireRoutePermission(paymentsBasePath), 
   }
 })
 
-router.post('/accounts-receivable/:id/payment', authenticate, requireRoutePermission(paymentsBasePath), async (req, res, next) => {
+router.post('/accounts-receivable/:id/payment', authenticateActive, requirePermission('payments.write'), async (req, res, next) => {
   try {
     const { id } = req.params
     const { amount } = req.body

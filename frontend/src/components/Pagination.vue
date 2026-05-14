@@ -18,10 +18,22 @@ const props = defineProps({
   label: {
     type: String,
     default: 'registros'
+  },
+  pageSize: {
+    type: Number,
+    default: 20
+  },
+  pageSizeOptions: {
+    type: Array,
+    default: () => [10, 20, 50, 100]
+  },
+  showSizeSelector: {
+    type: Boolean,
+    default: true
   }
 })
 
-const emit = defineEmits(['page-change'])
+const emit = defineEmits(['page-change', 'limit-change'])
 
 const visiblePages = computed(() => {
   const pages = []
@@ -51,8 +63,11 @@ const goToPage = (page) => {
 
 <template>
   <div v-if="totalPages > 0" class="pagination-container bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-    <div class="text-xs md:text-sm order-2 md:order-1">
-      {{ totalRecords }} {{ label }}{{ totalRecords !== 1 ? 's' : '' }} | Página {{ currentPage }} de {{ totalPages }}
+    <div class="flex items-center gap-2 text-xs md:text-sm order-2 md:order-1">
+      <span>{{ totalRecords }} {{ label }}{{ totalRecords !== 1 ? 's' : '' }} | Página {{ currentPage }} de {{ totalPages }}</span>
+      <select v-if="showSizeSelector" :value="pageSize" @change="emit('limit-change', Number($event.target.value))" class="ml-2 px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-700 dark:text-slate-300">
+        <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / pág</option>
+      </select>
     </div>
     
     <div v-if="totalPages > 1" class="flex items-center gap-1 order-1 md:order-2">

@@ -8,7 +8,8 @@ import { PaymentRepository } from '../repository/payment.repository.js'
 import { SequenceRepository } from '../repository/sequence.repository.js'
 import { SalesModel, ReturnsModel } from '../models/sales.model.js'
 import { SalesController, ReturnsController } from '../controllers/sales.controller.js'
-import { authenticate, requireRoutePermission } from '../middleware/auth.middleware.js'
+import { authenticate, authenticateActive } from '../middleware/auth.middleware.js'
+import { requirePermission } from '../middleware/permission.middleware.js'
 import { generateTicketPDF } from '../utils/ticket.utils.js'
 
 const companyRepo = new CompanyRepository(database)
@@ -26,31 +27,29 @@ const salesController = new SalesController(salesModel, returnsModel)
 const returnsController = new ReturnsController(returnsModel)
 
 const router = Router()
-const salesBasePath = '/sales'
+router.get('/daily', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getDailySales(req, res, next))
+router.get('/summary', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getSummary(req, res, next))
+router.get('/top-items', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getTopSellingItems(req, res, next))
+router.get('/suspended', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getSuspended(req, res, next))
 
-router.get('/daily', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getDailySales(req, res, next))
-router.get('/summary', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getSummary(req, res, next))
-router.get('/top-items', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getTopSellingItems(req, res, next))
-router.get('/suspended', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getSuspended(req, res, next))
+router.get('/returns', authenticate, requirePermission('returns.read'), (req, res, next) => returnsController.getAll(req, res, next))
+router.get('/returns/:id', authenticate, requirePermission('returns.read'), (req, res, next) => returnsController.getById(req, res, next))
+router.post('/returns', authenticateActive, requirePermission('returns.write'), (req, res, next) => returnsController.create(req, res, next))
+router.post('/returns/:id/process', authenticateActive, requirePermission('returns.write'), (req, res, next) => returnsController.process(req, res, next))
 
-router.get('/returns', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => returnsController.getAll(req, res, next))
-router.get('/returns/:id', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => returnsController.getById(req, res, next))
-router.post('/returns', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => returnsController.create(req, res, next))
-router.post('/returns/:id/process', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => returnsController.process(req, res, next))
+router.get('/', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getAll(req, res, next))
+router.get('/:id', authenticate, requirePermission('sales.read'), (req, res, next) => salesController.getById(req, res, next))
+router.post('/', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.create(req, res, next))
+router.post('/:id/complete', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.complete(req, res, next))
+router.post('/:id/suspend', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.suspend(req, res, next))
+router.post('/:id/resume', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.resume(req, res, next))
+router.post('/:id/cancel', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.cancel(req, res, next))
+router.post('/:id/payments', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.addPayment(req, res, next))
 
-router.get('/', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getAll(req, res, next))
-router.get('/:id', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.getById(req, res, next))
-router.post('/', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.create(req, res, next))
-router.post('/:id/complete', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.complete(req, res, next))
-router.post('/:id/suspend', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.suspend(req, res, next))
-router.post('/:id/resume', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.resume(req, res, next))
-router.post('/:id/cancel', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.cancel(req, res, next))
-router.post('/:id/payments', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.addPayment(req, res, next))
+router.put('/:id/items/:itemId', authenticateActive, requirePermission('sales.write'), (req, res, next) => salesController.updateItem(req, res, next))
+router.delete('/:id/items/:itemId', authenticateActive, requirePermission('sales.delete'), (req, res, next) => salesController.removeItem(req, res, next))
 
-router.put('/:id/items/:itemId', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.updateItem(req, res, next))
-router.delete('/:id/items/:itemId', authenticate, requireRoutePermission(salesBasePath), (req, res, next) => salesController.removeItem(req, res, next))
-
-router.get('/:id/ticket', authenticate, requireRoutePermission(salesBasePath), async (req, res, next) => {
+router.get('/:id/ticket', authenticate, requirePermission('sales.read'), async (req, res, next) => {
   try {
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1
@@ -75,7 +74,7 @@ router.get('/:id/ticket', authenticate, requireRoutePermission(salesBasePath), a
   }
 })
 
-router.get('/:id/ticket/html', authenticate, requireRoutePermission(salesBasePath), async (req, res, next) => {
+router.get('/:id/ticket/html', authenticate, requirePermission('sales.read'), async (req, res, next) => {
   try {
     const { id } = req.params
     const isAdmin = req.user?.is_admin == 1

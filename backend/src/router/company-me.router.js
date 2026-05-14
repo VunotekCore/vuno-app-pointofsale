@@ -4,7 +4,8 @@ import { CompanyRepository } from '../repository/company.repository.js'
 import { UserRepository } from '../repository/user.repository.js'
 import { CompanyModel } from '../models/company.model.js'
 import { CompanyController } from '../controllers/company.controller.js'
-import { authenticate } from '../middleware/auth.middleware.js'
+import { authenticate, authenticateActive } from '../middleware/auth.middleware.js'
+import { requirePermission } from '../middleware/permission.middleware.js'
 
 const companyRepo = new CompanyRepository(database)
 const userRepo = new UserRepository(database)
@@ -13,9 +14,7 @@ const companyController = new CompanyController(companyModel)
 
 const router = Router()
 
-router.use(authenticate)
-
-router.get('/', async (req, res, next) => {
+router.get('/', authenticate, requirePermission('companies.read'), async (req, res, next) => {
   try {
     const companyId = req.companyId
     if (!companyId) {
@@ -28,7 +27,7 @@ router.get('/', async (req, res, next) => {
   }
 })
 
-router.put('/', async (req, res, next) => {
+router.put('/', authenticateActive, requirePermission('companies.write'), async (req, res, next) => {
   try {
     const companyId = req.companyId
     if (!companyId) {
@@ -41,7 +40,7 @@ router.put('/', async (req, res, next) => {
   }
 })
 
-router.post('/logo', async (req, res, next) => {
+router.post('/logo', authenticateActive, requirePermission('companies.write'), async (req, res, next) => {
   try {
     const companyId = req.companyId
     if (!companyId) {

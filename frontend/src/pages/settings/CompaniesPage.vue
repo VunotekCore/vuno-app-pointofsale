@@ -6,7 +6,8 @@ import { useAuthStore } from '../../stores/auth.store.js'
 import { platformService } from '../../services/platform.service.js'
 import { usePhoneFormatter } from '../../utils/phone.utils.js'
 import ImageUpload from '../../components/ImageUpload.vue'
-import { Building2, Plus, Edit2, Trash2, Users, MapPin, ShoppingCart, Search, Star, Loader2, User, Mail, Lock, Eye, EyeOff, Shield, Phone, FileText, KeyRound } from 'lucide-vue-next'
+import PermissionList from '../../views/permissions/PermissionList.vue'
+import { Building2, Plus, Edit2, Trash2, Users, MapPin, ShoppingCart, Search, Star, Loader2, User, Mail, Lock, Eye, EyeOff, Shield, Phone, FileText, KeyRound, Database } from 'lucide-vue-next'
 
 const router = useRouter()
 const notification = useNotificationStore()
@@ -25,6 +26,7 @@ const showPassword = ref(false)
 const showPasswordFields = ref(false)
 const companyAdmin = ref(null)
 const enteringCompany = ref(null)
+const showPermisosModal = ref(false)
 const defaultLogo = 'https://ik.imagekit.io/vijys5g3r/logos/logovuno_sMoyvkfEfv.webp?updatedAt=1774315093026'
 
 const form = ref({
@@ -328,13 +330,22 @@ function handlePhoneBlur(event) {
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Empresas Vuno-Point of Sale</h1>
         <p class="text-sm text-slate-500 mt-1">Gestionar empresas de la plataforma</p>
       </div>
-      <button
-        @click="openCreateModal"
-        class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
-      >
-        <Plus class="w-4 h-4" />
-        Nueva Empresa
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          @click="showPermisosModal = true"
+          class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+        >
+          <Database class="w-4 h-4" />
+          Mostrar Permisos del Sistema
+        </button>
+        <button
+          @click="openCreateModal"
+          class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+        >
+          <Plus class="w-4 h-4" />
+          Nueva Empresa
+        </button>
+      </div>
     </div>
 
     <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-6">
@@ -452,6 +463,28 @@ function handlePhoneBlur(event) {
         </div>
       </div>
     </div>
+
+    <!-- Permisos del Sistema Modal -->
+    <Teleport to="body">
+      <div v-if="showPermisosModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" @click="showPermisosModal = false"></div>
+        <div class="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+              <Database class="w-6 h-6 text-brand-500" />
+              <div>
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">Permisos del Sistema</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Gestionar permisos de tablas y vistas del sistema</p>
+              </div>
+            </div>
+            <button @click="showPermisosModal = false" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <PermissionList />
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Create/Edit Modal -->
     <Teleport to="body">

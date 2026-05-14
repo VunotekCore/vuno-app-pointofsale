@@ -2,6 +2,24 @@ import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router
 import { useAuthStore } from '../stores/auth.store.js'
 import { usePlatformAuthStore } from '../stores/platform-auth.store.js'
 
+let permissionsReady = false
+export const setPermissionsReady = () => { permissionsReady = true }
+
+const waitForPermissions = () => {
+  return new Promise((resolve) => {
+    if (permissionsReady) return resolve(true)
+    let attempts = 0
+    const maxAttempts = 100
+    const interval = setInterval(() => {
+      attempts++
+      if (permissionsReady || attempts >= maxAttempts) {
+        clearInterval(interval)
+        resolve(permissionsReady)
+      }
+    }, 50)
+  })
+}
+
 const routes = [
   {
     path: '/login',
@@ -13,6 +31,12 @@ const routes = [
     path: '/platform/login',
     name: 'PlatformLogin',
     component: () => import('../pages/PlatformLoginPage.vue'),
+    meta: { public: true }
+  },
+  {
+    path: '/forbidden',
+    name: 'Forbidden',
+    component: () => import('../pages/ForbiddenPage.vue'),
     meta: { public: true }
   },
   {
@@ -29,151 +53,151 @@ const routes = [
         path: '',
         name: 'Dashboard',
         component: () => import('../pages/DashboardPage.vue'),
-        meta: { permission: 'menu.dashboard' }
+        meta: { permission: 'view.dashboard' }
       },
       {
         path: 'dashboard/admin',
         name: 'AdminDashboard',
         component: () => import('../pages/dashboard/AdminDashboardPage.vue'),
-        meta: { permission: 'menu.dashboard', roles: ['admin'] }
+        meta: { permission: 'view.dashboard', roles: ['admin'] }
       },
       {
         path: 'dashboard/manager',
         name: 'ManagerDashboard',
         component: () => import('../pages/dashboard/ManagerDashboardPage.vue'),
-        meta: { permission: 'menu.dashboard', roles: ['manager', 'admin'] }
+        meta: { permission: 'view.dashboard', roles: ['manager', 'admin'] }
       },
       {
         path: 'dashboard/cashier',
         name: 'CashierDashboard',
         component: () => import('../pages/dashboard/CashierDashboardPage.vue'),
-        meta: { permission: 'menu.dashboard', roles: ['cashier', 'manager', 'admin'] }
+        meta: { permission: 'view.dashboard', roles: ['cashier', 'manager', 'admin'] }
       },
       {
         path: 'usuarios',
         name: 'Usuarios',
         component: () => import('../pages/settings/UsersPage.vue'),
-        meta: { permission: 'menu.users' }
+        meta: { permission: 'view.usuarios' }
       },
       {
         path: 'empresa',
         name: 'Empresa',
         component: () => import('../pages/settings/CompanyPage.vue'),
-        meta: { permission: 'menu.company' }
+        meta: { permission: 'view.empresa' }
       },
       {
         path: 'moneda',
         name: 'Moneda',
         component: () => import('../pages/settings/CurrencyPage.vue'),
-        meta: { permission: 'menu.currency' }
+        meta: { permission: 'view.moneda' }
       },
       {
         path: 'roles',
         name: 'Roles',
         component: () => import('../pages/settings/RolesPage.vue'),
-        meta: { permission: 'menu.roles' }
+        meta: { permission: 'view.roles' }
       },
       {
         path: 'permisos',
         name: 'Permisos',
-        component: () => import('../pages/settings/PermissionsPage.vue'),
-        meta: { permission: 'menu.permissions' }
+        component: () => import('../views/permissions/PermissionsView.vue'),
+        meta: { permission: 'view.permisos' }
       },
       {
         path: 'turnos',
         name: 'Turnos',
         component: () => import('../pages/settings/ShiftsPage.vue'),
-        meta: { permission: 'menu.shifts' }
+        meta: { permission: 'view.turnos' }
       },
       {
         path: 'ubicaciones',
         name: 'Ubicaciones',
         component: () => import('../pages/inventory/LocationsPage.vue'),
-        meta: { permission: 'menu.locations' }
+        meta: { permission: 'view.ubicaciones' }
       },
       {
         path: 'categorias',
         name: 'Categorías',
         component: () => import('../pages/inventory/CategoriesPage.vue'),
-        meta: { permission: 'menu.categories' }
+        meta: { permission: 'view.categorias' }
       },
       {
         path: 'productos',
         name: 'Productos',
         component: () => import('../pages/inventory/ItemsPage.vue'),
-        meta: { permission: 'menu.products' }
+        meta: { permission: 'view.productos' }
       },
       {
         path: 'stock',
         name: 'Stock',
         component: () => import('../pages/inventory/StockPage.vue'),
-        meta: { permission: 'menu.stock' }
+        meta: { permission: 'view.stock' }
       },
       {
         path: 'proveedores',
         name: 'Proveedores',
         component: () => import('../pages/purchases/SuppliersPage.vue'),
-        meta: { permission: 'menu.suppliers' }
+        meta: { permission: 'view.proveedores' }
       },
       {
         path: 'ordenes-compra',
         name: 'Órdenes de Compra',
         component: () => import('../pages/purchases/PurchaseOrdersPage.vue'),
-        meta: { permission: 'menu.purchase_orders' }
+        meta: { permission: 'view.ordenes_compra' }
       },
       {
         path: 'recepciones',
         name: 'Recepciones',
         component: () => import('../pages/purchases/ReceivingsPage.vue'),
-        meta: { permission: 'menu.receivings' }
+        meta: { permission: 'view.recepciones' }
       },
       {
         path: 'transferencias',
         name: 'Transferencias',
         component: () => import('../pages/inventory/TransfersPage.vue'),
-        meta: { permission: 'menu.transfers' }
+        meta: { permission: 'view.transferencias' }
       },
       {
         path: 'pos',
         name: 'Punto de Venta',
         component: () => import('../pages/sales/PosPage.vue'),
-        meta: { permission: 'menu.pos' }
+        meta: { permission: 'view.pos' }
       },
       {
         path: 'caja',
         name: 'Caja',
         component: () => import('../pages/cashier/CashDrawerPage.vue'),
-        meta: { permission: 'menu.cash_drawer' }
+        meta: { permission: 'view.caja' }
       },
       {
         path: 'cierres',
         name: 'Cierres',
         component: () => import('../pages/cashier/DrawerClosuresPage.vue'),
-        meta: { permission: 'menu.drawer_closures' }
+        meta: { permission: 'view.cierres' }
       },
       {
         path: 'ajustes',
         name: 'Ajustes',
         component: () => import('../pages/cashier/DrawerAdjustmentsPage.vue'),
-        meta: { permission: 'menu.adjustments' }
+        meta: { permission: 'view.ajustes' }
       },
       {
         path: 'cuentas-cobrar',
         name: 'Cuentas por Cobrar',
         component: () => import('../pages/cashier/AccountsReceivablePage.vue'),
-        meta: { permission: 'menu.accounts_receivable' }
+        meta: { permission: 'view.cuentas_cobrar' }
       },
       {
         path: 'ventas',
         name: 'Ventas',
         component: () => import('../pages/sales/SalesPage.vue'),
-        meta: { permission: 'menu.sales' }
+        meta: { permission: 'view.ventas' }
       },
       {
         path: 'reportes',
         name: 'Reportes',
         component: () => import('../pages/reports/ReportsPage.vue'),
-        meta: { permission: 'menu.reports' }
+        meta: { permission: 'view.reportes' }
       },
       {
         path: 'devoluciones',
@@ -239,8 +263,9 @@ router.beforeEach(async (to, from, next) => {
     return next('/login')
   }
 
-  const isAdmin = authStore.user?.is_admin == 1 || authStore.user?.role_name?.toLowerCase() === 'admin'
-  if (isAdmin) {
+  await waitForPermissions()
+
+  if (authStore.user?.is_admin == 1) {
     return next()
   }
 
@@ -249,12 +274,12 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.roles.some(r => userRole.includes(r.toLowerCase()))) {
       return next()
     }
-    return next('/')
+    return next('/forbidden')
   }
 
   if (to.path !== '/' && to.meta.permission) {
     if (!authStore.hasPermission(to.meta.permission)) {
-      return next('/')
+      return next('/forbidden')
     }
   }
 

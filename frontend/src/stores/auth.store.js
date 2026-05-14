@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api.service.js'
+import { usePermissionStore } from './permission.store.js'
+import { setPermissionsReady } from '../router/index.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(null)
@@ -15,8 +17,12 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperAdmin = computed(() => user.value?.is_super_admin_impersonating === true)
 
   const hasPermission = (permissionCode) => {
-    if (user.value?.is_admin === true || user.value?.role_name?.toLowerCase() === 'admin') {
+    if (user.value?.is_admin === true) {
       return true
+    }
+    const ps = usePermissionStore()
+    if (ps.effectivePermissionCodes.length > 0) {
+      return ps.hasPermission(permissionCode)
     }
     if (!permissions.value.length) {
       return false
@@ -45,7 +51,28 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('token', token.value)
     localStorage.setItem('user', JSON.stringify(user.value))
     localStorage.setItem('permissions', JSON.stringify(permissions.value))
+
+    await initAuth()
+
     return response.data
+  }
+
+  async function initAuth() {
+    if (token.value) {
+      try {
+        const permissionStore = usePermissionStore()
+        await permissionStore.fetchAllPermissions()
+        if (user.value?.id) {
+          await permissionStore.fetchEffectivePermissions(user.value.id)
+        }
+        if (typeof window !== 'undefined') {
+          window.__permissionStore = permissionStore
+          setPermissionsReady()
+        }
+      } catch (error) {
+        console.error('[Auth] initAuth failed:', error)
+      }
+    }
   }
 
   function clearAllAuthData() {
@@ -73,7 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user
     permissions.value = data.permissions || []
     isSuperAdminImpersonating.value = data.user?.is_super_admin_impersonating || false
-    
+
     localStorage.setItem('token', token.value)
     localStorage.setItem('user', JSON.stringify(user.value))
     localStorage.setItem('permissions', JSON.stringify(permissions.value))
@@ -87,7 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     const storedToken = localStorage.getItem('token')
     const storedUser = localStorage.getItem('user')
     const storedPermissions = localStorage.getItem('permissions')
-    
+
     if (storedToken) {
       token.value = storedToken
     }
@@ -104,6 +131,12 @@ export const useAuthStore = defineStore('auth', () => {
       } catch (e) {
         permissions.value = []
       }
+    }
+
+    if (token.value && typeof window !== 'undefined') {
+      const permissionStore = usePermissionStore()
+      window.__permissionStore = permissionStore
+      initAuth()
     }
   }
 
@@ -125,6 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearImpersonating,
     clearAllAuthData,
     clearState,
-    initialize
+    initialize,
+    initAuth
   }
 })

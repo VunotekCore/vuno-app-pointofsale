@@ -51,17 +51,11 @@ export class AuthModel {
     const roleId = bufferToUuid(user.role_id)
     const companyId = bufferToUuid(user.company_id)
 
-    // Fetch company data for ImageKit config
     const company = await this.companyRepo.findById(companyId)
 
     if (!company || !company.is_active) {
       throw new UnauthorizedError('Empresa desactivada. Contacte al administrador.')
     }
-
-    const imagekitConfig = company ? {
-      imagekit_private_key: company.imagekit_private_key || null,
-      imagekit_url_endpoint: company.imagekit_url_endpoint || null
-    } : { imagekit_private_key: null, imagekit_url_endpoint: null }
 
     const token = generateToken({
       user_id: userId,
@@ -70,22 +64,21 @@ export class AuthModel {
       role_id: roleId,
       role_name: role ? role.name : null,
       company_id: companyId,
-      ...imagekitConfig
+      is_admin: role ? role.is_admin === 1 : false
     })
 
     const { password_hash: _, ...userWithoutPassword } = user
 
     return {
       token,
-      user: { 
-        ...userWithoutPassword, 
+      user: {
+        ...userWithoutPassword,
         id: userId,
         role_id: roleId,
         company_id: companyId,
         role_name: role ? role.name : null,
         is_admin: role ? role.is_admin === 1 : false
-      },
-      permissions
+      }
     }
   }
 

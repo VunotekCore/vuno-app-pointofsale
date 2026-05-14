@@ -1,5 +1,6 @@
 import { Router } from 'express'
-import { authenticate } from '../middleware/auth.middleware.js'
+import { authenticate, authenticateActive } from '../middleware/auth.middleware.js'
+import { requirePermission } from '../middleware/permission.middleware.js'
 import { SyncController } from '../controllers/sync.controller.js'
 import { SyncModel } from '../models/sync.model.js'
 import { SyncRepository } from '../repository/sync.repository.js'
@@ -22,19 +23,19 @@ const salesModel = new SalesModel(salesRepo, inventoryRepo, itemsRepo, paymentRe
 const syncModel = new SyncModel(syncRepo, salesModel)
 const syncController = new SyncController(syncModel)
 
-router.post('/sales', authenticate, (req, res, next) => 
+router.post('/sales', authenticateActive, requirePermission('sync.write'), (req, res, next) => 
   syncController.syncSales(req, res, next)
 )
 
-router.get('/history', authenticate, (req, res, next) => 
+router.get('/history', authenticate, requirePermission('sync.read'), (req, res, next) => 
   syncController.getHistory(req, res, next)
 )
 
-router.get('/history/:sync_log_id', authenticate, (req, res, next) => 
+router.get('/history/:sync_log_id', authenticate, requirePermission('sync.read'), (req, res, next) => 
   syncController.getDetails(req, res, next)
 )
 
-router.put('/conflicts/:conflict_id/resolve', authenticate, (req, res, next) => 
+router.put('/conflicts/:conflict_id/resolve', authenticateActive, requirePermission('sync.write'), (req, res, next) => 
   syncController.resolveConflict(req, res, next)
 )
 
