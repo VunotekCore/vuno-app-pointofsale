@@ -3,9 +3,13 @@ import { Server } from 'socket.io'
 let io = null
 
 export function initSocketServer (server) {
+  const CORS_ORIGINS = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : ['http://localhost:5174', 'http://localhost:5173', 'http://localhost:4173']
+
   io = new Server(server, {
     cors: {
-      origin: '*',
+      origin: CORS_ORIGINS,
       methods: ['GET', 'POST']
     }
   })

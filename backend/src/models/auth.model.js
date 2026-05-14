@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { generateToken } from '../utils/jwt.utils.js'
+import { generateToken, verifyToken } from '../utils/jwt.utils.js'
 import { NotFoundError } from '../errors/NotFoundError.js'
 import { BadRequestError } from '../errors/BadRequestError.js'
 import { UnauthorizedError } from '../errors/UnauthorizedError.js'
@@ -90,13 +90,15 @@ export class AuthModel {
     const user = await this.authRepo.findUserByEmail(email)
 
     if (!user) {
-      throw new NotFoundError('Usuario no encontrado')
+      return { message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña' }
     }
 
     const userId = bufferToUuid(user.id)
     const resetToken = generateToken({ user_id: userId, type: 'password_reset' }, 3600)
 
-    return { resetToken }
+    console.log(`[Password Reset] Token for ${email}: ${resetToken}`)
+
+    return { message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña' }
   }
 
   async passwordReset ({ token, newPassword }) {
@@ -104,12 +106,8 @@ export class AuthModel {
       throw new BadRequestError('Token y nueva contraseña requeridos')
     }
 
-    const jwt = await import('jsonwebtoken')
-    let decoded
-
-    try {
-      decoded = jwt.default.verify(token, process.env.JWT_SECRET)
-    } catch (e) {
+    const decoded = verifyToken(token)
+    if (!decoded) {
       throw new UnauthorizedError('Token inválido o expirado')
     }
 

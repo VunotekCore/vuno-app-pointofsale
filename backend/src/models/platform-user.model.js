@@ -4,7 +4,6 @@ import { UserRepository } from '../repository/user.repository.js'
 import { RolesRepository } from '../repository/roles.repository.js'
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../errors/index.js'
 import { generateToken } from '../utils/jwt.utils.js'
-import jwt from 'jsonwebtoken'
 
 function bufferToUuid (buffer) {
   if (!buffer) return null
@@ -56,16 +55,12 @@ export class PlatformUserModel {
       throw new UnauthorizedError('Credenciales inválidas')
     }
 
-    const token = jwt.sign(
-      {
-        id: platformUser.id,
-        email: platformUser.email,
-        type: 'platform',
-        is_super_admin: platformUser.is_super_admin
-      },
-      process.env.JWT_SECRET || 'VunoTek',
-      { expiresIn: '24h' }
-    )
+    const token = generateToken({
+      id: platformUser.id,
+      email: platformUser.email,
+      type: 'platform',
+      is_super_admin: platformUser.is_super_admin
+    }, 86400)
 
     return {
       token,
@@ -167,11 +162,6 @@ export class PlatformUserModel {
     const roleId = bufferToUuid(fullUser.role_id)
     const companyIdFormatted = bufferToUuid(company.id)
 
-    const imagekitConfig = {
-      imagekit_private_key: company.imagekit_private_key || null,
-      imagekit_url_endpoint: company.imagekit_url_endpoint || null
-    }
-
     const token = generateToken({
       user_id: userId,
       username: fullUser.username,
@@ -180,8 +170,7 @@ export class PlatformUserModel {
       role_name: role ? role.name : null,
       company_id: companyIdFormatted,
       is_admin: role ? role.is_admin === 1 : false,
-      is_super_admin_impersonating: true,
-      ...imagekitConfig
+      is_super_admin_impersonating: true
     })
 
     return {

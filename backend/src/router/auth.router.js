@@ -17,5 +17,7 @@ const authController = new AuthController(authModel)
 const router = Router()
 
 router.post('/', (req, res, next) => authController.login(req, res, next))
+router.post('/request', (req, res, next) => authController.passwordRequest(req, res, next))
+router.post('/reset', (req, res, next) => authController.passwordReset(req, res, next))
 
 export default router

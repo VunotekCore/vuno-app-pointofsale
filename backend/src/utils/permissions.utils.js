@@ -7,15 +7,9 @@ class PermissionsService {
   }
 
   async loadPermissions () {
-    try {
-      const rows = await permissionsModel.getAll()
-      this.permissions = new Set(rows.map((r) => r.code))
-      this.isLoaded = true
-    } catch (error) {
-      console.error(`[Permissions] Error: ${error.message}`)
-      this.permissions = new Set()
-      this.isLoaded = false
-    }
+    const rows = await permissionsModel.getAll()
+    this.permissions = new Set(rows.map((r) => r.code))
+    this.isLoaded = true
   }
 
   hasPermission (code) {

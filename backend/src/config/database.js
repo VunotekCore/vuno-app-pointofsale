@@ -27,7 +27,8 @@ export class Database {
 
     const sslOptions = isProduction
       ? {
-          rejectUnauthorized: false
+          rejectUnauthorized: true,
+          ca: process.env.MYSQL_CA_CERT
         }
       : undefined
 

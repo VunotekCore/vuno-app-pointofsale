@@ -14,9 +14,9 @@ const router = Router()
 router.use(platformAuth)
 
 router.get('/', superAdminOnly, (req, res, next) => platformUserController.getAll(req, res, next))
-router.get('/:id', (req, res, next) => platformUserController.getProfile(req, res, next))
+router.get('/:id', superAdminOnly, (req, res, next) => platformUserController.getProfile(req, res, next))
 router.put('/:id', superAdminOnly, (req, res, next) => platformUserController.update(req, res, next))
 router.delete('/:id', superAdminOnly, (req, res, next) => platformUserController.delete(req, res, next))
-router.post('/:id/change-password', (req, res, next) => platformUserController.changePassword(req, res, next))
+router.post('/:id/change-password', superAdminOnly, (req, res, next) => platformUserController.changePassword(req, res, next))
 
 export default router

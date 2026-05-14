@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'
+import { verifyToken } from '../utils/jwt.utils.js'
 import { Database } from '../config/database.js'
 import { UnauthorizedError } from '../errors/index.js'
 
@@ -12,10 +12,8 @@ export const platformAuth = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1]
 
-    let decoded
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'VunoTek')
-    } catch (err) {
+    const decoded = verifyToken(token)
+    if (!decoded) {
       throw new UnauthorizedError('Token inválido o expirado')
     }
 

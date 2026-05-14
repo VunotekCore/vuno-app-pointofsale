@@ -48,9 +48,9 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = response.data.data.token
     user.value = response.data.data.user
     permissions.value = response.data.data.permissions || []
-    localStorage.setItem('token', token.value)
-    localStorage.setItem('user', JSON.stringify(user.value))
-    localStorage.setItem('permissions', JSON.stringify(permissions.value))
+    sessionStorage.setItem('token', token.value)
+    sessionStorage.setItem('user', JSON.stringify(user.value))
+    sessionStorage.setItem('permissions', JSON.stringify(permissions.value))
 
     await initAuth()
 
@@ -76,11 +76,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function clearAllAuthData() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('permissions')
-    localStorage.removeItem('selected_company_id')
-    localStorage.removeItem('company_data')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('user')
+    sessionStorage.removeItem('permissions')
+    sessionStorage.removeItem('selected_company_id')
+    sessionStorage.removeItem('company_data')
   }
 
   function clearState() {
@@ -101,9 +101,9 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = data.permissions || []
     isSuperAdminImpersonating.value = data.user?.is_super_admin_impersonating || false
 
-    localStorage.setItem('token', token.value)
-    localStorage.setItem('user', JSON.stringify(user.value))
-    localStorage.setItem('permissions', JSON.stringify(permissions.value))
+    sessionStorage.setItem('token', token.value)
+    sessionStorage.setItem('user', JSON.stringify(user.value))
+    sessionStorage.setItem('permissions', JSON.stringify(permissions.value))
   }
 
   function clearImpersonating() {
@@ -111,9 +111,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function initialize() {
-    const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
-    const storedPermissions = localStorage.getItem('permissions')
+    const storedToken = sessionStorage.getItem('token')
+    const storedUser = sessionStorage.getItem('user')
+    const storedPermissions = sessionStorage.getItem('permissions')
 
     if (storedToken) {
       token.value = storedToken

@@ -17,7 +17,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -33,9 +33,9 @@ api.interceptors.response.use(
     const isLoginPage = window.location.pathname.includes('/login') || window.location.hash.includes('/login');
     
     if (error.response?.status === 401 && !isLoginPage) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('permissions')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
+      sessionStorage.removeItem('permissions')
       
       // Si estamos en Electron (hash router), no podemos hacer un redirect fuerte a '/login'
       const isElectron = typeof window !== 'undefined' && !!window.electronAPI;

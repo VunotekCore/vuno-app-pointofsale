@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { platformService } from '../services/platform.service.js'
 
 export const useTenantStore = defineStore('tenant', () => {
-  const selectedCompanyId = ref(localStorage.getItem('selected_company_id') || null)
+  const selectedCompanyId = ref(sessionStorage.getItem('selected_company_id') || null)
   const companies = ref([])
   const loading = ref(false)
 
@@ -36,12 +36,12 @@ export const useTenantStore = defineStore('tenant', () => {
 
   function selectCompany(companyId) {
     selectedCompanyId.value = companyId
-    localStorage.setItem('selected_company_id', companyId)
+    sessionStorage.setItem('selected_company_id', companyId)
   }
 
   function clearSelection() {
     selectedCompanyId.value = null
-    localStorage.removeItem('selected_company_id')
+    sessionStorage.removeItem('selected_company_id')
   }
 
   function getCompanyById(id) {

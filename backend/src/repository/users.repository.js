@@ -3,6 +3,8 @@ import { BadRequestError } from '../errors/BadRequestError.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
+const ALLOWED_FILTER_COLUMNS = ['is_active', 'is_delete', 'role_id', 'username', 'email', 'created_at', 'updated_at']
+
 export class UsersRepository {
   constructor (db) {
     this.db = db
@@ -45,6 +47,7 @@ export class UsersRepository {
 
     for (const [key, value] of Object.entries(filters)) {
       if (key === 'company_id' || key === 'limit' || key === 'offset' || key === 'search') continue
+      if (!ALLOWED_FILTER_COLUMNS.includes(key)) continue
       if (value && value.includes('%')) {
         conditions.push(`u.${key} LIKE ?`)
         params.push(value)
@@ -79,7 +82,8 @@ export class UsersRepository {
 
   async getById (id) {
     const rows = await this.db.query(
-      'SELECT BIN_TO_UUID(id) as id, username, email, avatar, BIN_TO_UUID(role_id) as role_id, is_active, is_delete, created_at, updated_at FROM `users` WHERE id = UUID_TO_BIN(\'' + id + '\') AND (is_delete = 0 OR is_delete IS NULL)'
+      'SELECT BIN_TO_UUID(id) as id, username, email, avatar, BIN_TO_UUID(role_id) as role_id, is_active, is_delete, created_at, updated_at FROM `users` WHERE id = UUID_TO_BIN(?) AND (is_delete = 0 OR is_delete IS NULL)',
+      [id]
     )
     if (!rows || rows.length === 0) {
       throw new NotFoundError('Usuario no encontrado')

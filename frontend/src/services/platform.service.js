@@ -13,7 +13,7 @@ const platformApi = axios.create({
 
 platformApi.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('platform_token')
+    const token = sessionStorage.getItem('platform_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -25,8 +25,8 @@ platformApi.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('platform_token')
-      localStorage.removeItem('platform_user')
+      sessionStorage.removeItem('platform_token')
+      sessionStorage.removeItem('platform_user')
       
       const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
       if (isElectron) {

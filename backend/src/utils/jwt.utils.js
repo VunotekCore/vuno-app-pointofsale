@@ -1,19 +1,21 @@
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'vunotek'
+function getSecret () {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required')
+  }
+  return secret
+}
 
-export const generateToken = (payload, expirationSeconds = 3600000) => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: expirationSeconds })
+export const generateToken = (payload, expirationSeconds = 3600) => {
+  return jwt.sign(payload, getSecret(), { expiresIn: expirationSeconds })
 }
 
 export const verifyToken = (token) => {
   try {
-    return jwt.verify(token, JWT_SECRET)
+    return jwt.verify(token, getSecret())
   } catch (error) {
     return null
   }
-}
-
-export const decodeToken = (token) => {
-  return jwt.decode(token)
 }

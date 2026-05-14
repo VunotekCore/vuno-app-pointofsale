@@ -463,7 +463,7 @@ function exportData(format) {
   }
 
 
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
 
   const API_URL = import.meta.env.VITE_APP_URL
   const API_PORT = import.meta.env.VITE_APP_PORT
