@@ -69,6 +69,10 @@ onMounted(() => {
   loadCompanies()
 })
 
+function openPermissionsModal() {
+  showPermisosModal.value = true
+}
+
 async function loadCompanies() {
   loading.value = true
   try {
