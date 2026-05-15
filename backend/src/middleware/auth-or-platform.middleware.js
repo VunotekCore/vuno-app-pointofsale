@@ -72,7 +72,6 @@ export const authenticateOrPlatform = async (req, res, next) => {
 
     next()
   } catch (error) {
-    console.error('Auth middleware error:', error)
     return res.status(500).json({ success: false, message: 'Error en autenticación' })
   }
 }
@@ -121,7 +120,6 @@ export const authenticateActiveOrPlatform = async (req, res, next) => {
 
     next()
   } catch (error) {
-    console.error('Auth middleware error:', error)
     return res.status(500).json({ success: false, message: 'Error en autenticación' })
   }
 }
